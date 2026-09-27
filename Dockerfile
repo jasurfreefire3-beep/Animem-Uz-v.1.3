@@ -25,10 +25,10 @@ USER 1000
 
 # Set environment
 ENV NODE_ENV=production
-ENV PORT=7860
+ENV PORT=3000
 
-# Expose server port (Hugging Face Spaces default is 7860)
-EXPOSE 7860
+# Expose server ports (Northflank uses 3000, Hugging Face uses 7860)
+EXPOSE 3000 7860
 
 # Start compiled production server (serves dist/ and API endpoints)
 CMD ["node", "dist/server.cjs"]

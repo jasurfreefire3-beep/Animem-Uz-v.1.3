@@ -9498,6 +9498,21 @@ async function start() {
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  // Dual-port listening: ensures container handles traffic from both Northflank (port 3000) and Hugging Face (port 7860)
+  const secondaryPort = PORT === 3000 ? 7860 : 3000;
+  try {
+    const secondaryServer = http.createServer(app);
+    io.attach(secondaryServer);
+    secondaryServer.listen(secondaryPort, "0.0.0.0", () => {
+      console.log(`Dual-port secondary listener active on http://0.0.0.0:${secondaryPort}`);
+    });
+    secondaryServer.on("error", (err: any) => {
+      console.log(`Secondary port ${secondaryPort} not active:`, err.message);
+    });
+  } catch (e) {
+    // Optional secondary listener
+  }
 }
 
 start();
