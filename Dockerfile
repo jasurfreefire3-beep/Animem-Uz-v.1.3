@@ -9,11 +9,14 @@ RUN apk add --no-cache ffmpeg
 # Copy package descriptors
 COPY package*.json ./
 
-# Install dependencies
+# Install all dependencies
 RUN npm install
 
 # Copy application source code
 COPY . .
+
+# Build both frontend (Vite -> dist/) and backend (esbuild -> dist/server.cjs)
+RUN npm run build
 
 # Set environment
 ENV NODE_ENV=production
@@ -22,5 +25,5 @@ ENV PORT=3000
 # Expose server port
 EXPOSE 3000
 
-# Start Express / Socket.io server
-CMD ["npx", "tsx", "server.ts"]
+# Start compiled production server (serves dist/ and API endpoints)
+CMD ["node", "dist/server.cjs"]
