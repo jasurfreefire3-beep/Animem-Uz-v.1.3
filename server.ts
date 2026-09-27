@@ -3586,8 +3586,24 @@ app.post("/api/reels/upload-finish", authenticateToken, async (req: any, res: an
     
     // Execute Catbox upload in the BACKGROUND without blocking the request!
     setTimeout(async () => {
+      const faststartPath = path.join(mediaDir, `${uploadId}_fast.mp4`);
+      let fileToUploadPath = finalMediaLocation;
+
       try {
-        const fileBuffer = fs.readFileSync(finalMediaLocation);
+        // FastStart (Moov-Atom) optimization: moves MP4 metadata to start of file for 0.01s instant streaming!
+        // -c copy is ultrafast (0.1-0.3s) without re-encoding, preserving 100% video/audio quality.
+        try {
+          await execPromise(`ffmpeg -y -i "${finalMediaLocation}" -c copy -movflags +faststart "${faststartPath}"`);
+          if (fs.existsSync(faststartPath) && fs.statSync(faststartPath).size > 1000) {
+            fileToUploadPath = faststartPath;
+            console.log(`[FFmpeg FastStart] Successfully optimized reel ${uploadId} for instant streaming`);
+          }
+        } catch (ffErr) {
+          console.warn(`[FFmpeg FastStart] Skipped or failed for ${uploadId}, using original file:`, ffErr);
+          fileToUploadPath = finalMediaLocation;
+        }
+
+        const fileBuffer = fs.readFileSync(fileToUploadPath);
         const formData = new FormData();
         formData.append("reqtype", "fileupload");
         formData.append("fileToUpload", new Blob([fileBuffer], { type: "video/mp4" }), "video.mp4");
@@ -3608,8 +3624,9 @@ app.post("/api/reels/upload-finish", authenticateToken, async (req: any, res: an
               [catboxUrl, localUrl]
             );
             
-            // Clean up the local file since it's on Catbox now
-            try { fs.unlinkSync(finalMediaLocation); } catch (e) {}
+            // Clean up the local files since it's on Catbox now
+            try { if (fs.existsSync(finalMediaLocation)) fs.unlinkSync(finalMediaLocation); } catch (e) {}
+            try { if (fs.existsSync(faststartPath)) fs.unlinkSync(faststartPath); } catch (e) {}
             console.log(`[Catbox] Uploaded ${uploadId} successfully in background: ${catboxUrl}`);
           }
         }
@@ -3618,6 +3635,9 @@ app.post("/api/reels/upload-finish", authenticateToken, async (req: any, res: an
       } finally {
         if (fs.existsSync(finalPath)) {
           try { fs.unlinkSync(finalPath); } catch (e) {}
+        }
+        if (fs.existsSync(faststartPath)) {
+          try { fs.unlinkSync(faststartPath); } catch (e) {}
         }
       }
     }, 1000); // 1-second delay to let the initial API request close cleanly

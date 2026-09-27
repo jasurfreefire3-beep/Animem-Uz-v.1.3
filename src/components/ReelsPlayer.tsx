@@ -143,7 +143,7 @@ export default function ReelsPlayer({
       } else {
         // Direct MP4 / Catbox stream / local blob
         video.src = url;
-        video.preload = isActive ? 'auto' : 'metadata';
+        video.preload = (isActive || shouldPreload) ? 'auto' : 'metadata';
         
         const handleLoadedData = () => {
           setIsReady(true);
@@ -177,14 +177,30 @@ export default function ReelsPlayer({
     };
   }, [url, shouldPreload, isActive, safePlay]);
 
+  // Dynamically update preload and buffer when entering/leaving active or preload range
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !hasInitializedSrcRef.current) return;
+
+    const targetPreload = (isActive || shouldPreload) ? 'auto' : 'metadata';
+    if (video.preload !== targetPreload) {
+      video.preload = targetPreload;
+      if (targetPreload === 'auto' && video.readyState < 2) {
+        video.load();
+      }
+    }
+  }, [isActive, shouldPreload]);
+
   // Handle active slide transitions (INSTANT play/pause)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     if (isActive) {
-      // If already has buffer, play immediately
+      // If already has buffer, play immediately with NO loading spinner
       if (video.readyState >= 2) {
+        setIsReady(true);
+        setIsLoading(false);
         safePlay();
       } else {
         setIsLoading(true);
@@ -287,6 +303,7 @@ export default function ReelsPlayer({
         }}
         onCanPlay={() => {
           setIsReady(true);
+          setIsLoading(false);
           if (isActive && !isPlaying) {
             safePlay();
           }
