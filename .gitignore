@@ -12,3 +12,4 @@ __pycache__/
 public/animebot/kawaii.db
 .env*
 !.env.example
+!.env.production

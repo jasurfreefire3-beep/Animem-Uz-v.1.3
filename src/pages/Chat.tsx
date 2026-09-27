@@ -237,7 +237,8 @@ export default function Chat() {
     fetchInitialMessages();
 
     // Connect to the socket server
-    const socket = io(import.meta.env.VITE_API_BASE_URL || window.location.origin);
+    const socketUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : window.location.origin);
+    const socket = io(socketUrl);
     socketRef.current = socket;
 
     socket.on('previousMessages', (prevMsgs: Message[]) => {

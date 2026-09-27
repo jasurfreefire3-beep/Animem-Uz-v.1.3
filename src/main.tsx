@@ -6,12 +6,11 @@ import './index.css';
 import { AuthProvider } from './context/AuthContext.tsx';
 import { LanguageProvider } from './context/LanguageContext.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
+import { getApiBase } from './lib/api';
 
 // Global API Base URL routing for split frontend (Vercel) & backend (Northflank)
-const rawApiBase = (import.meta.env.VITE_API_BASE_URL || '').trim();
-if (rawApiBase && typeof window !== 'undefined') {
-  const API_BASE = rawApiBase.replace(/\/$/, '');
-
+const API_BASE = getApiBase();
+if (API_BASE && typeof window !== 'undefined') {
   const originalFetch = window.fetch;
   window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
     if (typeof input === 'string') {
