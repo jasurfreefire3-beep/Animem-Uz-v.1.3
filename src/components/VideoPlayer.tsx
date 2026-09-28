@@ -79,9 +79,19 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const reactId = useId();
   const playerId = useRef(`animem-player-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`).current;
   const playerRef = useRef<{ api?: (command: string, value?: unknown) => unknown } | null>(null);
-  const [hasError, setHasError] = useState(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const { isEmbed, embedUrl } = parseEmbedUrl(url);
   const source = url || '/assets/sample/video.mp4';
+
+  useEffect(() => {
+    if (isEmbed) {
+      setIsIframeLoading(true);
+      const timer = setTimeout(() => {
+        setIsIframeLoading(false);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [embedUrl, isEmbed]);
 
   useEffect(() => {
     if (isEmbed) return;
@@ -124,13 +134,32 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
     <div className="animem-player-shell group">
       <div className="animem-player-stage">
         {isEmbed ? (
-          <iframe
-            src={embedUrl}
-            title={animeTitle || 'Video Player'}
-            className="animem-player-embed"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          />
+          <>
+            {isIframeLoading && (
+              <div className="animem-player-loading-overlay">
+                {poster && (
+                  <img
+                    src={poster}
+                    alt={animeTitle || 'Poster'}
+                    className="animem-player-loading-bg"
+                  />
+                )}
+                <div className="animem-player-loading-content">
+                  <div className="animem-player-spinner" />
+                  <span className="animem-player-loading-text">Video yuklanmoqda...</span>
+                  <span className="animem-player-loading-subtext">{animeTitle || 'Animem.uz player'}</span>
+                </div>
+              </div>
+            )}
+            <iframe
+              src={embedUrl}
+              title={animeTitle || 'Video Player'}
+              className={`animem-player-embed transition-opacity duration-300 ${isIframeLoading ? 'opacity-0' : 'opacity-100'}`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              onLoad={() => setIsIframeLoading(false)}
+            />
+          </>
         ) : (
           <div id={playerId} className="animem-player-instance" />
         )}
