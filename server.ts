@@ -2963,7 +2963,7 @@ function getClientIdentifier(req: any): { userId: number | null, identifier: str
 
 // 1. Get all Reels (Supports filtering by ?user_id=...)
 app.get("/api/reels", async (req: any, res: any) => {
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
   const { userId, identifier } = getClientIdentifier(req);
   const targetUserId = req.query.user_id ? Number(req.query.user_id) : null;
 
@@ -2982,7 +2982,7 @@ app.get("/api/reels", async (req: any, res: any) => {
       sql += ` WHERE r.user_id = ? `;
       params.push(targetUserId);
     }
-    sql += ` ORDER BY RAND()`;
+    sql += ` ORDER BY r.id DESC LIMIT 100`;
 
     const [rows]: any = await dbQuery(sql, params);
 
@@ -4394,6 +4394,11 @@ app.post("/api/user/watch-progress", authenticateToken, async (req: any, res) =>
 
 // Get recent comments
 app.get("/api/comments/recent", async (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
+  const cached = getCache<any[]>("api_recent_comments", 60000);
+  if (cached) {
+    return res.json(cached);
+  }
   try {
     const [rows]: any = await dbQuery(`
       SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, a.title AS anime_title 
@@ -4404,12 +4409,14 @@ app.get("/api/comments/recent", async (req, res) => {
       LIMIT 10
     `);
     if (Array.isArray(rows)) {
+      setCache("api_recent_comments", rows);
       return res.json(rows);
     }
   } catch (err) {
     console.warn("Recent comments fetch falling back to local store:", (err as any)?.message);
   }
   const store = loadLocalStore();
+  setCache("api_recent_comments", store.comments || []);
   res.json(store.comments || []);
 });
 
@@ -4509,17 +4516,14 @@ app.get("/api/health", (req, res) => {
 });
 
 app.get("/api/animes", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=15, stale-while-revalidate=60");
-  const cached = getCache<any[]>("api_all_animes", 20000);
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+  const cached = getCache<any[]>("api_all_animes", 300000);
   if (cached) {
     return res.json(cached);
   }
   try {
     const [rows]: any = await dbQuery("SELECT * FROM animes ORDER BY id DESC");
     if (Array.isArray(rows) && rows.length > 0) {
-      const store = loadLocalStore();
-      store.animes = rows;
-      saveLocalStore(store);
       const merged = await mergeRatingsWithAnimes(rows);
       setCache("api_all_animes", merged);
       return res.json(merged);
@@ -6140,7 +6144,11 @@ app.delete("/api/mangas/:mangaId/chapters/:chapterNumber", authenticateToken, as
 
 // GET All Dramas
 app.get("/api/dramas", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+  const cached = getCache<any[]>("api_all_dramas", 300000);
+  if (cached) {
+    return res.json(cached);
+  }
   try {
     let dramas: any[] = [];
     try {
@@ -6169,6 +6177,7 @@ app.get("/api/dramas", async (req, res) => {
       };
     });
 
+    setCache("api_all_dramas", formatted);
     res.json(formatted);
   } catch (err) {
     console.error("Get dramas error:", err);

@@ -55,34 +55,38 @@ export default function Home() {
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
       try {
-        const [animesResult, commentsResult, dramasResult] = await Promise.allSettled([
-          fetch(`${API_BASE}/api/animes`).then(res => res.ok ? res.json() : Promise.reject(res.status)),
-          fetch(`${API_BASE}/api/comments/recent`).then(res => res.ok ? res.json() : Promise.reject(res.status)),
-          fetch(`${API_BASE}/api/dramas`).then(res => res.ok ? res.json() : Promise.reject(res.status))
-        ]);
+        // Parallel independent fetching: each section renders the instant its data arrives!
+        fetch(`${API_BASE}/api/animes`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (isMounted && Array.isArray(data)) {
+              setAnimes(data);
+              setLoading(false);
+              try { sessionStorage.setItem('cached_home_animes', JSON.stringify(data)); } catch {}
+            }
+          })
+          .catch(() => isMounted && setLoading(false));
 
-        if (isMounted) {
-          if (animesResult.status === 'fulfilled' && Array.isArray(animesResult.value)) {
-            setAnimes(animesResult.value);
-            try {
-              sessionStorage.setItem('cached_home_animes', JSON.stringify(animesResult.value));
-            } catch {}
-          }
-          if (commentsResult.status === 'fulfilled' && Array.isArray(commentsResult.value)) {
-            setRecentComments(commentsResult.value);
-            try {
-              sessionStorage.setItem('cached_home_comments', JSON.stringify(commentsResult.value));
-            } catch {}
-          }
-          if (dramasResult.status === 'fulfilled' && Array.isArray(dramasResult.value)) {
-            setDramas(dramasResult.value);
-            try {
-              sessionStorage.setItem('cached_home_dramas', JSON.stringify(dramasResult.value));
-            } catch {}
-          }
-          setLoading(false);
-          setLoadingComments(false);
-        }
+        fetch(`${API_BASE}/api/comments/recent`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (isMounted && Array.isArray(data)) {
+              setRecentComments(data);
+              setLoadingComments(false);
+              try { sessionStorage.setItem('cached_home_comments', JSON.stringify(data)); } catch {}
+            }
+          })
+          .catch(() => isMounted && setLoadingComments(false));
+
+        fetch(`${API_BASE}/api/dramas`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (isMounted && Array.isArray(data)) {
+              setDramas(data);
+              try { sessionStorage.setItem('cached_home_dramas', JSON.stringify(data)); } catch {}
+            }
+          })
+          .catch(() => {});
       } catch (err) {
         console.warn("Home fast fetch note:", err);
         if (isMounted) {
