@@ -435,12 +435,6 @@ export default function Reels({ currentUser: propUser }: ReelsProps) {
       </div>
 
       {/* Main Snap Container */}
-      {reels[activeIndex + 1]?.video_url && (
-        <link rel="preload" as="video" href={reels[activeIndex + 1].video_url} crossOrigin="anonymous" />
-      )}
-      {reels[activeIndex + 1]?.thumbnail_url && (
-        <link rel="preload" as="image" href={reels[activeIndex + 1].thumbnail_url} />
-      )}
       <div
         ref={containerRef}
         className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-none no-scrollbar flex flex-col relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
