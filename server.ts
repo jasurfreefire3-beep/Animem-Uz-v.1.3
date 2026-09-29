@@ -2507,13 +2507,76 @@ app.get("/api/archive-config", authenticateToken, (req: any, res) => {
   }
 });
 
-// --- MySQL In-Memory Direct Media Storage (No Disk Writing) ---
+// --- In-Memory Direct Media Storage (Zero Disk Writing) ---
 const memoryUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25 MB max per file
+    fileSize: 25 * 1024 * 1024, // 25 MB max per image
   },
 });
+
+const memoryVideoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100 MB max per video
+  },
+});
+
+/**
+ * Direct in-memory buffer upload to Catbox.moe CDN.
+ * Never touches server disk. Files are permanent and served with HTTPS worldwide.
+ */
+async function uploadBufferToCatbox(
+  buffer: Buffer,
+  filename: string = "file.bin",
+  mimeType: string = "application/octet-stream",
+  maxRetries: number = 3
+): Promise<string> {
+  const userHash = process.env.CATBOX_USERHASH ? process.env.CATBOX_USERHASH.trim() : "";
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const formData = new FormData();
+      formData.append("reqtype", "fileupload");
+      if (userHash) {
+        formData.append("userhash", userHash);
+      }
+      formData.append("fileToUpload", new Blob([buffer], { type: mimeType }), filename);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+
+      const res = await fetch("https://catbox.moe/user/api.php", {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        }
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const text = (await res.text()).trim();
+        if (text.startsWith("http://") || text.startsWith("https://")) {
+          return text.replace(/^http:\/\//i, "https://");
+        }
+        console.warn(`[Catbox] Attempt ${attempt} unexpected response: ${text}`);
+      } else {
+        const errText = await res.text().catch(() => "");
+        console.warn(`[Catbox] Attempt ${attempt} HTTP ${res.status}: ${errText}`);
+      }
+    } catch (err: any) {
+      console.warn(`[Catbox] Attempt ${attempt} network error:`, err?.message || err);
+    }
+
+    if (attempt < maxRetries) {
+      await new Promise((r) => setTimeout(r, attempt * 1000));
+    }
+  }
+
+  throw new Error("Catbox serveriga yuklashda xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.");
+}
 
 // High performance in-memory media cache to minimize DB load on frequent hits
 const mediaMemoryCache = new Map<string, { mimeType: string; base64: string; buffer: Buffer }>();
@@ -2547,52 +2610,20 @@ app.post("/api/media/upload", authenticateToken, memoryUpload.single("file"), as
       return res.status(400).json({ error: "Rasm fayli tanlanmadi yoki bo'sh" });
     }
 
-    // Upload to Catbox.moe directly
+    // Direct in-memory upload to Catbox.moe
     try {
-      const formData = new FormData();
-      formData.append("reqtype", "fileupload");
-      formData.append("fileToUpload", new Blob([fileBuffer], { type: mimeType }), filename);
-
-      const catboxRes = await fetch("https://catbox.moe/user/api.php", {
-        method: "POST",
-        body: formData
-      });
-
-      if (catboxRes.ok) {
-        const resultText = await catboxRes.text();
-        if (resultText && resultText.trim().startsWith("http")) {
-          const mediaUrl = resultText.trim();
-          return res.status(201).json({
-            success: true,
-            id: mediaUrl,
-            url: mediaUrl,
-            filename,
-            size: fileSize,
-            mime_type: mimeType
-          });
-        }
-      }
-      throw new Error(`Catbox error: ${catboxRes.status}`);
-    } catch (catErr) {
-      console.error("[Catbox] Upload media failed, fallback to local store:", catErr);
-      // Fallback: save to media_files so user action doesn't fail
-      const base64String = fileBuffer.toString("base64");
-      const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-      try {
-        await dbQuery(
-          `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)`,
-          [mediaId, filename, mimeType, base64String, fileSize]
-        );
-      } catch (e: any) {}
-      mediaMemoryCache.set(mediaId, { mimeType, base64: base64String, buffer: fileBuffer });
+      const mediaUrl = await uploadBufferToCatbox(fileBuffer, filename, mimeType);
       return res.status(201).json({
         success: true,
-        id: mediaId,
-        url: `/api/media/${mediaId}`,
+        id: mediaUrl,
+        url: mediaUrl,
         filename,
         size: fileSize,
         mime_type: mimeType
       });
+    } catch (catErr: any) {
+      console.error("[Catbox] Upload media failed:", catErr);
+      return res.status(500).json({ error: "Faylni Catbox serveriga yuklab bo'lmadi: " + (catErr?.message || "Noma'lum xatolik") });
     }
   } catch (err: any) {
     console.error("Media upload error:", err);
@@ -2614,43 +2645,19 @@ app.post("/api/media/upload-multiple", authenticateToken, memoryUpload.array("fi
       const filename = file.originalname || "image.jpg";
       const fileSize = file.size || fileBuffer.length;
       try {
-        const formData = new FormData();
-        formData.append("reqtype", "fileupload");
-        formData.append("fileToUpload", new Blob([fileBuffer], { type: mimeType }), filename);
-        const catboxRes = await fetch("https://catbox.moe/user/api.php", { method: "POST", body: formData });
-        if (catboxRes.ok) {
-          const resultText = await catboxRes.text();
-          if (resultText && resultText.trim().startsWith("http")) {
-            const mediaUrl = resultText.trim();
-            results.push({
-              id: mediaUrl,
-              url: mediaUrl,
-              filename,
-              size: fileSize
-            });
-            continue;
-          }
-        }
+        const mediaUrl = await uploadBufferToCatbox(fileBuffer, filename, mimeType);
+        results.push({
+          id: mediaUrl,
+          url: mediaUrl,
+          filename,
+          size: fileSize
+        });
       } catch (catErr) {
-        console.error("[Catbox] Failed to save multiple media item to Catbox:", catErr);
+        console.error("[Catbox] Multiple upload item error:", catErr);
       }
-
-      // Fallback if individual file fails
-      const base64String = fileBuffer.toString("base64");
-      const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-      try {
-        await dbQuery(
-          `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)`,
-          [mediaId, filename, mimeType, base64String, fileSize]
-        );
-      } catch (e: any) {}
-      mediaMemoryCache.set(mediaId, { mimeType, base64: base64String, buffer: fileBuffer });
-      results.push({
-        id: mediaId,
-        url: `/api/media/${mediaId}`,
-        filename,
-        size: fileSize
-      });
+    }
+    if (results.length === 0) {
+      return res.status(500).json({ error: "Fayllarni Catbox ga yuklab bo'lmadi" });
     }
     return res.status(201).json({
       success: true,
@@ -2830,36 +2837,11 @@ app.post("/api/gifs/upload", authenticateToken, memoryUpload.single("file"), asy
     }
 
     let mediaUrl = "";
-    let mediaId: string | null = null;
-
-    // Try Catbox.moe first
     try {
-      const formData = new FormData();
-      formData.append("reqtype", "fileupload");
-      formData.append("fileToUpload", new Blob([fileBuffer], { type: mimeType }), filename);
-      const catboxRes = await fetch("https://catbox.moe/user/api.php", { method: "POST", body: formData });
-      if (catboxRes.ok) {
-        const resultText = await catboxRes.text();
-        if (resultText && resultText.trim().startsWith("http")) {
-          mediaUrl = resultText.trim();
-        }
-      }
-    } catch (catErr) {
+      mediaUrl = await uploadBufferToCatbox(fileBuffer, filename, mimeType);
+    } catch (catErr: any) {
       console.error("[Catbox] GIF upload failed:", catErr);
-    }
-
-    // Fallback if Catbox is unreachable
-    if (!mediaUrl) {
-      const base64String = fileBuffer.toString("base64");
-      mediaId = "gif_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-      try {
-        await dbQuery(
-          `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)`,
-          [mediaId, filename, mimeType, base64String, fileSize]
-        );
-      } catch (e: any) {}
-      mediaMemoryCache.set(mediaId, { mimeType, base64: base64String, buffer: fileBuffer });
-      mediaUrl = `/api/media/${mediaId}`;
+      return res.status(500).json({ error: "GIF Catbox serveriga yuklanmadi: " + (catErr?.message || "Noma'lum xatolik") });
     }
 
     const customTitle = (req.body.title || "").trim() || filename.replace(/\.[^/.]+$/, "");
@@ -2868,7 +2850,7 @@ app.post("/api/gifs/upload", authenticateToken, memoryUpload.single("file"), asy
     try {
       const [result]: any = await dbQuery(
         "INSERT INTO gifs (title, url, media_id) VALUES (?, ?, ?)",
-        [customTitle, mediaUrl, mediaId]
+        [customTitle, mediaUrl, null]
       );
       if (result?.insertId) insertedId = result.insertId;
     } catch (e: any) {
@@ -2879,7 +2861,7 @@ app.post("/api/gifs/upload", authenticateToken, memoryUpload.single("file"), asy
       id: insertedId,
       title: customTitle,
       url: mediaUrl,
-      media_id: mediaId,
+      media_id: null,
       created_at: new Date()
     };
 
@@ -3405,57 +3387,28 @@ const activeReelUploads = new Map<string, {
   mimeType: string;
 }>();
 
-// High-speed direct reel video upload with real-time progress
-app.post("/api/reels/upload-direct", authenticateToken, upload.single("video"), async (req: any, res: any) => {
+// High-speed direct reel video upload with real-time progress (100% in-memory, zero disk write)
+app.post("/api/reels/upload-direct", authenticateToken, memoryVideoUpload.single("video"), async (req: any, res: any) => {
   try {
     const isAdmin = req.user?.role === "admin";
     const maxUserSize = 30 * 1024 * 1024; // 30 MB
 
-    if (!req.file) {
+    if (!req.file || !req.file.buffer) {
       return res.status(400).json({ error: "Video fayli tanlanmadi" });
     }
 
     if (!isAdmin && req.file.size > maxUserSize) {
       const currentMB = (req.file.size / (1024 * 1024)).toFixed(1);
-      try { fs.unlinkSync(req.file.path); } catch (e) {}
       return res.status(400).json({ 
         error: `Maksimal video hajmi 30 MB. Siz tanlagan video hajmi: ${currentMB} MB. Iltimos 30 MB dan kichik video yuklang!` 
       });
     }
 
     const uploadId = "upl_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-    let catboxUrl = "";
+    const filename = req.file.originalname || "video.mp4";
+    const mimeType = req.file.mimetype || "video/mp4";
 
-    try {
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const formData = new FormData();
-      formData.append("reqtype", "fileupload");
-      formData.append("fileToUpload", new Blob([fileBuffer], { type: req.file.mimetype || "video/mp4" }), "video.mp4");
-
-      // Upload to Catbox without arbitrary timeout to allow 30MB videos to finish
-      const catboxRes = await fetch("https://catbox.moe/user/api.php", {
-        method: "POST",
-        body: formData
-      });
-
-      if (catboxRes.ok) {
-        const resultText = await catboxRes.text();
-        if (resultText && resultText.trim().startsWith("http")) {
-          catboxUrl = resultText.trim();
-        } else {
-          throw new Error("Catbox noto'g'ri javob qaytardi");
-        }
-      } else {
-        throw new Error(`Catbox HTTP xatoligi: ${catboxRes.status}`);
-      }
-    } catch (catErr) {
-      console.error("Direct upload catbox error:", catErr);
-      try { fs.unlinkSync(req.file.path); } catch (e) {}
-      return res.status(500).json({ error: "Videoni serverga yuklashda xatolik yuz berdi (Catbox tarmog'i band yoki xatolik)" });
-    }
-
-    // Clean up tmp file
-    try { fs.unlinkSync(req.file.path); } catch (e) {}
+    const catboxUrl = await uploadBufferToCatbox(req.file.buffer, filename, mimeType);
 
     return res.status(201).json({
       success: true,
@@ -3463,8 +3416,8 @@ app.post("/api/reels/upload-direct", authenticateToken, upload.single("video"), 
       uploadId
     });
   } catch (err: any) {
-    console.error("Direct upload error:", err);
-    return res.status(500).json({ error: "Video yuklashda xatolik: " + (err?.message || "Noma'lum xatolik") });
+    console.error("Direct reel upload error:", err);
+    return res.status(500).json({ error: "Videoni Catbox serveriga yuklashda xatolik: " + (err?.message || "Noma'lum xatolik") });
   }
 });
 
@@ -3544,109 +3497,30 @@ app.post("/api/reels/upload-finish", authenticateToken, async (req: any, res: an
   const uploadInfo = activeReelUploads.get(uploadId);
   
   if (!uploadInfo || uploadInfo.userId !== req.user.id) {
-    return res.status(404).json({ error: "Upload not found" });
+    return res.status(404).json({ error: "Upload jarayoni topilmadi" });
   }
   
   if (uploadInfo.receivedChunks.size !== uploadInfo.expectedChunks) {
-    return res.status(400).json({ error: "Missing chunks" });
+    return res.status(400).json({ error: "Barcha bo'laklar yetib kelmadi" });
   }
   
-  const finalPath = uploadInfo.tempPath + ".mp4";
-  
   try {
-    // Combine chunks
-    const writeStream = fs.createWriteStream(finalPath);
+    const buffers: Buffer[] = [];
     for (let i = 0; i < uploadInfo.expectedChunks; i++) {
       const chunkPath = `${uploadInfo.tempPath}_${i}`;
-      const chunkData = fs.readFileSync(chunkPath);
-      writeStream.write(chunkData);
-      fs.unlinkSync(chunkPath); // Clean up
-    }
-    writeStream.end();
-    
-    await new Promise<void>((resolve) => {
-      writeStream.on("finish", () => resolve());
-    });
-    
-    // Create a local streaming URL to respond immediately (prevents 504 Timeout)
-    const localUrl = `/api/reels/stream/${uploadId}/video.mp4`;
-    
-    // Store locally temporarily for streaming while background task uploads to Catbox
-    const mediaDir = path.join(process.cwd(), "data", "media");
-    if (!fs.existsSync(mediaDir)) {
-      fs.mkdirSync(mediaDir, { recursive: true });
-    }
-    const finalMediaLocation = path.join(mediaDir, `${uploadId}.mp4`);
-    fs.copyFileSync(finalPath, finalMediaLocation);
-    
-    // Immediately respond to frontend to avoid HTTP 504 Timeout!
-    res.status(201).json({ url: localUrl, success: true });
-    
-    activeReelUploads.delete(uploadId);
-    
-    // Execute Catbox upload in the BACKGROUND without blocking the request!
-    setTimeout(async () => {
-      const faststartPath = path.join(mediaDir, `${uploadId}_fast.mp4`);
-      let fileToUploadPath = finalMediaLocation;
-
-      try {
-        // FastStart (Moov-Atom) optimization: moves MP4 metadata to start of file for 0.01s instant streaming!
-        // -c copy is ultrafast (0.1-0.3s) without re-encoding, preserving 100% video/audio quality.
-        try {
-          await execPromise(`ffmpeg -y -i "${finalMediaLocation}" -c copy -movflags +faststart "${faststartPath}"`);
-          if (fs.existsSync(faststartPath) && fs.statSync(faststartPath).size > 1000) {
-            fileToUploadPath = faststartPath;
-            console.log(`[FFmpeg FastStart] Successfully optimized reel ${uploadId} for instant streaming`);
-          }
-        } catch (ffErr) {
-          console.warn(`[FFmpeg FastStart] Skipped or failed for ${uploadId}, using original file:`, ffErr);
-          fileToUploadPath = finalMediaLocation;
-        }
-
-        const fileBuffer = fs.readFileSync(fileToUploadPath);
-        const formData = new FormData();
-        formData.append("reqtype", "fileupload");
-        formData.append("fileToUpload", new Blob([fileBuffer], { type: "video/mp4" }), "video.mp4");
-
-        const catboxRes = await fetch("https://catbox.moe/user/api.php", {
-          method: "POST",
-          body: formData
-        });
-
-        if (catboxRes.ok) {
-          const resultText = await catboxRes.text();
-          if (resultText && resultText.trim().startsWith("http")) {
-            const catboxUrl = resultText.trim();
-            
-            // Replace the temporary local URL with the Catbox URL in the Database!
-            await dbQuery(
-              "UPDATE reels SET video_url = ? WHERE video_url = ?",
-              [catboxUrl, localUrl]
-            );
-            
-            // Clean up the local files since it's on Catbox now
-            try { if (fs.existsSync(finalMediaLocation)) fs.unlinkSync(finalMediaLocation); } catch (e) {}
-            try { if (fs.existsSync(faststartPath)) fs.unlinkSync(faststartPath); } catch (e) {}
-            console.log(`[Catbox] Uploaded ${uploadId} successfully in background: ${catboxUrl}`);
-          }
-        }
-      } catch (bgErr) {
-        console.error(`[Catbox] Background upload error for ${uploadId}:`, bgErr);
-      } finally {
-        if (fs.existsSync(finalPath)) {
-          try { fs.unlinkSync(finalPath); } catch (e) {}
-        }
-        if (fs.existsSync(faststartPath)) {
-          try { fs.unlinkSync(faststartPath); } catch (e) {}
-        }
+      if (fs.existsSync(chunkPath)) {
+        buffers.push(fs.readFileSync(chunkPath));
+        try { fs.unlinkSync(chunkPath); } catch (e) {}
       }
-    }, 1000); // 1-second delay to let the initial API request close cleanly
+    }
+    const combinedBuffer = Buffer.concat(buffers);
+    activeReelUploads.delete(uploadId);
 
+    const catboxUrl = await uploadBufferToCatbox(combinedBuffer, "video.mp4", uploadInfo.mimeType || "video/mp4");
+    return res.status(201).json({ url: catboxUrl, success: true });
   } catch (err: any) {
     console.error("Upload finish error:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Videoni saqlashda xatolik: " + err.message });
-    }
+    return res.status(500).json({ error: "Videoni Catbox serveriga yuklashda xatolik: " + (err?.message || "Noma'lum xatolik") });
   }
 });
 
@@ -3700,103 +3574,34 @@ app.get("/api/hls/:id/:file", (req: any, res: any) => {
     res.status(404).send("HLS file not found");
   }
 });
-app.post("/api/reels/upload", authenticateToken, upload.single("file"), async (req: any, res: any) => {
-  const tempFilePath = req.file?.path;
+app.post("/api/reels/upload", authenticateToken, memoryVideoUpload.single("file"), async (req: any, res: any) => {
   try {
-    if (!req.file) {
+    if (!req.file || !req.file.buffer) {
       return res.status(400).json({ error: "Video fayl tanlanmagan" });
     }
 
-    const fileSize = req.file.size || 0;
+    const fileSize = req.file.size || req.file.buffer.length;
     const isAdmin = req.user?.role === "admin";
     const maxUserSize = 30 * 1024 * 1024; // 30 MB
 
     if (!isAdmin && fileSize > maxUserSize) {
-      if (tempFilePath && fs.existsSync(tempFilePath)) {
-        try { fs.unlinkSync(tempFilePath); } catch (e) {}
-      }
       const currentMB = (fileSize / (1024 * 1024)).toFixed(1);
       return res.status(400).json({ 
         error: `Oddiy foydalanuvchilar uchun maksimal video hajmi 30 MB. Siz tanlagan video hajmi: ${currentMB} MB. Iltimos 30 MB dan kichik video yuklang!` 
       });
     }
 
-    let fileBuffer: Buffer | null = req.file.buffer || null;
-    if (!fileBuffer && tempFilePath && fs.existsSync(tempFilePath)) {
-      try {
-        fileBuffer = fs.readFileSync(tempFilePath);
-      } catch (readErr: any) {
-        console.error("Temp file read error:", readErr);
-      }
-    }
-
-    if (!fileBuffer || fileBuffer.length === 0) {
-      if (tempFilePath && fs.existsSync(tempFilePath)) {
-        try { fs.unlinkSync(tempFilePath); } catch (e) {}
-      }
-      return res.status(400).json({ error: "Video faylni o'qishda xatolik yuz berdi" });
-    }
-
     const filename = req.file.originalname || "reel.mp4";
     const mimeType = req.file.mimetype || "video/mp4";
-    const mediaId = "reel_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-
-    // Save to persistent server media storage
-    const mediaDir = path.join(os.tmpdir(), "media");
-    if (!fs.existsSync(mediaDir)) {
-      fs.mkdirSync(mediaDir, { recursive: true });
-    }
-    const localDiskPath = path.join(mediaDir, `${mediaId}.mp4`);
-    try {
-      fs.writeFileSync(localDiskPath, fileBuffer);
-    } catch (diskErr) {
-      console.warn("Disk media save warning:", diskErr);
-    }
-
-    // Store raw video directly in PostgreSQL database for streaming via /api/video/:id
-    try {
-      await pgPool.query(
-        "INSERT INTO video (id, filename, mime_type, data, size) VALUES ($1, $2, $3, $4, $5)",
-        [mediaId, filename, mimeType, fileBuffer, fileSize]
-      );
-    } catch (pgErr) {
-      console.error("PostgreSQL video insert error:", pgErr);
-    }
-
-    // Sync to database if available
-    try {
-      const base64String = fileBuffer.toString("base64");
-      await dbQuery(
-        `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)`,
-        [mediaId, filename, mimeType, base64String, fileSize]
-      );
-    } catch (e: any) {
-      console.warn("media_files DB sync notice (disk/cache served):", e?.message || e);
-    }
-
-    // Cache in RAM for rapid response
-    mediaMemoryCache.set(mediaId, { mimeType, base64: "", buffer: fileBuffer });
-    if (mediaMemoryCache.size > 200) {
-      const first = mediaMemoryCache.keys().next().value;
-      if (first) mediaMemoryCache.delete(first);
-    }
-
-    // Delete temp file after successful storage
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      try { fs.unlinkSync(tempFilePath); } catch (e) {}
-    }
+    const catboxUrl = await uploadBufferToCatbox(req.file.buffer, filename, mimeType);
 
     return res.status(201).json({
       success: true,
-      url: `/api/video/${mediaId}`,
-      media_id: mediaId
+      url: catboxUrl
     });
   } catch (err: any) {
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      try { fs.unlinkSync(tempFilePath); } catch (e) {}
-    }
     console.error("Upload reel video error:", err);
-    return res.status(500).json({ error: "Video yuklashda server xatoligi yuz berdi" });
+    return res.status(500).json({ error: "Video yuklashda xatolik: " + (err?.message || "Noma'lum xatolik") });
   }
 });
 
@@ -3825,6 +3630,14 @@ app.get(["/api/reels/stream/:id/video.mp4", "/api/reels/stream/:id/segment.ts"],
   try {
     const mediaId = req.params.id;
     if (!mediaId) return res.status(400).send("Media ID topilmadi");
+
+    // 0. Check if this reel is on Catbox in the database -> 302 Redirect to Catbox CDN
+    try {
+      const [rRows]: any = await dbQuery("SELECT video_url FROM reels WHERE video_url LIKE ? LIMIT 1", [`%${mediaId}%`]);
+      if (rRows && rRows.length > 0 && rRows[0].video_url && rRows[0].video_url.startsWith("http")) {
+        return res.redirect(302, rRows[0].video_url);
+      }
+    } catch (e) {}
 
     // 1. Check local persistent disk storage first (fastest, zero RAM footprint)
     const localDiskPath = path.join(process.cwd(), "data", "media", `${mediaId}.mp4`);

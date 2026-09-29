@@ -291,6 +291,9 @@ export default function ReelsPlayer({
             safePlay();
           }
         }}
+        onError={() => {
+          setIsLoading(false);
+        }}
         className={`w-full h-full object-cover bg-black select-none transition-opacity duration-200 ${
           isReady ? 'opacity-100' : 'opacity-90'
         }`}

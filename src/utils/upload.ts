@@ -1,87 +1,72 @@
-const CHUNK_SIZE = 512 * 1024; // 512KB chunks
-
-async function parseApiResponse(res: Response, defaultErrorMsg: string) {
-  const text = await res.text();
-  let data: any = {};
-  try {
-    data = JSON.parse(text);
-  } catch (e) {
-    if (!res.ok) {
-      if (res.status === 413) throw new Error("HTTP_413_PAYLOAD_TOO_LARGE");
-      throw new Error(defaultErrorMsg + ` (HTTP ${res.status})`);
-    }
-  }
-  if (!res.ok) throw new Error(data.error || defaultErrorMsg);
-  return data;
-}
-
+/**
+ * Uploads reel video directly to server in-memory buffer which permanently stores on Catbox.moe CDN.
+ * Provides real-time upload percentage (0% -> 90%) and processing indicator (92% -> 100%).
+ */
 export const uploadReelVideo = async (
   file: File,
   token: string,
   onProgress: (progress: number, text: string) => void
 ): Promise<string> => {
-  // 1. Start upload
-  onProgress(2, "Video yuklashga tayyorlanmoqda... 2%");
-  const startRes = await fetch("/api/reels/upload-start", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      filename: file.name,
-      totalSize: file.size,
-      mimeType: file.type || "video/mp4"
-    })
-  });
+  return new Promise((resolve, reject) => {
+    onProgress(2, "Video yuklashga tayyorlanmoqda... 2%");
 
-  const startData = await parseApiResponse(startRes, "Video yuklashni boshlashda xatolik");
-  const { uploadId } = startData;
-  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
-  // 2. Upload chunks sequentially
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * CHUNK_SIZE;
-    const end = Math.min(start + CHUNK_SIZE, file.size);
-    const chunk = file.slice(start, end);
-
+    const xhr = new XMLHttpRequest();
     const formData = new FormData();
-    formData.append("uploadId", uploadId);
-    formData.append("chunkIndex", i.toString());
-    formData.append("totalChunks", totalChunks.toString());
-    formData.append("chunk", chunk);
+    formData.append('video', file);
 
-    const chunkRes = await fetch("/api/reels/upload-chunk", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      body: formData
-    });
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        // Upload phase: 2% to 90%
+        const percent = Math.max(2, Math.min(Math.round((event.loaded / event.total) * 90), 90));
+        const loadedMB = (event.loaded / (1024 * 1024)).toFixed(1);
+        const totalMB = (event.total / (1024 * 1024)).toFixed(1);
+        onProgress(percent, `Video yuklanmoqda... ${percent}% (${loadedMB}/${totalMB} MB)`);
+      }
+    };
 
-    await parseApiResponse(chunkRes, "Chunk yuklashda xatolik");
+    xhr.upload.onloadend = () => {
+      onProgress(92, "Catbox serverida doimiy saqlanmoqda... 92%");
+    };
 
-    const progress = Math.round(((i + 1) / totalChunks) * 95);
-    const displayProgress = Math.min(progress, 96);
-    const loadedMB = (Math.min(end, file.size) / (1024 * 1024)).toFixed(1);
-    const totalMB = (file.size / (1024 * 1024)).toFixed(1);
-    
-    onProgress(displayProgress, `Video yuklanmoqda... ${displayProgress}% (${loadedMB}/${totalMB} MB)`);
-  }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data && data.url) {
+            onProgress(100, "Muvaffaqiyatli yakunlandi! 100%");
+            resolve(data.url);
+          } else {
+            reject(new Error("Serverdan video havolasi olinmadi"));
+          }
+        } catch {
+          reject(new Error("Server javobini o'qib bo'lmadi"));
+        }
+      } else {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status === 413) {
+            reject(new Error("Video hajmi ruxsat berilgan hajmdan katta (maksimal 30 MB)"));
+          } else {
+            reject(new Error(data.error || `Video yuklashda xatolik (${xhr.status})`));
+          }
+        } catch {
+          reject(new Error(`Video yuklashda xatolik (${xhr.status})`));
+        }
+      }
+    };
 
-  // 3. Finish upload
-  onProgress(98, "Video yakunlanmoqda... 98%");
-  const finishRes = await fetch("/api/reels/upload-finish", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({ uploadId })
+    xhr.onerror = () => {
+      reject(new Error("Tarmoqda xatolik yuz berdi. Internet aloqasini tekshiring."));
+    };
+
+    xhr.onabort = () => {
+      reject(new Error("Video yuklash bekor qilindi"));
+    };
+
+    xhr.open('POST', '/api/reels/upload-direct', true);
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    xhr.send(formData);
   });
-
-  const finishData = await parseApiResponse(finishRes, "Videoni yakunlashda xatolik");
-  
-  onProgress(100, "Muvaffaqiyatli yakunlandi! 100%");
-  return finishData.url;
 };
