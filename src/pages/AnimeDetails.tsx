@@ -50,6 +50,7 @@ export default function AnimeDetails() {
   const [adultConfirmed, setAdultConfirmed] = useState(
     () => localStorage.getItem('animem_18plus_ok') === '1'
   );
+  const [notFound, setNotFound] = useState(false);
 
   const fetchRatingSummary = async (animeId: number) => {
     try {
@@ -69,14 +70,24 @@ export default function AnimeDetails() {
       try {
         console.log("Fetching anime details for slug:", slug);
         if (!slug) return;
-        const res = await fetch(`${API_BASE}/api/animes/by-slug/${slug}`);
+        setNotFound(false);
+        let res = await fetch(`${API_BASE}/api/animes/by-slug/${slug}`);
+        if (!res.ok) {
+          // Fallback: check if slug is numeric ID or can be found by /api/animes/:id
+          res = await fetch(`${API_BASE}/api/animes/${slug}`);
+        }
         console.log("Response status:", res.status);
         const resType = res.headers.get("content-type");
         if (!res.ok || !resType || !resType.includes("application/json")) {
           console.error("Fetch failed or non-JSON response:", res.status);
+          setNotFound(true);
           return;
         }
         const data = await res.json();
+        if (!data || !data.id) {
+          setNotFound(true);
+          return;
+        }
         console.log("Fetched anime:", data);
         setAnime(data);
         fetchRatingSummary(data.id);
@@ -522,6 +533,26 @@ export default function AnimeDetails() {
       }
     } catch(e) {}
   };
+
+  if (notFound) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
+        <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-[#ff006a]">
+          <Play className="w-7 h-7 ml-0.5 opacity-60" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2">Anime topilmadi</h2>
+        <p className="text-white/60 mb-6 text-sm max-w-md">
+          Siz qidirayotgan anime mavjud emas yoki o'chirilgan bo'lishi mumkin.
+        </p>
+        <Link
+          to="/animelar"
+          className="bg-[#ff006a] hover:bg-[#d40058] text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg shadow-[#ff006a]/20"
+        >
+          Barcha animelar
+        </Link>
+      </div>
+    );
+  }
 
   if (!anime) return <LoadingScreen size="lg" />;
 

@@ -215,8 +215,8 @@ export function toSlug(text: string): string {
   if (!text) return "";
   return text
     .toLowerCase()
-    .replace(/o['’`‘]/g, "o")
-    .replace(/g['’`‘]/g, "g")
+    .replace(/o['’`‘ʻʼ]/g, "o")
+    .replace(/g['’`‘ʻʼ]/g, "g")
     .replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-")
     .replace(/^-+|-+$/g, "");
 }

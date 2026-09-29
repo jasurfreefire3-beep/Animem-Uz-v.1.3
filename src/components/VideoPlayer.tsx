@@ -79,6 +79,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const reactId = useId();
   const playerId = useRef(`animem-player-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`).current;
   const playerRef = useRef<{ api?: (command: string, value?: unknown) => unknown } | null>(null);
+  const [hasError, setHasError] = useState(false);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const { isEmbed, embedUrl } = parseEmbedUrl(url);
   const source = url || '/assets/sample/video.mp4';

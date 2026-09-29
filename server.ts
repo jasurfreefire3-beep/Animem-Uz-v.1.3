@@ -4544,24 +4544,47 @@ app.get("/api/animes/:id", async (req, res) => {
   const cacheKey = `api_anime_${id}`;
   const cached = getCache<any>(cacheKey, 15000);
   if (cached) {
-    dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [id]).catch(() => {});
+    dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [cached.id || id]).catch(() => {});
     return res.json(cached);
   }
+
+  const toSlugLocal = (text: string): string => {
+    if (!text) return "";
+    return text
+      .toLowerCase()
+      .replace(/o['’`‘ʻʼ]/g, "o")
+      .replace(/g['’`‘ʻʼ]/g, "g")
+      .replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-")
+      .replace(/^-+|-+$/g, "");
+  };
+
   try {
     const [rows]: any = await dbQuery("SELECT * FROM animes WHERE id = ?", [id]);
     if (rows && rows.length > 0) {
-      dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [id]).catch(() => {});
+      dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [rows[0].id]).catch(() => {});
       rows[0].korishlar = (rows[0].korishlar || 0) + 1;
       const merged = await mergeRatingsWithAnimes(rows);
       setCache(cacheKey, merged[0]);
       return res.json(merged[0]);
+    }
+    // Also check if id is actually a slug or title
+    const [allRows]: any = await dbQuery("SELECT * FROM animes");
+    if (Array.isArray(allRows) && allRows.length > 0) {
+      const match = allRows.find((r: any) => toSlugLocal(r.title) === id || String(r.id) === String(id));
+      if (match) {
+        dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [match.id]).catch(() => {});
+        match.korishlar = (match.korishlar || 0) + 1;
+        const merged = await mergeRatingsWithAnimes([match]);
+        setCache(cacheKey, merged[0]);
+        return res.json(merged[0]);
+      }
     }
   } catch (err) {
     console.warn("Single anime fetch falling back to local store:", (err as any)?.message);
   }
 
   const store = loadLocalStore();
-  const anime = (store.animes || []).find((a: any) => String(a.id) === String(id));
+  const anime = (store.animes || []).find((a: any) => String(a.id) === String(id) || toSlugLocal(a.title) === id);
   if (!anime) {
     return res.status(404).json({ error: "Anime topilmadi" });
   }
@@ -4587,8 +4610,8 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
     if (!text) return "";
     return text
       .toLowerCase()
-      .replace(/o['’`‘]/g, "o")
-      .replace(/g['’`‘]/g, "g")
+      .replace(/o['’`‘ʻʼ]/g, "o")
+      .replace(/g['’`‘ʻʼ]/g, "g")
       .replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-")
       .replace(/^-+|-+$/g, "");
   };
@@ -4596,7 +4619,7 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
   try {
     const [rows]: any = await dbQuery("SELECT * FROM animes");
     if (Array.isArray(rows) && rows.length > 0) {
-      const anime = rows.find((r: any) => toSlugLocal(r.title) === slug);
+      const anime = rows.find((r: any) => toSlugLocal(r.title) === slug || String(r.id) === String(slug));
       if (anime) {
         dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [anime.id]).catch(() => {});
         anime.korishlar = (anime.korishlar || 0) + 1;
@@ -4610,7 +4633,7 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
   }
 
   const store = loadLocalStore();
-  const anime = (store.animes || []).find((a: any) => toSlugLocal(a.title) === slug);
+  const anime = (store.animes || []).find((a: any) => toSlugLocal(a.title) === slug || String(a.id) === String(slug));
   if (!anime) {
     return res.status(404).json({ error: "Anime topilmadi" });
   }

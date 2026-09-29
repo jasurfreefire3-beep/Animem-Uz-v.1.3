@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Anime, toSlug } from '../types';
 import { Star, Play, Eye } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 interface AnimeCardProps {
   anime: Anime;
@@ -9,11 +9,12 @@ interface AnimeCardProps {
 }
 
 export default function AnimeCard({ anime, showBadge }: AnimeCardProps) {
-  const { user } = useAuth();
+  const { getLocalizedPath } = useLanguage();
   const episodeCount = Number(anime.qismlar_soni) || 1;
   const isMultiEpisode = episodeCount >= 2;
-  const targetPath = user ? `/anime/${toSlug(anime.title)}` : '/register';
-  const targetUrl = `https://animem.uz/anime/${toSlug(anime.title)}`;
+  const slug = toSlug(anime.title) || String(anime.id);
+  const targetPath = getLocalizedPath(`/anime/${slug}`);
+  const targetUrl = `https://animem.uz/anime/${slug}`;
 
   return (
     <Link

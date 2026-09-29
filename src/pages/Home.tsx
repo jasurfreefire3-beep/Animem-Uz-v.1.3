@@ -6,9 +6,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import AnimeCard from '../components/AnimeCard';
 import DramaCard from '../components/DramaCard';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Home() {
   const { user } = useAuth();
+  const { getLocalizedPath } = useLanguage();
   
   // Instant fast-load from cache if available
   const [animes, setAnimes] = useState<Anime[]>(() => {
@@ -229,14 +231,14 @@ export default function Home() {
               {/* Row 5: Action Buttons */}
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <Link 
-                  to={user ? `/anime/${toSlug(featuredAnime.title)}` : '/register'}
+                  to={getLocalizedPath(`/anime/${toSlug(featuredAnime.title) || featuredAnime.id}`)}
                   className="bg-[#ff006a] hover:bg-[#d40058] text-white px-6 py-3 rounded-sm font-black flex items-center gap-2 shadow-lg shadow-[#ff006a]/20 transition-all text-xs uppercase tracking-wider cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current text-white" /> 
                   TOMOSHA QILISH
                 </Link>
                 <Link 
-                  to={user ? `/anime/${toSlug(featuredAnime.title)}` : '/register'}
+                  to={getLocalizedPath(`/anime/${toSlug(featuredAnime.title) || featuredAnime.id}`)}
                   className="bg-black/40 hover:bg-black/60 border border-white/10 text-white px-6 py-3 rounded-sm font-bold flex items-center gap-2 transition-all text-xs uppercase tracking-wider cursor-pointer"
                 >
                   <Info className="w-4 h-4" /> 
@@ -408,7 +410,7 @@ export default function Home() {
                    const avatarSrc = c.user_avatar || c.avatar_url;
                    return (
                      <Link 
-                       to={`/anime/${toSlug(c.anime_title)}`}
+                       to={getLocalizedPath(`/anime/${toSlug(c.anime_title)}`)}
                        key={i} 
                        className="block group bg-[#000] p-3 rounded-sm border border-[#222] hover:border-[#ff006a]/30 transition-colors"
                      >
