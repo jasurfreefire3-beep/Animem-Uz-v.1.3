@@ -837,178 +837,7 @@ async function testDbConnection() {
       await connection.query(`ALTER TABLE mangas MODIFY COLUMN banner_url LONGTEXT`);
     } catch (e) {}
 
-    // Ensure reels table in MySQL
-    try {
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS reels (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          title VARCHAR(255) NOT NULL,
-          video_url LONGTEXT NOT NULL,
-          thumbnail_url LONGTEXT,
-          anime_title VARCHAR(255) DEFAULT '',
-          anime_id INT DEFAULT NULL,
-          author_name VARCHAR(100) DEFAULT 'Animem.uz',
-          author_avatar LONGTEXT,
-          likes_count INT DEFAULT 0,
-          views_count INT DEFAULT 0,
-          shares_count INT DEFAULT 0,
-          tags VARCHAR(255) DEFAULT '#anime #reels #animemuz',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB
-      `);
-
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS reel_comments (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          reel_id INT NOT NULL,
-          user_id INT DEFAULT NULL,
-          username VARCHAR(100) NOT NULL,
-          user_avatar LONGTEXT,
-          content TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB
-      `);
-
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS reel_likes (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          reel_id INT NOT NULL,
-          user_id INT DEFAULT NULL,
-          user_identifier VARCHAR(128) NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE KEY unique_reel_user (reel_id, user_identifier)
-        ) ENGINE=InnoDB
-      `);
-
-      try {
-        await connection.query(`ALTER TABLE reels ADD COLUMN user_id INT DEFAULT NULL`);
-      } catch (e) {}
-
-      console.log("Verified reels, reel_comments, and reel_likes tables in MySQL.");
-
-      // Check if reels need initial seeding
-      const [existingReels]: any = await connection.query(`SELECT COUNT(*) as count FROM reels`);
-      if (existingReels && existingReels[0] && existingReels[0].count === 0) {
-        console.log("Seeding initial anime reels into MySQL database...");
-        const defaultReelsData = [
-          {
-            title: "Solo Leveling - Sung Jin-woo 'Qad rostla' (Arise) sahnasi! 🔥",
-            anime_title: "Solo Leveling",
-            video_url: "/ANIMEM_UZ_UZS_UNIVERSAL_15.mp4",
-            thumbnail_url: "https://m.media-amazon.com/images/M/MV5BODlhWOE5NjMtN2I0OC00NjA3LTkyM2YtM2I5Njg3MTBhYTY1XkEyXkFqcGc@._V1_.jpg",
-            author_name: "Animem.uz",
-            author_avatar: "https://files.catbox.moe/45hoi6.png",
-            likes_count: 1420,
-            views_count: 8530,
-            shares_count: 312,
-            tags: "#sololeveling #animeuz #arise #action"
-          },
-          {
-            title: "Jujutsu Kaisen - Gojo Satoru cheksiz bo'shliq 'Muryokusho' ⚡️",
-            anime_title: "Jujutsu Kaisen",
-            video_url: "/ANIMEM_UZ_UZS_CASINO_103.mp4",
-            thumbnail_url: "https://m.media-amazon.com/images/M/MV5BNGY4MTg3NjgtMmFkYi00ZTNmLTgwAVtLTExNmI0MDI0U3M4XkEyXkFqcGc@._V1_.jpg",
-            author_name: "Animem.uz",
-            author_avatar: "https://files.catbox.moe/45hoi6.png",
-            likes_count: 2890,
-            views_count: 14200,
-            shares_count: 674,
-            tags: "#gojo #jujutsukaisen #shibuya #anime"
-          },
-          {
-            title: "Demon Slayer - Tanjiro va Nezuko birlashgan olov nafasi! ⚔️",
-            anime_title: "Demon Slayer",
-            video_url: "/ANIMEM_UZ_UZS_SPORT_67.mp4",
-            thumbnail_url: "https://m.media-amazon.com/images/M/MV5BZjZjNzI5MDctY2Y4YS00NmM4LTljMmItZTFkOTExNGI3ODRhXkEyXkFqcGdeQXVyNjc3MjQzNTI@._V1_.jpg",
-            author_name: "Animem.uz",
-            author_avatar: "https://files.catbox.moe/45hoi6.png",
-            likes_count: 3450,
-            views_count: 19800,
-            shares_count: 890,
-            tags: "#demonslayer #kimetsunoyaiba #tanjiro #nezuko"
-          },
-          {
-            title: "Naruto Shippuden - Naruto va Kurama to'liq do'stlashgan lahza 🦊",
-            anime_title: "Naruto Shippuden",
-            video_url: "/ANIMEM_UZ_UZS_SPORT_61.mp4",
-            thumbnail_url: "https://m.media-amazon.com/images/M/MV5BZGFiMWFhNDAtMzUyZS00NmQ2LTljNDYtMmZjNTc5MDUxMzViXkEyXkFqcGc@._V1_.jpg",
-            author_name: "Animem.uz",
-            author_avatar: "https://files.catbox.moe/45hoi6.png",
-            likes_count: 4120,
-            views_count: 24500,
-            shares_count: 1205,
-            tags: "#naruto #kurama #hokage #uzbekcha"
-          },
-          {
-            title: "Attack on Titan - Eren Yeager 'Men oldinga intilaman' 💥",
-            anime_title: "Attack on Titan",
-            video_url: "/ANIMEM_UZ_UZS_SPORT_137.mp4",
-            thumbnail_url: "https://m.media-amazon.com/images/M/MV5BNzc5MTczNDQtNDFjNi00ZDU5LWFkNzItOTE1NzQzMzdhNzMxXkEyXkFqcGc@._V1_.jpg",
-            author_name: "Animem.uz",
-            author_avatar: "https://files.catbox.moe/45hoi6.png",
-            likes_count: 1980,
-            views_count: 11200,
-            shares_count: 450,
-            tags: "#aot #erenyeager #shingekinokyojin #anime"
-          },
-          {
-            title: "One Piece - Luffy Gear 5 Quyosh Xudosi Nika uyg'onishi! ☀️",
-            anime_title: "One Piece",
-            video_url: "/ANIMEM_UZ_UZS_SPORT_54.mp4",
-            thumbnail_url: "https://m.media-amazon.com/images/M/MV5BMTNjNGU4NTUtYmVjMy00YjRiLTkxMWUtNzZkMDNiYjZhNmViXkEyXkFqcGc@._V1_.jpg",
-            author_name: "Animem.uz",
-            author_avatar: "https://files.catbox.moe/45hoi6.png",
-            likes_count: 5310,
-            views_count: 31000,
-            shares_count: 1840,
-            tags: "#onepiece #luffy #gear5 #nika #anime"
-          },
-          {
-            title: "Bleach - Ichigo Kurosaki Getsuga Tenshou yangi o'lchami! ⚡️",
-            anime_title: "Bleach",
-            video_url: "/ANIMEM_UZ_UZS_SPORT_82.mp4",
-            thumbnail_url: "https://m.media-amazon.com/images/M/MV5BZjE0YjVjODQtZGY2NS00MDcyLThhMDAtZGQwMTZiOWNmNjRiXkEyXkFqcGc@._V1_.jpg",
-            author_name: "Animem.uz",
-            author_avatar: "https://files.catbox.moe/45hoi6.png",
-            likes_count: 1650,
-            views_count: 9400,
-            shares_count: 380,
-            tags: "#bleach #ichigo #bankai #tybw"
-          },
-          {
-            title: "Hunter x Hunter - Gon va Killua eng aqlbovar qilmas kuchi ⚡️",
-            anime_title: "Hunter x Hunter",
-            video_url: "/ANIMEM_UZ_UZS_CASINO_105.mp4",
-            thumbnail_url: "https://m.media-amazon.com/images/M/MV5BNGM0YTk3MWEtN2JlZC00ZmZmLWIwMDktZTA3MDNmODE2NDFiXkEyXkFqcGc@._V1_.jpg",
-            author_name: "Animem.uz",
-            author_avatar: "https://files.catbox.moe/45hoi6.png",
-            likes_count: 2240,
-            views_count: 13900,
-            shares_count: 520,
-            tags: "#hunterxhunter #gon #killua #animeclips"
-          }
-        ];
-
-        for (const item of defaultReelsData) {
-          await connection.query(
-            `INSERT INTO reels (title, anime_title, video_url, thumbnail_url, author_name, author_avatar, likes_count, views_count, shares_count, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [item.title, item.anime_title, item.video_url, item.thumbnail_url, item.author_name, item.author_avatar, item.likes_count, item.views_count, item.shares_count, item.tags]
-          );
-        }
-
-        // Add sample comments to first reel
-        await connection.query(
-          `INSERT INTO reel_comments (reel_id, username, user_avatar, content) VALUES 
-          (1, 'Otaku_King', 'https://files.catbox.moe/45hoi6.png', 'Eng zo\\'r sahna! Sung Jin-woo afsona 🔥'),
-          (1, 'AnimeGirl_Uz', 'https://files.catbox.moe/45hoi6.png', 'Har safar ko\\'rsam ham hayajon bosadi 😍'),
-          (2, 'GojoFan', 'https://files.catbox.moe/45hoi6.png', 'Gojo Satoru kuchi tengsiz ⚡️')`
-        );
-      }
-    } catch (e) {
-      console.warn("reels tables creation warning:", e);
-    }
-
-    console.log("Verified mangas, manga_chapters, comments, media_files, messages and reels tables and columns in MySQL.");
+    console.log("Verified mangas, manga_chapters, comments, media_files, and messages tables and columns in MySQL.");
   } catch (err) {
     console.error("Database connection/migration failed on startup:", err);
   } finally {
@@ -2515,67 +2344,62 @@ const memoryUpload = multer({
   },
 });
 
-const memoryVideoUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 100 * 1024 * 1024, // 100 MB max per video
-  },
-});
-
 /**
- * Direct in-memory buffer upload to Catbox.moe CDN.
+ * Direct in-memory buffer upload for images (Catbox CDN with MySQL fallback).
  * Never touches server disk. Files are permanent and served with HTTPS worldwide.
  */
-async function uploadBufferToCatbox(
+async function uploadImageBuffer(
   buffer: Buffer,
-  filename: string = "file.bin",
-  mimeType: string = "application/octet-stream",
-  maxRetries: number = 3
+  filename: string = "image.jpg",
+  mimeType: string = "image/jpeg"
 ): Promise<string> {
-  const userHash = process.env.CATBOX_USERHASH ? process.env.CATBOX_USERHASH.trim() : "";
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const formData = new FormData();
-      formData.append("reqtype", "fileupload");
-      if (userHash) {
-        formData.append("userhash", userHash);
-      }
-      formData.append("fileToUpload", new Blob([buffer], { type: mimeType }), filename);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
-
-      const res = await fetch("https://catbox.moe/user/api.php", {
-        method: "POST",
-        body: formData,
-        signal: controller.signal,
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        }
-      });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const text = (await res.text()).trim();
-        if (text.startsWith("http://") || text.startsWith("https://")) {
-          return text.replace(/^http:\/\//i, "https://");
-        }
-        console.warn(`[Catbox] Attempt ${attempt} unexpected response: ${text}`);
-      } else {
-        const errText = await res.text().catch(() => "");
-        console.warn(`[Catbox] Attempt ${attempt} HTTP ${res.status}: ${errText}`);
-      }
-    } catch (err: any) {
-      console.warn(`[Catbox] Attempt ${attempt} network error:`, err?.message || err);
+  // 1. Try Catbox.moe CDN first
+  try {
+    const userHash = process.env.CATBOX_USERHASH ? process.env.CATBOX_USERHASH.trim() : "";
+    const formData = new FormData();
+    formData.append("reqtype", "fileupload");
+    if (userHash) {
+      formData.append("userhash", userHash);
     }
+    formData.append("fileToUpload", new Blob([buffer], { type: mimeType }), filename);
 
-    if (attempt < maxRetries) {
-      await new Promise((r) => setTimeout(r, attempt * 1000));
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+
+    const res = await fetch("https://catbox.moe/user/api.php", {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+      }
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const text = (await res.text()).trim();
+      if (text.startsWith("http://") || text.startsWith("https://")) {
+        return text.replace(/^http:\/\//i, "https://");
+      }
     }
+  } catch (catErr: any) {
+    console.warn("[Catbox] Upload attempt bypassed or failed, using internal media storage:", catErr?.message || catErr);
   }
 
-  throw new Error("Catbox serveriga yuklashda xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.");
+  // 2. 100% Reliable In-Memory Fallback: Save directly to media_files in MySQL database (zero disk write)
+  const base64String = buffer.toString("base64");
+  const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+  try {
+    await dbQuery(
+      `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)`,
+      [mediaId, filename, mimeType, base64String, buffer.length]
+    );
+  } catch (dbErr: any) {
+    console.warn("[media_files] DB save notice:", dbErr?.message || dbErr);
+  }
+
+  mediaMemoryCache.set(mediaId, { mimeType, base64: base64String, buffer });
+  return `/api/media/${mediaId}`;
 }
 
 // High performance in-memory media cache to minimize DB load on frequent hits
@@ -2610,28 +2434,22 @@ app.post("/api/media/upload", authenticateToken, memoryUpload.single("file"), as
       return res.status(400).json({ error: "Rasm fayli tanlanmadi yoki bo'sh" });
     }
 
-    // Direct in-memory upload to Catbox.moe
-    try {
-      const mediaUrl = await uploadBufferToCatbox(fileBuffer, filename, mimeType);
-      return res.status(201).json({
-        success: true,
-        id: mediaUrl,
-        url: mediaUrl,
-        filename,
-        size: fileSize,
-        mime_type: mimeType
-      });
-    } catch (catErr: any) {
-      console.error("[Catbox] Upload media failed:", catErr);
-      return res.status(500).json({ error: "Faylni Catbox serveriga yuklab bo'lmadi: " + (catErr?.message || "Noma'lum xatolik") });
-    }
+    const mediaUrl = await uploadImageBuffer(fileBuffer, filename, mimeType);
+    return res.status(201).json({
+      success: true,
+      id: mediaUrl,
+      url: mediaUrl,
+      filename,
+      size: fileSize,
+      mime_type: mimeType
+    });
   } catch (err: any) {
     console.error("Media upload error:", err);
     return res.status(500).json({ error: "Rasmni yuklashda xatolik yuz berdi" });
   }
 });
 
-// Upload multiple images from device directly into Catbox
+// Upload multiple images from device directly
 app.post("/api/media/upload-multiple", authenticateToken, memoryUpload.array("files", 60), async (req: any, res: any) => {
   try {
     const files = req.files as Express.Multer.File[];
@@ -2645,19 +2463,19 @@ app.post("/api/media/upload-multiple", authenticateToken, memoryUpload.array("fi
       const filename = file.originalname || "image.jpg";
       const fileSize = file.size || fileBuffer.length;
       try {
-        const mediaUrl = await uploadBufferToCatbox(fileBuffer, filename, mimeType);
+        const mediaUrl = await uploadImageBuffer(fileBuffer, filename, mimeType);
         results.push({
           id: mediaUrl,
           url: mediaUrl,
           filename,
           size: fileSize
         });
-      } catch (catErr) {
-        console.error("[Catbox] Multiple upload item error:", catErr);
+      } catch (err) {
+        console.error("Multiple upload item error:", err);
       }
     }
     if (results.length === 0) {
-      return res.status(500).json({ error: "Fayllarni Catbox ga yuklab bo'lmadi" });
+      return res.status(500).json({ error: "Fayllarni yuklab bo'lmadi" });
     }
     return res.status(201).json({
       success: true,
@@ -2836,13 +2654,7 @@ app.post("/api/gifs/upload", authenticateToken, memoryUpload.single("file"), asy
       return res.status(400).json({ error: "Fayl tanlanmadi yoki bo'sh" });
     }
 
-    let mediaUrl = "";
-    try {
-      mediaUrl = await uploadBufferToCatbox(fileBuffer, filename, mimeType);
-    } catch (catErr: any) {
-      console.error("[Catbox] GIF upload failed:", catErr);
-      return res.status(500).json({ error: "GIF Catbox serveriga yuklanmadi: " + (catErr?.message || "Noma'lum xatolik") });
-    }
+    const mediaUrl = await uploadImageBuffer(fileBuffer, filename, mimeType);
 
     const customTitle = (req.body.title || "").trim() || filename.replace(/\.[^/.]+$/, "");
 
@@ -2918,838 +2730,6 @@ app.delete("/api/gifs/:id", authenticateToken, async (req: any, res: any) => {
   } catch (err: any) {
     console.error("Delete GIF error:", err);
     return res.status(500).json({ error: "GIF o'chirishda xatolik" });
-  }
-});
-
-// --- Reels Management Endpoints (Instagram-Style Vertical Video Feed) ---
-const STATIC_FALLBACK_REELS: any[] = [];
-
-// Helper to extract client identifier (user id or client token/ip)
-function getClientIdentifier(req: any): { userId: number | null, identifier: string } {
-  let userId: number | null = null;
-  const authHeader = req.headers["authorization"];
-  if (authHeader) {
-    const token = authHeader.split(" ")[1];
-    if (token) {
-      try {
-        const decoded: any = jwt.verify(token, JWT_SECRET);
-        if (decoded?.id) userId = Number(decoded.id);
-      } catch (e) {}
-    }
-  }
-
-  const clientId = (req.headers["x-client-id"] as string) || (req.headers["x-forwarded-for"] as string) || req.ip || "anon_client";
-  const identifier = userId ? `user_${userId}` : `client_${clientId.toString().slice(0, 60)}`;
-  return { userId, identifier };
-}
-
-// 1. Get all Reels (Supports filtering by ?user_id=...)
-app.get("/api/reels", async (req: any, res: any) => {
-  res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
-  const { userId, identifier } = getClientIdentifier(req);
-  const targetUserId = req.query.user_id ? Number(req.query.user_id) : null;
-
-  try {
-    let sql = `
-      SELECT r.*,
-        COALESCE(NULLIF(u.name, ''), NULLIF(r.author_name, ''), 'Animem.uz') as author_name,
-        COALESCE(NULLIF(u.avatar_url, ''), NULLIF(r.author_avatar, ''), 'https://files.catbox.moe/45hoi6.png') as author_avatar,
-        (SELECT COUNT(*) FROM reel_comments WHERE reel_id = r.id) as comments_count,
-        EXISTS(SELECT 1 FROM reel_likes WHERE reel_id = r.id AND user_identifier = ?) as is_liked
-      FROM reels r
-      LEFT JOIN users u ON r.user_id = u.id
-    `;
-    const params: any[] = [identifier];
-    if (targetUserId && !isNaN(targetUserId)) {
-      sql += ` WHERE r.user_id = ? `;
-      params.push(targetUserId);
-    }
-    sql += ` ORDER BY r.id DESC LIMIT 100`;
-
-    const [rows]: any = await dbQuery(sql, params);
-
-    if (Array.isArray(rows) && rows.length > 0) {
-      // Shuffle randomly on server side so every request gets a unique random order
-      for (let i = rows.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [rows[i], rows[j]] = [rows[j], rows[i]];
-      }
-
-      const formatted = rows.map((row: any) => ({
-        ...row,
-        author_name: row.author_name || 'Animem.uz',
-        author_avatar: row.author_avatar || 'https://files.catbox.moe/45hoi6.png',
-        is_liked: Boolean(row.is_liked),
-        comments_count: Number(row.comments_count || 0)
-      }));
-      return res.json(formatted);
-    }
-  } catch (err: any) {
-    console.warn("Fetch reels MySQL warning:", err?.message || err);
-  }
-
-  // Fallback to local store or static reels
-  const store = loadLocalStore();
-  let reels = (store.reels && store.reels.length > 0) ? [...store.reels] : [...STATIC_FALLBACK_REELS];
-  if (targetUserId && !isNaN(targetUserId)) {
-    reels = reels.filter((r: any) => Number(r.user_id) === targetUserId);
-  }
-  // Randomize fallback
-  for (let i = reels.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [reels[i], reels[j]] = [reels[j], reels[i]];
-  }
-  return res.json(reels);
-});
-
-// 2. Get single Reel
-app.get("/api/reels/:id", async (req: any, res: any) => {
-  const reelId = req.params.id;
-  const { identifier } = getClientIdentifier(req);
-
-  try {
-    const [rows]: any = await dbQuery(`
-      SELECT r.*,
-        COALESCE(NULLIF(u.name, ''), NULLIF(r.author_name, ''), 'Animem.uz') as author_name,
-        COALESCE(NULLIF(u.avatar_url, ''), NULLIF(r.author_avatar, ''), 'https://files.catbox.moe/45hoi6.png') as author_avatar,
-        (SELECT COUNT(*) FROM reel_comments WHERE reel_id = r.id) as comments_count,
-        EXISTS(SELECT 1 FROM reel_likes WHERE reel_id = r.id AND user_identifier = ?) as is_liked
-      FROM reels r
-      LEFT JOIN users u ON r.user_id = u.id
-      WHERE r.id = ?
-    `, [identifier, reelId]);
-
-    if (rows && rows.length > 0) {
-      const reel = rows[0];
-      return res.json({
-        ...reel,
-        author_name: reel.author_name || 'Animem.uz',
-        author_avatar: reel.author_avatar || 'https://files.catbox.moe/45hoi6.png',
-        is_liked: Boolean(reel.is_liked),
-        comments_count: Number(reel.comments_count || 0)
-      });
-    }
-  } catch (err: any) {
-    console.warn("Fetch reel by id warning:", err?.message || err);
-  }
-
-  const fallback = STATIC_FALLBACK_REELS.find(r => String(r.id) === String(reelId)) || STATIC_FALLBACK_REELS[0];
-  return res.json(fallback);
-});
-
-// 3. Like / Unlike a Reel
-app.post("/api/reels/:id/like", async (req: any, res: any) => {
-  try {
-    const reelId = req.params.id;
-    if (!reelId) return res.status(400).json({ error: "Reel ID kiritilmadi" });
-
-    const { userId, identifier } = getClientIdentifier(req);
-
-    let liked = false;
-    let newLikesCount = 0;
-
-    try {
-      // Check if already liked
-      const [existing]: any = await dbQuery(
-        "SELECT id FROM reel_likes WHERE reel_id = ? AND user_identifier = ?",
-        [reelId, identifier]
-      );
-
-      if (existing && existing.length > 0) {
-        // Unlike
-        await dbQuery("DELETE FROM reel_likes WHERE id = ?", [existing[0].id]);
-        await dbQuery("UPDATE reels SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = ?", [reelId]);
-        liked = false;
-      } else {
-        // Like
-        await dbQuery(
-          "INSERT INTO reel_likes (reel_id, user_id, user_identifier) VALUES (?, ?, ?)",
-          [reelId, userId, identifier]
-        );
-        await dbQuery("UPDATE reels SET likes_count = likes_count + 1 WHERE id = ?", [reelId]);
-        liked = true;
-      }
-
-      const [updated]: any = await dbQuery("SELECT likes_count FROM reels WHERE id = ?", [reelId]);
-      if (updated && updated.length > 0) {
-        newLikesCount = Number(updated[0].likes_count);
-      }
-    } catch (dbErr: any) {
-      console.warn("DB like reel fallback:", dbErr?.message || dbErr);
-      liked = true;
-      newLikesCount = 100;
-    }
-
-    // Also update local store if present
-    const store = loadLocalStore();
-    if (store.reels) {
-      const rIndex = store.reels.findIndex((r: any) => String(r.id) === String(reelId));
-      if (rIndex !== -1) {
-        store.reels[rIndex].likes_count = (store.reels[rIndex].likes_count || 0) + (liked ? 1 : -1);
-        saveLocalStore(store);
-      }
-    }
-
-    return res.json({
-      success: true,
-      liked,
-      likes_count: newLikesCount
-    });
-  } catch (err: any) {
-    console.error("Like reel error:", err);
-    return res.status(500).json({ error: "Like bosishda xatolik yuz berdi" });
-  }
-});
-
-// 4. Get Comments for a Reel
-app.get("/api/reels/:id/comments", async (req: any, res: any) => {
-  try {
-    const reelId = req.params.id;
-    if (!reelId) return res.status(400).json({ error: "Reel ID kiritilmadi" });
-
-    try {
-      const [rows]: any = await dbQuery(
-        "SELECT * FROM reel_comments WHERE reel_id = ? ORDER BY id DESC",
-        [reelId]
-      );
-      if (Array.isArray(rows)) {
-        return res.json(rows);
-      }
-    } catch (dbErr: any) {
-      console.warn("DB get reel comments warning:", dbErr?.message || dbErr);
-    }
-
-    const store = loadLocalStore();
-    const comments = (store.reel_comments || []).filter((c: any) => String(c.reel_id) === String(reelId));
-    return res.json(comments);
-  } catch (err: any) {
-    console.error("Get reel comments error:", err);
-    return res.json([]);
-  }
-});
-
-// 5. Add Comment to a Reel
-app.post("/api/reels/:id/comments", async (req: any, res: any) => {
-  try {
-    const reelId = req.params.id;
-    if (!reelId) return res.status(400).json({ error: "Reel ID kiritilmadi" });
-
-    const { content, username, user_avatar } = req.body;
-    if (!content || !content.trim()) {
-      return res.status(400).json({ error: "Izoh matni bo'sh bo'lishi mumkin emas" });
-    }
-
-    const { userId } = getClientIdentifier(req);
-    let finalUsername = (username || "").trim();
-    let finalAvatar = user_avatar || "";
-
-    if (userId) {
-      try {
-        const [uRows]: any = await dbQuery("SELECT name, avatar_url FROM users WHERE id = ?", [userId]);
-        if (uRows && uRows.length > 0) {
-          finalUsername = uRows[0].name || finalUsername;
-          finalAvatar = uRows[0].avatar_url || finalAvatar;
-        }
-      } catch (e) {}
-    }
-
-    if (!finalUsername) {
-      finalUsername = "Anime Muxlisi #" + Math.floor(1000 + Math.random() * 9000);
-    }
-    if (!finalAvatar) {
-      finalAvatar = "https://files.catbox.moe/45hoi6.png";
-    }
-
-    const trimmedContent = content.trim();
-    let insertedId = Date.now();
-
-    let currentTotalComments = 1;
-    try {
-      const [result]: any = await dbQuery(
-        "INSERT INTO reel_comments (reel_id, user_id, username, user_avatar, content) VALUES (?, ?, ?, ?, ?)",
-        [reelId, userId, finalUsername, finalAvatar, trimmedContent]
-      );
-      if (result?.insertId) insertedId = result.insertId;
-
-      await dbQuery(
-        "UPDATE reels SET comments_count = (SELECT COUNT(*) FROM reel_comments WHERE reel_id = ?) WHERE id = ?",
-        [reelId, reelId]
-      );
-
-      const [countRows]: any = await dbQuery(
-        "SELECT COUNT(*) as total FROM reel_comments WHERE reel_id = ?",
-        [reelId]
-      );
-      if (countRows?.[0]?.total !== undefined) {
-        currentTotalComments = Number(countRows[0].total);
-      }
-    } catch (dbErr: any) {
-      console.warn("DB insert reel comment warning:", dbErr?.message || dbErr);
-    }
-
-    const newComment = {
-      id: insertedId,
-      reel_id: reelId,
-      user_id: userId,
-      username: finalUsername,
-      user_avatar: finalAvatar,
-      content: trimmedContent,
-      created_at: new Date()
-    };
-
-    const store = loadLocalStore();
-    if (!store.reel_comments) store.reel_comments = [];
-    store.reel_comments.unshift(newComment);
-    if (store.reels) {
-      const rIdx = store.reels.findIndex((r: any) => String(r.id) === String(reelId));
-      if (rIdx !== -1) {
-        store.reels[rIdx].comments_count = (store.reels[rIdx].comments_count || 0) + 1;
-      }
-    }
-    saveLocalStore(store);
-
-    return res.status(201).json({
-      success: true,
-      comment: newComment,
-      comments_count: currentTotalComments
-    });
-  } catch (err: any) {
-    console.error("Add reel comment error:", err);
-    return res.status(500).json({ error: "Izoh yozishda xatolik yuz berdi" });
-  }
-});
-
-// 6. Increment Share count
-app.post("/api/reels/:id/share", async (req: any, res: any) => {
-  try {
-    const reelId = req.params.id;
-    if (!reelId) return res.status(400).json({ error: "Reel ID kiritilmadi" });
-
-    try {
-      await dbQuery("UPDATE reels SET shares_count = shares_count + 1 WHERE id = ?", [reelId]);
-    } catch (e) {}
-
-    return res.json({ success: true });
-  } catch (err: any) {
-    return res.json({ success: false });
-  }
-});
-
-// 7. Increment View count
-app.post("/api/reels/:id/view", async (req: any, res: any) => {
-  try {
-    const reelId = req.params.id;
-    if (!reelId) return res.status(400).json({ error: "Reel ID kiritilmadi" });
-
-    try {
-      await dbQuery("UPDATE reels SET views_count = views_count + 1 WHERE id = ?", [reelId]);
-    } catch (e) {}
-
-    return res.json({ success: true });
-  } catch (err: any) {
-    return res.json({ success: false });
-  }
-});
-
-// 8. Create new Reel (Any authenticated user can post from profile or reels page)
-app.post("/api/reels", authenticateToken, async (req: any, res: any) => {
-  try {
-    const { title, anime_title, video_url, thumbnail_url, tags } = req.body;
-    if (!video_url || !video_url.trim()) {
-      return res.status(400).json({ error: "Video URL kiritilishi shart" });
-    }
-
-    const reelTitle = (title || "").trim() || "Anime Reel";
-    const animeName = (anime_title || "").trim() || "Anime";
-    const trimmedVideo = video_url.trim();
-    const trimmedThumb = (thumbnail_url || "").trim() || "https://files.catbox.moe/45hoi6.png";
-    const reelTags = (tags || "").trim() || "#anime #reels #animemuz";
-
-    const currentUserId = req.user?.id ? Number(req.user.id) : null;
-    let authorName = (req.body?.author_name || "").trim();
-    let authorAvatar = (req.body?.author_avatar || "").trim();
-
-    if (currentUserId) {
-      try {
-        const [uRows]: any = await dbQuery(
-          "SELECT id, name, avatar_url FROM users WHERE id = ?",
-          [currentUserId]
-        );
-        if (uRows && uRows.length > 0) {
-          const u = uRows[0];
-          authorName = u.name || authorName || "Foydalanuvchi";
-          authorAvatar = u.avatar_url || authorAvatar || "https://files.catbox.moe/45hoi6.png";
-        }
-      } catch (e) {
-        console.warn("Fetch user for reel upload failed:", e);
-      }
-    }
-
-    if (!authorName) {
-      authorName = req.user?.name || (req.user?.role === "admin" ? "Animem.uz" : "Foydalanuvchi");
-    }
-    if (!authorAvatar) {
-      authorAvatar = req.user?.avatar_url || "https://files.catbox.moe/45hoi6.png";
-    }
-
-    let insertedId = Date.now();
-    try {
-      const [result]: any = await dbQuery(
-        `INSERT INTO reels (title, anime_title, video_url, thumbnail_url, author_name, author_avatar, likes_count, views_count, shares_count, tags, user_id)
-         VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)`,
-        [reelTitle, animeName, trimmedVideo, trimmedThumb, authorName, authorAvatar, reelTags, currentUserId]
-      );
-      if (result?.insertId) insertedId = result.insertId;
-    } catch (dbErr: any) {
-      console.warn("DB insert reel warning:", dbErr?.message || dbErr);
-    }
-
-    const newReel = {
-      id: insertedId,
-      title: reelTitle,
-      anime_title: animeName,
-      video_url: trimmedVideo,
-      thumbnail_url: trimmedThumb,
-      author_name: authorName,
-      author_avatar: authorAvatar,
-      likes_count: 0,
-      views_count: 0,
-      shares_count: 0,
-      comments_count: 0,
-      tags: reelTags,
-      user_id: currentUserId,
-      is_liked: false,
-      created_at: new Date()
-    };
-
-    const store = loadLocalStore();
-    if (!store.reels) store.reels = [...STATIC_FALLBACK_REELS];
-    store.reels.unshift(newReel);
-    saveLocalStore(store);
-
-    return res.status(201).json({
-      success: true,
-      reel: newReel
-    });
-  } catch (err: any) {
-    console.error("Create reel error:", err);
-    return res.status(500).json({ error: "Reel yaratishda xatolik yuz berdi" });
-  }
-});
-
-// 9. Delete Reel (Admin or the user who uploaded it)
-app.delete("/api/reels/:id", authenticateToken, async (req: any, res: any) => {
-  try {
-    const reelId = req.params.id;
-    if (!reelId) return res.status(400).json({ error: "Reel ID kiritilmadi" });
-
-    // Check ownership
-    try {
-      const [existing]: any = await dbQuery("SELECT user_id FROM reels WHERE id = ?", [reelId]);
-      if (existing && existing.length > 0) {
-        const ownerId = existing[0].user_id;
-        if (req.user.role !== "admin" && String(ownerId) !== String(req.user.id)) {
-          return res.status(403).json({ error: "Siz faqat o'zingiz yuklagan videolarni o'chira olasiz!" });
-        }
-      }
-    } catch (checkErr) {}
-
-    try {
-      await dbQuery("DELETE FROM reel_comments WHERE reel_id = ?", [reelId]);
-      await dbQuery("DELETE FROM reel_likes WHERE reel_id = ?", [reelId]);
-      await dbQuery("DELETE FROM reels WHERE id = ?", [reelId]);
-    } catch (dbErr: any) {
-      console.warn("DB delete reel warning:", dbErr?.message || dbErr);
-    }
-
-    const store = loadLocalStore();
-    if (store.reels) {
-      store.reels = store.reels.filter((r: any) => String(r.id) !== String(reelId));
-      saveLocalStore(store);
-    }
-
-    return res.json({ success: true, message: "Reel muvaffaqiyatli o'chirildi" });
-  } catch (err: any) {
-    console.error("Delete reel error:", err);
-    return res.status(500).json({ error: "Reel o'chirishda xatolik yuz berdi" });
-  }
-});
-
-// 10. Upload Reel Video directly (Admin unlimited, regular users max 15MB)
-// Add this below app.post("/api/reels/upload"...
-
-const activeReelUploads = new Map<string, {
-  userId: number;
-  totalSize: number;
-  tempPath: string;
-  expectedChunks: number;
-  receivedChunks: Set<number>;
-  mimeType: string;
-}>();
-
-// High-speed direct reel video upload with real-time progress (100% in-memory, zero disk write)
-app.post("/api/reels/upload-direct", authenticateToken, memoryVideoUpload.single("video"), async (req: any, res: any) => {
-  try {
-    const isAdmin = req.user?.role === "admin";
-    const maxUserSize = 30 * 1024 * 1024; // 30 MB
-
-    if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ error: "Video fayli tanlanmadi" });
-    }
-
-    if (!isAdmin && req.file.size > maxUserSize) {
-      const currentMB = (req.file.size / (1024 * 1024)).toFixed(1);
-      return res.status(400).json({ 
-        error: `Maksimal video hajmi 30 MB. Siz tanlagan video hajmi: ${currentMB} MB. Iltimos 30 MB dan kichik video yuklang!` 
-      });
-    }
-
-    const uploadId = "upl_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-    const filename = req.file.originalname || "video.mp4";
-    const mimeType = req.file.mimetype || "video/mp4";
-
-    const catboxUrl = await uploadBufferToCatbox(req.file.buffer, filename, mimeType);
-
-    return res.status(201).json({
-      success: true,
-      url: catboxUrl,
-      uploadId
-    });
-  } catch (err: any) {
-    console.error("Direct reel upload error:", err);
-    return res.status(500).json({ error: "Videoni Catbox serveriga yuklashda xatolik: " + (err?.message || "Noma'lum xatolik") });
-  }
-});
-
-app.post("/api/reels/upload-start", authenticateToken, (req: any, res: any) => {
-  try {
-  const { filename, totalSize, mimeType } = req.body;
-  const isAdmin = req.user?.role === "admin";
-  const maxUserSize = 30 * 1024 * 1024; // 30 MB
-
-  if (!isAdmin && totalSize > maxUserSize) {
-    const currentMB = (totalSize / (1024 * 1024)).toFixed(1);
-    return res.status(400).json({ 
-      error: `Oddiy foydalanuvchilar uchun maksimal video hajmi 30 MB. Siz tanlagan video hajmi: ${currentMB} MB. Iltimos 30 MB dan kichik video yuklang!` 
-    });
-  }
-
-  const uploadId = "upl_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-  const mediaDir = path.join(os.tmpdir(), "media");
-  if (!fs.existsSync(mediaDir)) {
-    fs.mkdirSync(mediaDir, { recursive: true });
-  }
-  
-  const tempPath = path.join(mediaDir, `${uploadId}.temp`);
-  
-  activeReelUploads.set(uploadId, {
-    userId: req.user.id,
-    totalSize,
-    tempPath,
-    expectedChunks: 0, // Will be known as chunks arrive
-    receivedChunks: new Set(),
-    mimeType: mimeType || 'video/mp4'
-  });
-
-  res.json({ uploadId });
-  } catch (err: any) {
-    res.status(500).json({ error: "Start upload error: " + err.message });
-  }
-});
-
-app.post("/api/reels/upload-chunk", authenticateToken, upload.single("chunk"), (req: any, res: any) => {
-  try {
-  const { uploadId, chunkIndex, totalChunks } = req.body;
-  const uploadInfo = activeReelUploads.get(uploadId);
-  
-  if (!uploadInfo || (uploadInfo.userId && req.user?.id && String(uploadInfo.userId) !== String(req.user.id))) {
-    return res.status(404).json({ error: "Yuklash jarayoni topilmadi yoki muddati o'tdi" });
-  }
-  if (!req.file) {
-    return res.status(400).json({ error: "Chunk fayl yetib kelmadi" });
-  }
-
-  uploadInfo.expectedChunks = Number(totalChunks);
-  
-  const tempDir = path.dirname(uploadInfo.tempPath);
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-  }
-
-  const chunkPath = `${uploadInfo.tempPath}_${chunkIndex}`;
-  try {
-    fs.copyFileSync(req.file.path, chunkPath);
-    try { fs.unlinkSync(req.file.path); } catch (e) {}
-  } catch (e: any) {
-    try { fs.renameSync(req.file.path, chunkPath); } catch (e2) {}
-  }
-  
-  uploadInfo.receivedChunks.add(Number(chunkIndex));
-  
-  res.json({ success: true, progress: Math.round((uploadInfo.receivedChunks.size / uploadInfo.expectedChunks) * 100) });
-  } catch (err: any) {
-    res.status(500).json({ error: "Chunk yuklash xatosi: " + err.message });
-  }
-});
-
-app.post("/api/reels/upload-finish", authenticateToken, async (req: any, res: any) => {
-  const { uploadId } = req.body;
-  const uploadInfo = activeReelUploads.get(uploadId);
-  
-  if (!uploadInfo || uploadInfo.userId !== req.user.id) {
-    return res.status(404).json({ error: "Upload jarayoni topilmadi" });
-  }
-  
-  if (uploadInfo.receivedChunks.size !== uploadInfo.expectedChunks) {
-    return res.status(400).json({ error: "Barcha bo'laklar yetib kelmadi" });
-  }
-  
-  try {
-    const buffers: Buffer[] = [];
-    for (let i = 0; i < uploadInfo.expectedChunks; i++) {
-      const chunkPath = `${uploadInfo.tempPath}_${i}`;
-      if (fs.existsSync(chunkPath)) {
-        buffers.push(fs.readFileSync(chunkPath));
-        try { fs.unlinkSync(chunkPath); } catch (e) {}
-      }
-    }
-    const combinedBuffer = Buffer.concat(buffers);
-    activeReelUploads.delete(uploadId);
-
-    const catboxUrl = await uploadBufferToCatbox(combinedBuffer, "video.mp4", uploadInfo.mimeType || "video/mp4");
-    return res.status(201).json({ url: catboxUrl, success: true });
-  } catch (err: any) {
-    console.error("Upload finish error:", err);
-    return res.status(500).json({ error: "Videoni Catbox serveriga yuklashda xatolik: " + (err?.message || "Noma'lum xatolik") });
-  }
-});
-
-
-async function convertVideoToHls(inputPath: string, mediaId: string): Promise<string> {
-  const hlsDir = path.join(process.cwd(), "data", "hls", mediaId);
-  if (!fs.existsSync(hlsDir)) {
-    fs.mkdirSync(hlsDir, { recursive: true });
-  }
-  const playlistPath = path.join(hlsDir, "index.m3u8");
-  
-  const cmd = `ffmpeg -y -i "${inputPath}" -profile:v baseline -level 3.0 -s 720x1280 -start_number 0 -hls_time 3 -hls_list_size 0 -f hls "${playlistPath}"`;
-  try {
-    await execPromise(cmd);
-  } catch (err) {
-    console.warn("FFmpeg HLS conversion fallback:", err);
-    const fallbackCmd = `ffmpeg -y -i "${inputPath}" -c:v libx264 -c:a aac -start_number 0 -hls_time 3 -hls_list_size 0 -f hls "${playlistPath}"`;
-    await execPromise(fallbackCmd);
-  }
-  return `/api/hls/${mediaId}/index.m3u8`;
-}
-
-app.get("/api/hls/:id/:file", (req: any, res: any) => {
-  const { id, file } = req.params;
-  const filePath = path.join(process.cwd(), "data", "hls", id, file);
-  
-  if (fs.existsSync(filePath)) {
-    if (file.endsWith('.m3u8')) {
-      res.setHeader('Content-Type', 'application/x-mpegURL');
-    } else if (file.endsWith('.ts')) {
-      res.setHeader('Content-Type', 'video/MP2T');
-    }
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    fs.createReadStream(filePath).pipe(res);
-  } else {
-    // Fallback to old temp dir hls if exists
-    const mediaDir = path.join(os.tmpdir(), "media");
-    const oldFilePath = path.join(mediaDir, `${id}.temp_hls`, file);
-    if (fs.existsSync(oldFilePath)) {
-      if (file.endsWith('.m3u8')) {
-        res.setHeader('Content-Type', 'application/x-mpegURL');
-      } else if (file.endsWith('.ts')) {
-        res.setHeader('Content-Type', 'video/MP2T');
-      }
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      fs.createReadStream(oldFilePath).pipe(res);
-      return;
-    }
-    res.status(404).send("HLS file not found");
-  }
-});
-app.post("/api/reels/upload", authenticateToken, memoryVideoUpload.single("file"), async (req: any, res: any) => {
-  try {
-    if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ error: "Video fayl tanlanmagan" });
-    }
-
-    const fileSize = req.file.size || req.file.buffer.length;
-    const isAdmin = req.user?.role === "admin";
-    const maxUserSize = 30 * 1024 * 1024; // 30 MB
-
-    if (!isAdmin && fileSize > maxUserSize) {
-      const currentMB = (fileSize / (1024 * 1024)).toFixed(1);
-      return res.status(400).json({ 
-        error: `Oddiy foydalanuvchilar uchun maksimal video hajmi 30 MB. Siz tanlagan video hajmi: ${currentMB} MB. Iltimos 30 MB dan kichik video yuklang!` 
-      });
-    }
-
-    const filename = req.file.originalname || "reel.mp4";
-    const mimeType = req.file.mimetype || "video/mp4";
-    const catboxUrl = await uploadBufferToCatbox(req.file.buffer, filename, mimeType);
-
-    return res.status(201).json({
-      success: true,
-      url: catboxUrl
-    });
-  } catch (err: any) {
-    console.error("Upload reel video error:", err);
-    return res.status(500).json({ error: "Video yuklashda xatolik: " + (err?.message || "Noma'lum xatolik") });
-  }
-});
-
-// 11. HLS M3U8 Playlist generator for Reel videos stored in MySQL
-app.get("/api/reels/stream/:id.m3u8", async (req: any, res: any) => {
-  const mediaId = req.params.id;
-  res.setHeader("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=3600");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-
-  const m3u8Content = [
-    "#EXTM3U",
-    "#EXT-X-VERSION:3",
-    "#EXT-X-TARGETDURATION:120",
-    "#EXT-X-MEDIA-SEQUENCE:0",
-    "#EXTINF:120.0,",
-    `/api/reels/stream/${mediaId}/video.mp4`,
-    "#EXT-X-ENDLIST"
-  ].join("\n");
-
-  return res.send(m3u8Content);
-});
-
-// 12. HLS Video segment & stream with HTTP 206 Partial Content (Range) support
-app.get(["/api/reels/stream/:id/video.mp4", "/api/reels/stream/:id/segment.ts"], async (req: any, res: any) => {
-  try {
-    const mediaId = req.params.id;
-    if (!mediaId) return res.status(400).send("Media ID topilmadi");
-
-    // 0. Check if this reel is on Catbox in the database -> 302 Redirect to Catbox CDN
-    try {
-      const [rRows]: any = await dbQuery("SELECT video_url FROM reels WHERE video_url LIKE ? LIMIT 1", [`%${mediaId}%`]);
-      if (rRows && rRows.length > 0 && rRows[0].video_url && rRows[0].video_url.startsWith("http")) {
-        return res.redirect(302, rRows[0].video_url);
-      }
-    } catch (e) {}
-
-    // 1. Check local persistent disk storage first (fastest, zero RAM footprint)
-    const localDiskPath = path.join(process.cwd(), "data", "media", `${mediaId}.mp4`);
-    if (fs.existsSync(localDiskPath)) {
-      const stat = fs.statSync(localDiskPath);
-      const totalSize = stat.size;
-      const range = req.headers.range;
-
-      res.setHeader("Accept-Ranges", "bytes");
-      res.setHeader("Content-Type", "video/mp4");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Content-Disposition", "inline");
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
-
-      if (range) {
-        const parts = range.replace(/bytes=/, "").split("-");
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
-        const chunksize = end - start + 1;
-
-        res.status(206);
-        res.setHeader("Content-Range", `bytes ${start}-${end}/${totalSize}`);
-        res.setHeader("Content-Length", chunksize);
-        const fileStream = fs.createReadStream(localDiskPath, { start, end });
-        return fileStream.pipe(res);
-      } else {
-        res.setHeader("Content-Length", totalSize);
-        const fileStream = fs.createReadStream(localDiskPath);
-        return fileStream.pipe(res);
-      }
-    }
-
-    // 2. Check memory cache or database
-    let mimeType = "video/mp4";
-    let buffer: Buffer | null = null;
-
-    if (mediaMemoryCache.has(mediaId)) {
-      const cached = mediaMemoryCache.get(mediaId)!;
-      mimeType = cached.mimeType || "video/mp4";
-      buffer = cached.buffer || Buffer.from(cached.base64, "base64");
-    } else {
-      const [rows]: any = await dbQuery("SELECT mime_type, data FROM media_files WHERE id = ?", [mediaId]);
-      if (!rows || rows.length === 0) {
-        return res.status(404).send("Video topilmadi");
-      }
-      mimeType = rows[0].mime_type || "video/mp4";
-      buffer = Buffer.from(rows[0].data, "base64");
-      mediaMemoryCache.set(mediaId, { mimeType, base64: rows[0].data, buffer });
-      if (mediaMemoryCache.size > 200) {
-        const first = mediaMemoryCache.keys().next().value;
-        if (first) mediaMemoryCache.delete(first);
-      }
-    }
-
-    if (!buffer) return res.status(404).send("Video topilmadi");
-
-    const totalSize = buffer.length;
-    const range = req.headers.range;
-
-    res.setHeader("Accept-Ranges", "bytes");
-    res.setHeader("Content-Type", mimeType);
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Content-Disposition", "inline");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
-
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
-      const chunksize = end - start + 1;
-
-      res.status(206);
-      res.setHeader("Content-Range", `bytes ${start}-${end}/${totalSize}`);
-      res.setHeader("Content-Length", chunksize);
-      return res.send(buffer.subarray(start, end + 1));
-    } else {
-      res.setHeader("Content-Length", totalSize);
-      return res.send(buffer);
-    }
-  } catch (err: any) {
-    console.error("Stream reel video error:", err);
-    return res.status(500).send("Video oqimida xatolik");
-  }
-});
-
-// 13. Get user specific reels
-app.get("/api/user/:id/reels", async (req: any, res: any) => {
-  try {
-    const targetUserId = req.params.id;
-    const { identifier } = getClientIdentifier(req);
-
-    const [rows]: any = await dbQuery(`
-      SELECT r.*,
-        (SELECT COUNT(*) FROM reel_comments WHERE reel_id = r.id) as comments_count,
-        EXISTS(SELECT 1 FROM reel_likes WHERE reel_id = r.id AND user_identifier = ?) as is_liked
-      FROM reels r
-      WHERE r.user_id = ?
-      ORDER BY r.id DESC
-    `, [identifier, targetUserId]);
-
-    const formatted = (rows || []).map((row: any) => ({
-      ...row,
-      is_liked: Boolean(row.is_liked),
-      comments_count: Number(row.comments_count || 0)
-    }));
-
-    return res.json(formatted);
-  } catch (err: any) {
-    console.error("Get user reels error:", err);
-    return res.json([]);
   }
 });
 

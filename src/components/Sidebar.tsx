@@ -17,9 +17,7 @@ import {
   Sun,
   Shield,
   X,
-  MessageSquare,
-  Clapperboard,
-  Upload
+  MessageSquare
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { translateGenre } from '../types';
@@ -76,8 +74,6 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
     { name: t.navAnimes, path: '/animelar', icon: Tv },
     { name: t.navManga, path: '/manga', icon: BookOpen },
     { name: t.navDramas, path: '/dramalar', icon: Film },
-    { name: t.navReels, path: '/reels', icon: Clapperboard },
-    { name: t.navUpload, path: '/upload', icon: Upload },
     { name: t.navSchedule, path: '/jadval', icon: Calendar },
     { name: t.navNewReleases, path: '/yangi-chiqishlar', icon: Clock },
     { name: t.navTop100, path: '/top100', icon: Star },

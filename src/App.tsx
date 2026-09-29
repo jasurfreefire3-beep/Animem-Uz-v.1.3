@@ -39,8 +39,6 @@ const Sozlamalar = lazy(() => import('./pages/Sozlamalar'));
 const Profil = lazy(() => import('./pages/Profil'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const SupportBot = lazy(() => import('./pages/SupportBot'));
-const Reels = lazy(() => import('./pages/Reels'));
-const Upload = lazy(() => import('./pages/Upload'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const DMCA = lazy(() => import('./pages/DMCA'));
@@ -59,7 +57,6 @@ export default function App() {
   const location = useLocation();
   const rawPath = location.pathname.replace(/^\/(uz|ru|ing|en)(\/|$)/, '/');
   const isSupportBot = rawPath === '/support' || location.pathname === '/support';
-  const isReels = rawPath === '/reels' || rawPath.startsWith('/reels') || location.pathname.includes('/reels');
 
   // Scroll to top on route change
   useEffect(() => {
@@ -93,21 +90,6 @@ export default function App() {
         <Routes>
           <Route path="/support" element={<SupportBot />} />
         </Routes>
-      </div>
-    );
-  }
-
-  if (isReels) {
-    return (
-      <div className="fixed inset-0 h-[100dvh] w-full overflow-hidden bg-black text-white select-none">
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/reels" element={<Reels />} />
-            <Route path="/:lang/reels" element={<Reels />} />
-            <Route path="/reels/:id" element={<Reels />} />
-            <Route path="/:lang/reels/:id" element={<Reels />} />
-          </Routes>
-        </Suspense>
       </div>
     );
   }
@@ -263,13 +245,10 @@ export default function App() {
               <Route path="/drama/:id" element={<DramaView />} />
               <Route path="/:lang/drama/:id" element={<DramaView />} />
 
-              {/* Reels Routes */}
-              <Route path="/reels" element={<Reels />} />
-              <Route path="/:lang/reels" element={<Reels />} />
-
-              {/* Upload Routes */}
-              <Route path="/upload" element={<Upload />} />
-              <Route path="/:lang/upload" element={<Upload />} />
+              <Route path="/reels" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/reels" element={<Navigate to="/" replace />} />
+              <Route path="/upload" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/upload" element={<Navigate to="/" replace />} />
 
               <Route path="/jadval" element={<Jadval />} />
               <Route path="/:lang/jadval" element={<Jadval />} />

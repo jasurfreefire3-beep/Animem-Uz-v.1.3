@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Home, Film, BookOpen, Search, User, X, Star, Clapperboard } from 'lucide-react';
+import { Home, Film, BookOpen, Search, User, X, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Anime, toSlug } from '../types';
 
@@ -51,11 +51,6 @@ export default function MobileBottomNav() {
 
   const rawPath = location.pathname.replace(/^\/(uz|ru|ing|en)(\/|$)/, '/');
 
-  // Reels bo'limiga kirilganda mobil qurilmalarda pastki menyularni butunlay yashirish
-  if (rawPath.startsWith('/reels') || location.pathname.includes('/reels')) {
-    return null;
-  }
-
   const navItems = [
     {
       id: 'home',
@@ -70,13 +65,6 @@ export default function MobileBottomNav() {
       path: getLocalizedPath('/animelar'),
       icon: Film,
       isActive: rawPath.startsWith('/animelar') || rawPath.startsWith('/anime/')
-    },
-    {
-      id: 'reels',
-      label: 'Reels',
-      path: getLocalizedPath('/reels'),
-      icon: Clapperboard,
-      isActive: rawPath.startsWith('/reels')
     },
     {
       id: 'mangalar',
