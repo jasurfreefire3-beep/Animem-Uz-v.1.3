@@ -6,6 +6,8 @@ import path from "path";
 import fs from "fs";
 import http from "http";
 import https from "https";
+import dns from "dns";
+import nodemailer from "nodemailer";
 import { Server } from "socket.io";
 import mysql from "mysql2/promise";
 import { Pool as PgPool } from "pg";
@@ -1390,6 +1392,121 @@ async function sendMailerSendEmail(
   return { ok: false, error: lastError };
 }
 
+// Unified Zero-External-API Email Delivery Engine
+// Supports:
+// 1. Direct Gmail SMTP (smtp.gmail.com:465 with GMAIL_USER and GMAIL_APP_PASSWORD)
+// 2. Custom Domain SMTP (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, e.g. for support@animem.uz)
+// 3. Direct MX Delivery (Tashqi API-larsiz, to'g'ridan-to'g'ri qabul qiluvchi pochta serveriga: masalan gmail-smtp-in.l.google.com:25)
+// 4. MailerSend fallback (agar MAILERSEND_API_KEY mavjud bo'lsa)
+async function sendEmailNotification(
+  toEmail: string,
+  subject: string,
+  title: string,
+  subtitle: string,
+  code: string,
+  note: string
+): Promise<{ ok: boolean; method?: string; error?: string }> {
+  const htmlContent = buildAnimeEmailHtml(title, subtitle, code, note);
+  const textContent = `${title}\n\n${subtitle}\n\nTasdiqlash kodi: ${code}\n\n${note}\n\nUshbu xat avtomatik tarzda yuborilgan bir martalik tranzaksion xabardir.\n© ${new Date().getFullYear()} Animem.uz | support@animem.uz`;
+  
+  // From address: prioritizes environment config or falls back to support@animem.uz
+  const defaultFrom = (process.env.SMTP_FROM || (process.env.GMAIL_USER ? `"Animem.uz" <${process.env.GMAIL_USER}>` : '"Animem.uz" <support@animem.uz>')).trim();
+
+  // --- STRATEGY 1: Direct SMTP via Gmail or Custom SMTP (Eng ishonchli va hech qanday tashqi API talab qilmaydi) ---
+  const smtpUser = (process.env.GMAIL_USER || process.env.SMTP_USER || "").trim();
+  const smtpPass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.SMTP_PASS || "").trim();
+
+  if (smtpUser && smtpPass) {
+    try {
+      const isGmail = !process.env.SMTP_HOST || process.env.SMTP_HOST.includes("gmail");
+      const transporter = isGmail
+        ? nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+              user: smtpUser,
+              pass: smtpPass,
+            },
+            connectionTimeout: 10000,
+          })
+        : nodemailer.createTransport({
+            host: process.env.SMTP_HOST.trim(),
+            port: Number(process.env.SMTP_PORT) || 465,
+            secure: process.env.SMTP_SECURE === "true" || (!process.env.SMTP_SECURE && (Number(process.env.SMTP_PORT) || 465) === 465),
+            auth: {
+              user: smtpUser,
+              pass: smtpPass,
+            },
+            connectionTimeout: 10000,
+          });
+
+      const info = await transporter.sendMail({
+        from: defaultFrom,
+        to: toEmail,
+        replyTo: "support@animem.uz",
+        subject: subject,
+        text: textContent,
+        html: htmlContent,
+      });
+
+      console.log(`[SMTP Email Success] Sent to ${toEmail} via SMTP (${info.messageId})`);
+      return { ok: true, method: "smtp" };
+    } catch (smtpErr: any) {
+      console.warn(`[SMTP Email Warning] Failed sending via SMTP to ${toEmail}:`, smtpErr.message);
+    }
+  }
+
+  // --- STRATEGY 2: Direct MX Delivery (Tashqi API-larsiz, to'g'ridan-to'g'ri qabul qiluvchi pochta serveriga ulanish) ---
+  try {
+    const domain = toEmail.split("@")[1];
+    if (domain) {
+      const mxRecords = await dns.promises.resolveMx(domain);
+      if (mxRecords && mxRecords.length > 0) {
+        mxRecords.sort((a, b) => a.priority - b.priority);
+        const primaryMx = mxRecords[0].exchange;
+
+        console.log(`[Direct MX] Attempting direct delivery to ${toEmail} via ${primaryMx}:25...`);
+        const directTransporter = nodemailer.createTransport({
+          host: primaryMx,
+          port: 25,
+          secure: false,
+          name: "animem.uz",
+          tls: {
+            rejectUnauthorized: false,
+          },
+          connectionTimeout: 7000,
+          greetingTimeout: 7000,
+          socketTimeout: 8000,
+        });
+
+        const info = await directTransporter.sendMail({
+          from: defaultFrom,
+          to: toEmail,
+          replyTo: "support@animem.uz",
+          subject: subject,
+          text: textContent,
+          html: htmlContent,
+        });
+
+        console.log(`[Direct MX Success] Direct delivered to ${toEmail} via ${primaryMx} (${info.messageId})`);
+        return { ok: true, method: "direct_mx" };
+      }
+    }
+  } catch (directMxErr: any) {
+    console.warn(`[Direct MX Warning] Direct MX delivery to ${toEmail} failed:`, directMxErr.message);
+  }
+
+  // --- STRATEGY 3: MailerSend API Fallback (agar MAILERSEND_API_KEY o'rnatilgan bo'lsa) ---
+  const mailerSendResult = await sendMailerSendEmail(toEmail, subject, title, subtitle, code, note);
+  if (mailerSendResult.ok) {
+    return { ok: true, method: "mailersend" };
+  }
+
+  return {
+    ok: false,
+    error: mailerSendResult.error || "Email yuborishda xatolik. Iltimos GMAIL_USER/GMAIL_APP_PASSWORD yoki SMTP ma'lumotlarini tekshiring.",
+  };
+}
+
 // Send 6-digit verification code via MailerSend
 app.post("/api/auth/send-code", async (req, res) => {
   try {
@@ -1432,10 +1549,10 @@ app.post("/api/auth/send-code", async (req, res) => {
       verified: false,
     };
 
-    console.log(`[MailerSend Auth] Verification code generated for ${cleanEmail}: ${code}`);
+    console.log(`[Email Auth] Verification code generated for ${cleanEmail}: ${code}`);
 
-    // Send email using MailerSend API
-    const emailResult = await sendMailerSendEmail(
+    // Send email using Direct SMTP / Direct MX / fallback
+    const emailResult = await sendEmailNotification(
       cleanEmail,
       "Animem.uz — Ro'yxatdan o'tish tasdiqlash kodi: " + code,
       "RO'YXATDAN O'TISHNI TASDIQLASH",
@@ -1448,17 +1565,18 @@ app.post("/api/auth/send-code", async (req, res) => {
       return res.json({
         success: true,
         emailSent: true,
+        method: emailResult.method,
         message: "Tasdiqlash kodi email manzilingizga yuborildi! Pochtani (va Spam papkasini) tekshiring.",
       });
     }
 
-    // Fallback: If external email service fails (e.g. key pending configuration on server), preserve code & return message
-    console.warn(`[MailerSend Auth] Email sending failed for ${cleanEmail}: ${emailResult.error}`);
+    // Fallback: If external email service fails (e.g. SMTP pending configuration), preserve code & return message
+    console.warn(`[Email Auth] Email sending failed for ${cleanEmail}: ${emailResult.error}`);
     return res.json({
       success: true,
       emailSent: false,
       devCode: code,
-      message: `Tasdiqlash kodi tayyorlandi! ${emailResult.error ? `(Email xizmati: ${emailResult.error}. Tasdiqlash kodi: ${code})` : ''}`,
+      message: `Tasdiqlash kodi tayyorlandi! ${emailResult.error ? `(Pochta xizmati: ${emailResult.error}. Tasdiqlash kodi: ${code})` : ''}`,
     });
   } catch (error: any) {
     console.error("Send code error:", error);
@@ -1511,8 +1629,8 @@ app.post("/api/auth/forgot-password-send-code", async (req, res) => {
 
     console.log(`[Forgot Password] Reset code generated for ${cleanEmail}: ${code}`);
 
-    // Send email via MailerSend
-    const emailResult = await sendMailerSendEmail(
+    // Send email via Direct SMTP / Direct MX / fallback
+    const emailResult = await sendEmailNotification(
       cleanEmail,
       "Animem.uz — Parolni tiklash tasdiqlash kodi: " + code,
       "PAROLNI TIKLASH",
@@ -1525,17 +1643,18 @@ app.post("/api/auth/forgot-password-send-code", async (req, res) => {
       return res.json({
         success: true,
         emailSent: true,
+        method: emailResult.method,
         message: "Parolni tiklash kodi email manzilingizga yuborildi! Pochtani (va Spam papkasini) tekshiring.",
       });
     }
 
-    // Fallback: If external email service fails (e.g. key pending configuration), preserve code & return message
+    // Fallback: If external email service fails (e.g. SMTP pending configuration), preserve code & return message
     console.warn(`[Forgot Password] Email sending failed for ${cleanEmail}: ${emailResult.error}`);
     return res.json({
       success: true,
       emailSent: false,
       devCode: code,
-      message: `Parolni tiklash kodi tayyorlandi! ${emailResult.error ? `(Email xizmati: ${emailResult.error}. Tasdiqlash kodi: ${code})` : ''}`,
+      message: `Parolni tiklash kodi tayyorlandi! ${emailResult.error ? `(Pochta xizmati: ${emailResult.error}. Tasdiqlash kodi: ${code})` : ''}`,
     });
   } catch (error: any) {
     console.error("Forgot password send code error:", error);
