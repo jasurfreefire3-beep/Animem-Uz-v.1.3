@@ -5,7 +5,7 @@ import {
   Share2, 
   Copy, 
   Check, 
-  Send, 
+  ArrowUp, 
   Play, 
   Pause, 
   RotateCcw, 
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Anime, toSlug } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { getApiBase } from '../lib/api';
 
 interface WatchParticipant {
   socketId: string;
@@ -55,6 +56,18 @@ export default function WatchTogetherRoom({
   const { user } = useAuth();
   const socketRef = useRef<Socket | null>(null);
 
+  const userRef = useRef(user);
+  userRef.current = user;
+
+  const animeRef = useRef(anime);
+  animeRef.current = anime;
+
+  const currentEpisodeRef = useRef(currentEpisode);
+  currentEpisodeRef.current = currentEpisode;
+
+  const onEpisodeChangeRef = useRef(onEpisodeChange);
+  onEpisodeChangeRef.current = onEpisodeChange;
+
   const [participants, setParticipants] = useState<WatchParticipant[]>([]);
   const [isHost, setIsHost] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -67,7 +80,7 @@ export default function WatchTogetherRoom({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const roomUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/anime/${toSlug(anime.title)}?room=${roomId}`
+    ? `${window.location.origin}${window.location.pathname}?room=${roomId}`
     : '';
 
   // Auto-scroll chat to bottom
@@ -75,48 +88,44 @@ export default function WatchTogetherRoom({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Connect socket and join room
+  // Connect socket and join room - ONLY runs when roomId changes!
   useEffect(() => {
-    // Optimistically set current user as initial participant
-    const selfParticipant: WatchParticipant = {
-      socketId: 'self',
-      userId: user?.id,
-      userName: user?.name || "Muxlis",
-      userAvatar: user?.avatar_url || null,
-      isHost: true,
-    };
-    setParticipants([selfParticipant]);
-
-    const socketUrl = import.meta.env.VITE_API_BASE_URL || 
-      (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') 
-        ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' 
-        : window.location.origin);
+    const socketUrl = getApiBase();
 
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
     });
     socketRef.current = socket;
 
-    const joinData = {
-      roomId,
-      animeSlug: toSlug(anime.title),
-      animeTitle: anime.title,
-      episodeIndex: currentEpisode,
-      user: user ? { id: user.id, name: user.name, avatar_url: user.avatar_url } : null,
+    const emitJoin = () => {
+      socket.emit('joinWatchRoom', {
+        roomId,
+        animeSlug: toSlug(animeRef.current?.title || ''),
+        animeTitle: animeRef.current?.title || 'Anime',
+        episodeIndex: currentEpisodeRef.current,
+        user: userRef.current ? { 
+          id: userRef.current.id, 
+          name: userRef.current.name, 
+          avatar_url: userRef.current.avatar_url 
+        } : null,
+      });
     };
 
     if (socket.connected) {
-      socket.emit('joinWatchRoom', joinData);
+      emitJoin();
     }
 
     socket.on('connect', () => {
-      socket.emit('joinWatchRoom', joinData);
+      emitJoin();
     });
 
     socket.on('watchRoomInit', (data) => {
-      if (data.isHost !== undefined) setIsHost(data.isHost);
-      if (data.participants) setParticipants(data.participants);
+      if (data.isHost !== undefined) setIsHost(Boolean(data.isHost));
+      if (data.participants && Array.isArray(data.participants)) {
+        setParticipants(data.participants);
+      }
       if (data.roomState) {
         setIsPlaying(data.roomState.isPlaying || false);
         if (data.roomState.currentTime) {
@@ -128,10 +137,13 @@ export default function WatchTogetherRoom({
     });
 
     socket.on('watchRoomUsers', (users: WatchParticipant[]) => {
-      setParticipants(users);
-      // If current user is host
-      const me = users.find(u => u.socketId === socket.id);
-      if (me && me.isHost) setIsHost(true);
+      if (Array.isArray(users)) {
+        setParticipants(users);
+        const me = users.find(u => u.socketId === socket.id);
+        if (me) {
+          setIsHost(Boolean(me.isHost));
+        }
+      }
     });
 
     socket.on('watchRoomNotification', (notif: { type: string; text: string }) => {
@@ -140,7 +152,6 @@ export default function WatchTogetherRoom({
     });
 
     socket.on('watchSyncAction', (data: { action: string; time: number; episodeIndex?: number; senderName?: string }) => {
-      // Trigger sync in local video player
       window.dispatchEvent(new CustomEvent('animem-watch-sync', {
         detail: { action: data.action, time: data.time }
       }));
@@ -157,7 +168,7 @@ export default function WatchTogetherRoom({
         const timeStr = `${m}:${s < 10 ? '0' : ''}${s}`;
         setNotification(`${data.senderName || 'Do\'stingiz'} ${timeStr} ga o'tkazdi`);
       } else if (data.action === 'changeEpisode' && typeof data.episodeIndex === 'number') {
-        onEpisodeChange(data.episodeIndex);
+        onEpisodeChangeRef.current(data.episodeIndex);
         setNotification(`${data.senderName || 'Do\'stingiz'} ${data.episodeIndex + 1}-qismni qo'ydi`);
       }
 
@@ -165,14 +176,17 @@ export default function WatchTogetherRoom({
     });
 
     socket.on('watchRoomMessage', (msg: ChatMessage) => {
-      setMessages(prev => [...prev, msg]);
+      setMessages(prev => {
+        if (prev.some(m => String(m.id) === String(msg.id))) return prev;
+        return [...prev, msg];
+      });
     });
 
     return () => {
       socket.emit('leaveWatchRoom');
       socket.disconnect();
     };
-  }, [roomId, anime, user]);
+  }, [roomId]);
 
   // Sync actions
   const sendSyncAction = (action: 'play' | 'pause' | 'seek' | 'changeEpisode', time?: number, episodeIndex?: number) => {
@@ -210,16 +224,19 @@ export default function WatchTogetherRoom({
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !socketRef.current) return;
+    if (!inputText.trim()) return;
 
-    socketRef.current.emit('watchRoomChatMessage', {
-      roomId,
-      text: inputText.trim(),
-      user: {
-        name: user?.name || 'Muxlis',
-        avatar_url: user?.avatar_url || null,
-      },
-    });
+    const text = inputText.trim();
+    if (socketRef.current) {
+      socketRef.current.emit('watchRoomChatMessage', {
+        roomId,
+        text,
+        user: {
+          name: userRef.current?.name || 'Muxlis',
+          avatar_url: userRef.current?.avatar_url || null,
+        },
+      });
+    }
 
     setInputText('');
   };
@@ -478,9 +495,10 @@ export default function WatchTogetherRoom({
           <button
             type="submit"
             disabled={!inputText.trim()}
-            className="px-3.5 py-2 bg-[#ff006a] hover:bg-[#d40058] disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#ff006a]/20 cursor-pointer flex items-center gap-1"
+            className="w-8 h-8 rounded-full bg-[#ff006a] hover:bg-[#d40058] disabled:opacity-30 text-white flex items-center justify-center transition-all shadow-md shadow-[#ff006a]/20 cursor-pointer shrink-0"
+            title="Yuborish"
           >
-            <Send className="w-3.5 h-3.5" />
+            <ArrowUp className="w-4 h-4 stroke-[2.5]" />
           </button>
         </form>
       )}

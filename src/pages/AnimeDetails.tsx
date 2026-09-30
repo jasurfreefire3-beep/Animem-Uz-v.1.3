@@ -59,8 +59,8 @@ export default function AnimeDetails() {
 
   useEffect(() => {
     const r = searchParams.get('room');
-    if (r) {
-      setActiveWatchRoomId(r);
+    if (r !== activeWatchRoomId) {
+      setActiveWatchRoomId(r || null);
     }
   }, [searchParams]);
 

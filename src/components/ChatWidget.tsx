@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MessageCircle, X, Send, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, Smile, ChevronDown } from 'lucide-react';
+import { MessageCircle, X, Send, ArrowUp, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, Smile, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { io, Socket } from 'socket.io-client';
@@ -843,10 +843,10 @@ export default function ChatWidget() {
                     {inputValue.trim() ? (
                       <button 
                         type="submit"
-                        className="p-2 text-white bg-[#ff006a] hover:bg-[#d40058] rounded-sm transition-all flex items-center justify-center shadow shadow-[#ff006a]/10 cursor-pointer"
+                        className="w-8 h-8 rounded-full text-white bg-[#ff006a] hover:bg-[#d40058] transition-all flex items-center justify-center shadow shadow-[#ff006a]/20 cursor-pointer shrink-0"
                         title="Yuborish"
                       >
-                        <Send className="w-3.5 h-3.5" />
+                        <ArrowUp className="w-4 h-4 stroke-[2.5]" />
                       </button>
                     ) : (
                       <button

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Message } from '../types';
 import { io, Socket } from 'socket.io-client';
-import { Send, Sparkles, Trash2, CornerUpLeft, X, Mic, Smile, ChevronDown } from 'lucide-react';
+import { Send, ArrowUp, Sparkles, Trash2, CornerUpLeft, X, Mic, Smile, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import AudioMessage, { parseMessageContent } from '../components/AudioMessage';
@@ -805,10 +805,10 @@ export default function Chat() {
                 {input.trim() ? (
                   <button
                     type="submit"
-                    className="p-2.5 text-white bg-[#ff006a] hover:bg-[#d40058] rounded-sm transition-all flex items-center justify-center shadow shadow-[#ff006a]/10 cursor-pointer"
+                    className="w-9 h-9 rounded-full text-white bg-[#ff006a] hover:bg-[#d40058] transition-all flex items-center justify-center shadow shadow-[#ff006a]/20 cursor-pointer shrink-0"
                     title="Yuborish"
                   >
-                    <Send className="w-4 h-4" />
+                    <ArrowUp className="w-4 h-4 stroke-[2.5]" />
                   </button>
                 ) : (
                   <button

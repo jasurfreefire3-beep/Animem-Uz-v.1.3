@@ -998,6 +998,7 @@ io.on("connection", async (socket) => {
       if (!roomId) return;
 
       let room = watchRooms.get(roomId);
+      let isFirstInRoom = false;
       if (!room) {
         room = {
           roomId,
@@ -1010,9 +1011,19 @@ io.on("connection", async (socket) => {
           participants: new Map(),
         };
         watchRooms.set(roomId, room);
+        isFirstInRoom = true;
       }
 
-      const isHost = room.participants.size === 0;
+      // Check if room already has a host
+      let hasHost = false;
+      for (const p of room.participants.values()) {
+        if (p.isHost) {
+          hasHost = true;
+          break;
+        }
+      }
+
+      const isHost = isFirstInRoom || !hasHost;
       const participant: WatchParticipant = {
         socketId: socket.id,
         userId: user?.id,
@@ -1111,7 +1122,13 @@ io.on("connection", async (socket) => {
     room.participants.delete(socket.id);
 
     if (room.participants.size === 0) {
-      watchRooms.delete(roomId);
+      // 3 minutes grace period before removing empty room
+      setTimeout(() => {
+        const r = watchRooms.get(roomId);
+        if (r && r.participants.size === 0) {
+          watchRooms.delete(roomId);
+        }
+      }, 180000);
     } else {
       if (wasHost) {
         const firstParticipant = room.participants.values().next().value;
