@@ -64,6 +64,16 @@ export default function AnimeDetails() {
     }
   }, [searchParams]);
 
+  // Smooth scroll to watch-together room when joining from shared link
+  useEffect(() => {
+    if (activeWatchRoomId && anime) {
+      const scrollTimer = setTimeout(() => {
+        document.getElementById('watch-together-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 500);
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [activeWatchRoomId, anime]);
+
   const handleStartWatchTogether = () => {
     if (activeWatchRoomId) {
       document.getElementById('watch-together-section')?.scrollIntoView({ behavior: 'smooth' });

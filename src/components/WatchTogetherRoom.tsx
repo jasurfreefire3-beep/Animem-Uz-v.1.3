@@ -227,14 +227,26 @@ export default function WatchTogetherRoom({
     if (!inputText.trim()) return;
 
     const text = inputText.trim();
+    const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const localMsg: ChatMessage = {
+      id: msgId,
+      text,
+      user: {
+        name: userRef.current?.name || 'Muxlis',
+        avatar_url: userRef.current?.avatar_url || null,
+      },
+      time: new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    // Optimistically show message immediately
+    setMessages(prev => [...prev, localMsg]);
+
     if (socketRef.current) {
       socketRef.current.emit('watchRoomChatMessage', {
         roomId,
+        id: msgId,
         text,
-        user: {
-          name: userRef.current?.name || 'Muxlis',
-          avatar_url: userRef.current?.avatar_url || null,
-        },
+        user: localMsg.user,
       });
     }
 
