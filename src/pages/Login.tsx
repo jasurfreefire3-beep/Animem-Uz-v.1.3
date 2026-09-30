@@ -124,14 +124,12 @@ export default function Login() {
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
 
-      if (event.data?.type === 'YANDEX_AUTH_SUCCESS' || event.data?.type === 'DISCORD_AUTH_SUCCESS' || event.data?.type === 'TELEGRAM_AUTH_SUCCESS') {
+      if (event.data?.type === 'DISCORD_AUTH_SUCCESS' || event.data?.type === 'TELEGRAM_AUTH_SUCCESS') {
         const { token: userToken, user: authUser } = event.data;
         if (userToken && authUser) {
           login(userToken, authUser);
           navigate('/');
         }
-      } else if (event.data?.type === 'YANDEX_AUTH_ERROR') {
-        setError(event.data.error || 'Yandex avtorizatsiyasida xatolik yuz berdi');
       } else if (event.data?.type === 'DISCORD_AUTH_ERROR') {
         setError(event.data.error || 'Discord avtorizatsiyasida xatolik yuz berdi');
       }
@@ -139,22 +137,6 @@ export default function Login() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [login, navigate]);
-
-  const handleYandexLoginStart = async () => {
-    try {
-      setError('');
-      const res = await fetch('/api/auth/yandex/url');
-      const data = await res.json();
-
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error('Yandex avtorizatsiya havolasini olib bo\'lmadi');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Yandex orqali kirishda xatolik');
-    }
-  };
 
   const handleDiscordLoginStart = async () => {
     try {
@@ -695,22 +677,6 @@ export default function Login() {
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
                 </svg>
                 Telegram bilan kirish
-              </button>
-
-              <button
-                type="button"
-                onClick={handleYandexLoginStart}
-                className="w-full bg-[#FC3F1D] hover:bg-[#e03415] text-white font-bold py-3 px-4 rounded-sm transition-colors mt-3 flex items-center justify-center gap-3 cursor-pointer shadow-md"
-              >
-                <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center shrink-0 overflow-hidden">
-                  <img
-                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTrvMGpJrPT4DJ5TfWDgVIIdqcYH3dJpqWJ_HBpvpHw8Q&s=10"
-                    alt="Yandex"
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                Yandex bilan kirish
               </button>
             </div>
 

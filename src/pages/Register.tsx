@@ -128,14 +128,12 @@ export default function Register() {
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
 
-      if (event.data?.type === 'YANDEX_AUTH_SUCCESS' || event.data?.type === 'DISCORD_AUTH_SUCCESS' || event.data?.type === 'TELEGRAM_AUTH_SUCCESS') {
+      if (event.data?.type === 'DISCORD_AUTH_SUCCESS' || event.data?.type === 'TELEGRAM_AUTH_SUCCESS') {
         const { token: userToken, user: authUser } = event.data;
         if (userToken && authUser) {
           login(userToken, authUser);
           navigate('/');
         }
-      } else if (event.data?.type === 'YANDEX_AUTH_ERROR') {
-        setError(event.data.error || 'Yandex avtorizatsiyasida xatolik yuz berdi');
       } else if (event.data?.type === 'DISCORD_AUTH_ERROR') {
         setError(event.data.error || 'Discord avtorizatsiyasida xatolik yuz berdi');
       }
@@ -143,22 +141,6 @@ export default function Register() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [login, navigate]);
-
-  const handleYandexLoginStart = async () => {
-    try {
-      setError('');
-      const res = await fetch('/api/auth/yandex/url');
-      const data = await res.json();
-
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error('Yandex avtorizatsiya havolasini olib bo\'lmadi');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Yandex orqali kirishda xatolik');
-    }
-  };
 
   const handleDiscordLoginStart = async () => {
     try {
@@ -699,30 +681,7 @@ export default function Register() {
                   Telegram bilan kirish
                 </div>
                 <div className="text-[11px] text-white/70">
-                  Telegram OpenID & bot orqali tezkor avtorizatsiya
-                </div>
-              </div>
-            </button>
-
-            {/* Option 4: Yandex */}
-            <button
-              onClick={handleYandexLoginStart}
-              className="w-full bg-[#FC3F1D] hover:bg-[#e03415] text-white p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-pointer shadow-md"
-            >
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shrink-0 overflow-hidden">
-                <img
-                  src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTrvMGpJrPT4DJ5TfWDgVIIdqcYH3dJpqWJ_HBpvpHw8Q&s=10"
-                  alt="Yandex"
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-black text-white">
-                  Yandex ID bilan kirish
-                </div>
-                <div className="text-[11px] text-white/80 font-normal">
-                  Yandex akkauntingiz orqali bir bosishda
+                  Telegram bot (@animem_auth_bot) orqali tezkor kirish
                 </div>
               </div>
             </button>

@@ -6060,8 +6060,9 @@ app.delete("/api/chat/clear", authenticateToken, async (req: any, res) => {
 
 
 // --- TELEGRAM LOGIN ENGINE & BOT POLLING ---
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8738762833:AAE183dMQGDTnBlmlRaHcPoZjqol8jiCNL0";
-const TELEGRAM_CLIENT_ID = process.env.TELEGRAM_CLIENT_ID || "8738762833";
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw";
+const TELEGRAM_CLIENT_ID = process.env.TELEGRAM_CLIENT_ID || "8976573921";
+const TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "animem_auth_bot";
 const TELEGRAM_CLIENT_SECRET = process.env.TELEGRAM_CLIENT_SECRET || "k0m7Wkrmewn5tsEsE7xZiJbjy3oehADauTSqP_N1LS8Z2-WnPzy6Rw";
 const activeSessions = new Map<string, any>(); // sessionId -> sessionData
 const chatToSession = new Map<number, string>(); // chatId -> sessionId
@@ -6093,7 +6094,7 @@ async function sendTelegramMessage(chatId: number, text: string, replyMarkup?: a
 
 // Background Bot Long Polling
 async function runTelegramBot() {
-  console.log("Starting Telegram Bot (8738762833) long polling loop...");
+  console.log("Starting Telegram Bot (8976573921 - @animem_auth_bot) long polling loop...");
   let offset = 0;
 
   // Cleanup old sessions (older than 30 mins) every 10 minutes
@@ -6930,7 +6931,7 @@ app.get("/api/auth/telegram/config", (req, res) => {
   const origin = req.headers.origin || `https://${req.headers.host}`;
   const redirectUri = `${origin}/login`;
   res.json({
-    botUsername: process.env.TELEGRAM_BOT_USERNAME || "Animem_register_bot",
+    botUsername: TELEGRAM_BOT_USERNAME,
     clientId: TELEGRAM_CLIENT_ID,
     redirectUri,
     authUrl: `https://oauth.telegram.org/auth?client_id=${TELEGRAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid+profile`
