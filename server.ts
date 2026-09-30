@@ -1088,10 +1088,11 @@ app.get("/api/proxy-video", async (req, res) => {
   }
 });
 
-// Resend Email Verification Store
+// MailerSend Email Verification Store
 interface VerificationRecord {
   code: string;
   expiresAt: number;
+  createdAt?: number;
   verified: boolean;
 }
 
@@ -1099,80 +1100,152 @@ const verificationCodes: Record<string, VerificationRecord> = {};
 const passwordResetCodes: Record<string, VerificationRecord> = {};
 const phoneVerificationCodes: Record<string, VerificationRecord> = {};
 const phonePasswordResetCodes: Record<string, VerificationRecord> = {};
+
 // MailerSend Email Verification & Password Reset
+// Server admin can set MAILERSEND_API_KEY environment variable in production
 const MAILERSEND_API_KEY = process.env.MAILERSEND_API_KEY || "mlsn.9ea81361dd457046b74a47c43e6336658c47cad963cff9d053da31e478b849e2";
 
-// Helper function to build ultra-stylish Anime-themed HTML Email Template
+// Helper function to build ultra-stylish Anime-themed HTML Email Template compliant with MailerSend Legal & Anti-Spam policies
 function buildAnimeEmailHtml(title: string, subtitle: string, code: string, note: string) {
-  const logoUrl = "https://api.animem.uz/i/6aa8e1d1-1550-42c6-8e02-3b28d66a9730";
-  const bannerUrl = "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80";
+  const currentYear = new Date().getFullYear();
 
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Animem.uz</title>
-    </head>
-    <body style="margin: 0; padding: 0; background-color: #07070a; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #ffffff;">
-      <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #07070a; padding: 30px 10px;">
-        <tr>
-          <td align="center">
-            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 520px; background-color: #12121a; border-radius: 16px; overflow: hidden; border: 1px solid #ff006a44; box-shadow: 0 10px 40px rgba(255, 0, 106, 0.2);">
+  return `<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animem.uz — Xavfsizlik Tasdiqlash Kodi</title>
+  <!--[if mso]>
+  <style type="text/css">
+    body, table, td {font-family: Arial, Helvetica, sans-serif !important;}
+  </style>
+  <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #08090f; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #ffffff; -webkit-font-smoothing: antialiased;">
+  <!-- Preheader text for email clients -->
+  <div style="display: none; font-size: 1px; color: #08090f; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
+    Animem.uz platformasidagi tasdiqlash kodingiz: ${code}. Ushbu kod 10 daqiqa davomida amal qiladi.
+  </div>
+
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #08090f; padding: 40px 12px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Container -->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 540px; background-color: #12131d; border-radius: 18px; overflow: hidden; border: 1px solid rgba(255, 0, 106, 0.35); box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 0, 106, 0.15);">
+          
+          <!-- Top Neon Accent Header -->
+          <tr>
+            <td style="background: linear-gradient(90deg, #ff006a 0%, #a855f7 50%, #ff006a 100%); height: 5px; font-size: 0; line-height: 0;">&nbsp;</td>
+          </tr>
+
+          <!-- Brand Logo Header -->
+          <tr>
+            <td style="padding: 35px 30px 20px 30px; text-align: center; background: radial-gradient(circle at 50% 0%, rgba(255, 0, 106, 0.15) 0%, transparent 70%);">
+              <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto;">
+                <tr>
+                  <td align="center">
+                    <!-- Brand Icon Badge -->
+                    <div style="width: 58px; height: 58px; border-radius: 16px; background: linear-gradient(135deg, #1f2030 0%, #161724 100%); border: 2px solid #ff006a; display: inline-block; line-height: 58px; text-align: center; box-shadow: 0 0 20px rgba(255, 0, 106, 0.4);">
+                      <span style="font-size: 26px; font-weight: 900; color: #ff006a;">A</span>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <h1 style="margin: 16px 0 4px 0; font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; text-transform: uppercase;">
+                ANIMEM<span style="color: #ff006a;">.UZ</span>
+              </h1>
+              <p style="margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px; color: #a1a1aa; font-weight: 700;">
+                Xavfsizlik va Avtorizatsiya Markazi
+              </p>
+            </td>
+          </tr>
+
+          <!-- Message Body Area -->
+          <tr>
+            <td style="padding: 10px 35px 30px 35px; text-align: center;">
               
-              <!-- Anime Banner Image Header -->
-              <tr>
-                <td style="position: relative; background: #181824 url('${bannerUrl}') center/cover no-repeat; height: 160px; text-align: center; vertical-align: bottom;">
-                  <div style="background: linear-gradient(to bottom, rgba(18, 18, 26, 0.2), #12121a); padding: 20px 0 0 0;">
-                    <!-- Logo Badge -->
-                    <img src="${logoUrl}" alt="Animem.uz Logo" width="84" height="84" style="border-radius: 50%; border: 3px solid #ff006a; box-shadow: 0 0 20px rgba(255, 0, 106, 0.8); object-fit: cover; display: inline-block;" />
-                  </div>
-                </td>
-              </tr>
+              <!-- Badge -->
+              <div style="display: inline-block; padding: 6px 16px; background-color: rgba(255, 0, 106, 0.12); border: 1px solid rgba(255, 0, 106, 0.4); border-radius: 20px; margin-bottom: 16px;">
+                <span style="font-size: 11px; font-weight: 800; color: #ff3b88; text-transform: uppercase; letter-spacing: 1.5px;">
+                  🔒 ${title}
+                </span>
+              </div>
 
-              <!-- Content Area -->
-              <tr>
-                <td style="padding: 25px 30px; text-align: center;">
-                  <h1 style="margin: 0 0 8px 0; font-size: 26px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 2px;">
-                    ANIMEM<span style="color: #ff006a;">.UZ</span>
-                  </h1>
-                  <p style="margin: 0 0 20px 0; font-size: 14px; color: #a0a0b8; line-height: 1.5;">
-                    ${subtitle}
-                  </p>
+              <p style="margin: 0 0 20px 0; font-size: 14px; color: #d4d4d8; line-height: 1.6;">
+                ${subtitle}
+              </p>
 
-                  <!-- Code Box -->
-                  <div style="background: #181826; border: 2px dashed #ff006a; border-radius: 14px; padding: 22px 15px; margin: 20px 0; text-align: center; box-shadow: inset 0 0 15px rgba(255, 0, 106, 0.1);">
-                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #ff006a; font-weight: 800; margin-bottom: 8px;">
-                      ⚡ ${title} ⚡
+              <!-- OTP Code Box -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 24px 0;">
+                <tr>
+                  <td align="center">
+                    <div style="background: linear-gradient(135deg, #181926 0%, #1f2033 100%); border: 2px solid #ff006a; border-radius: 14px; padding: 22px 10px; text-align: center; box-shadow: 0 8px 30px rgba(255, 0, 106, 0.25);">
+                      <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 2.5px; color: #ff3385; font-weight: 800; margin-bottom: 8px;">
+                        BIR MARTALIK TASDIQLASH KODI (OTP)
+                      </div>
+                      <div style="font-family: Consolas, 'Courier New', Courier, monospace; font-size: 42px; font-weight: 900; letter-spacing: 12px; color: #ffffff; text-shadow: 0 0 16px rgba(255, 0, 106, 0.7); margin-left: 12px;">
+                        ${code}
+                      </div>
+                      <div style="font-size: 11px; color: #a1a1aa; margin-top: 10px; font-weight: 600;">
+                        ⏳ Ushbu kod 10 daqiqa davomida amal qiladi
+                      </div>
                     </div>
-                    <div style="font-family: 'Courier New', Courier, monospace; font-size: 38px; font-weight: 900; letter-spacing: 12px; color: #ffffff; text-shadow: 0 0 12px #ff006a;">
-                      ${code}
-                    </div>
-                  </div>
+                  </td>
+                </tr>
+              </table>
 
-                  <p style="margin: 20px 0 0 0; font-size: 12px; color: #787898; line-height: 1.5;">
-                    ${note}
-                  </p>
-                </td>
-              </tr>
+              <!-- Security Notice Box -->
+              <div style="background-color: #1a1520; border-left: 4px solid #ff006a; border-radius: 8px; padding: 14px 16px; margin: 24px 0; text-align: left;">
+                <p style="margin: 0 0 4px 0; font-size: 12px; color: #f472b6; font-weight: 700; line-height: 1.4;">
+                  ⚠️ Muhim xavfsizlik eslatmasi:
+                </p>
+                <p style="margin: 0; font-size: 11px; color: #d4d4d8; line-height: 1.5;">
+                  Ushbu kodni hech kimga, hatto Animem.uz xodimlariga ham aslo oshkor qilmang. Biz hech qachon sizdan tasdiqlash kodini yoki hisobingiz parolini so'ramaymiz.
+                </p>
+              </div>
 
-              <!-- Footer -->
-              <tr>
-                <td style="background-color: #0b0b12; padding: 16px 30px; text-align: center; border-top: 1px solid #1a1a28;">
-                  <p style="margin: 0; font-size: 11px; color: #626278;">
-                    © ${new Date().getFullYear()} Animem.uz - Barcha huquqlar himoyalangan.
-                  </p>
-                </td>
-              </tr>
+              <p style="margin: 0; font-size: 12px; color: #71717a; line-height: 1.5;">
+                ${note}
+              </p>
+            </td>
+          </tr>
 
-            </table>
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
-  `;
+          <!-- MailerSend Legal, Anti-Spam & GDPR Compliant Footer -->
+          <tr>
+            <td style="background-color: #0b0c14; padding: 26px 30px; text-align: center; border-top: 1px solid #1c1d2e;">
+              <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 800; color: #e4e4e7;">
+                Animem.uz Media Platformasi
+              </p>
+              <p style="margin: 0 0 12px 0; font-size: 11px; color: #71717a; line-height: 1.5;">
+                Toshkent shahri, O'zbekiston | Qo'llab-quvvatlash: <a href="mailto:support@animem.uz" style="color: #ff006a; text-decoration: none; font-weight: 600;">support@animem.uz</a>
+              </p>
+
+              <!-- Transactional Notice (Anti-Spam Policy requirement) -->
+              <div style="background-color: #11121d; border-radius: 8px; padding: 10px 14px; margin: 12px 0; border: 1px solid #1e2030;">
+                <p style="margin: 0; font-size: 10px; color: #71717a; line-height: 1.5;">
+                  Ushbu xat avtomatik tarzda sizning so'rovingizga binoan yuborilgan tranzaksion xavfsizlik xabaridir. Bu reklama yoki marketing xabarnomasi emas.
+                </p>
+              </div>
+
+              <!-- Legal Links -->
+              <p style="margin: 14px 0 0 0; font-size: 11px; color: #a1a1aa;">
+                <a href="https://animem.uz/privacy" style="color: #a1a1aa; text-decoration: underline; margin-right: 14px;">Maxfiylik siyosati</a>
+                <a href="https://animem.uz/terms" style="color: #a1a1aa; text-decoration: underline;">Foydalanish shartlari</a>
+              </p>
+
+              <p style="margin: 12px 0 0 0; font-size: 10px; color: #52525b;">
+                © ${currentYear} Animem.uz. Barcha huquqlar himoyalangan.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 // Helper to send emails via MailerSend API with domain fallbacks and Node IPv4
@@ -1184,28 +1257,45 @@ async function sendMailerSendEmail(
   code: string,
   note: string
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!MAILERSEND_API_KEY) {
+  const apiKey = (process.env.MAILERSEND_API_KEY || MAILERSEND_API_KEY || "").trim();
+  if (!apiKey) {
     return { ok: false, error: "MAILERSEND_API_KEY o'rnatilmagan" };
   }
 
-  // Senders to try (verified domain first)
-  const senders = [
-    {
-      email: process.env.MAILERSEND_FROM_EMAIL || "noreply@animem.uz",
-      name: process.env.MAILERSEND_FROM_NAME || "Animem.uz",
-    },
-    {
-      email: "info@animem.uz",
-      name: "Animem.uz",
-    },
-    {
-      email: "MS_vz9dle@test-vz9dlemxqw14kj50.mlsender.net",
-      name: "Animem.uz",
-    },
-  ];
+  // Senders list: prioritize environment variables, then Animem.uz verified domains, then trial domains
+  const candidateSenders: Array<{ email: string; name: string }> = [];
+
+  if (process.env.MAILERSEND_FROM_EMAIL) {
+    candidateSenders.push({
+      email: process.env.MAILERSEND_FROM_EMAIL.trim(),
+      name: process.env.MAILERSEND_FROM_NAME?.trim() || "Animem.uz",
+    });
+  }
+  if (process.env.MAILERSEND_SENDER_EMAIL) {
+    candidateSenders.push({
+      email: process.env.MAILERSEND_SENDER_EMAIL.trim(),
+      name: process.env.MAILERSEND_SENDER_NAME?.trim() || "Animem.uz",
+    });
+  }
+
+  candidateSenders.push(
+    { email: "info@animem.uz", name: "Animem.uz" },
+    { email: "noreply@animem.uz", name: "Animem.uz" },
+    { email: "auth@animem.uz", name: "Animem.uz" },
+    { email: "MS_vz9dle@test-vz9dlemxqw14kj50.mlsender.net", name: "Animem.uz" }
+  );
+
+  // Deduplicate senders by email
+  const seenEmails = new Set<string>();
+  const senders = candidateSenders.filter((s) => {
+    const lower = s.email.toLowerCase();
+    if (seenEmails.has(lower)) return false;
+    seenEmails.add(lower);
+    return true;
+  });
 
   const htmlContent = buildAnimeEmailHtml(title, subtitle, code, note);
-  const textContent = `${title}\n\n${subtitle}\n\nTasdiqlash kodi: ${code}\n\n${note}\n\n© ${new Date().getFullYear()} Animem.uz`;
+  const textContent = `${title}\n\n${subtitle}\n\nTasdiqlash kodi: ${code}\n\n${note}\n\nUshbu xat avtomatik tarzda yuborilgan bir martalik tranzaksion xabardir.\n© ${new Date().getFullYear()} Animem.uz | support@animem.uz`;
 
   let lastError = "";
 
@@ -1222,6 +1312,10 @@ async function sendMailerSendEmail(
             name: "Animem.uz Foydalanuvchisi",
           },
         ],
+        reply_to: {
+          email: "support@animem.uz",
+          name: "Animem.uz Yordam",
+        },
         subject: subject,
         text: textContent,
         html: htmlContent,
@@ -1236,7 +1330,7 @@ async function sendMailerSendEmail(
             method: "POST",
             family: 4,
             headers: {
-              "Authorization": `Bearer ${MAILERSEND_API_KEY.trim()}`,
+              "Authorization": `Bearer ${apiKey}`,
               "Content-Type": "application/json",
               "Accept": "application/json",
               "User-Agent": "MailerSend-NodeJS/1.0",
@@ -1262,15 +1356,15 @@ async function sendMailerSendEmail(
           reject(err);
         });
 
-        req.setTimeout(10000, () => {
-          req.destroy(new Error("MailerSend API timeout"));
+        req.setTimeout(12000, () => {
+          req.destroy(new Error("MailerSend API timeout (12s)"));
         });
 
         req.write(payload);
         req.end();
       });
 
-      console.log(`[MailerSend API Response from=${from.email}]: status=${response.statusCode}, messageId=${response.headers['x-message-id'] || 'none'}`);
+      console.log(`[MailerSend API Response from=${from.email} to=${toEmail}]: status=${response.statusCode}, messageId=${response.headers['x-message-id'] || 'none'}`);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return { ok: true };
@@ -1320,12 +1414,20 @@ app.post("/api/auth/send-code", async (req, res) => {
       return res.status(400).json({ error: "Ushbu email bilan allaqachon ro'yxatdan o'tilgan! Kirish sahifasidan foydalaning." });
     }
 
+    // Anti-spam 60s cooldown check (MailerSend Anti-Spam policy compliance)
+    const existingCode = verificationCodes[cleanEmail];
+    if (existingCode && existingCode.createdAt && (Date.now() - existingCode.createdAt < 60000)) {
+      const waitSeconds = Math.ceil((60000 - (Date.now() - existingCode.createdAt)) / 1000);
+      return res.status(429).json({ error: `Iltimos, yangi kod so'rashdan oldin ${waitSeconds} soniya kuting.` });
+    }
+
     // Generate 6-digit random code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store code in memory for 10 minutes
     verificationCodes[cleanEmail] = {
       code,
+      createdAt: Date.now(),
       expiresAt: Date.now() + 10 * 60 * 1000,
       verified: false,
     };
@@ -1335,11 +1437,11 @@ app.post("/api/auth/send-code", async (req, res) => {
     // Send email using MailerSend API
     const emailResult = await sendMailerSendEmail(
       cleanEmail,
-      "Animem.uz - Tasdiqlash kodi: " + code,
-      "TASDIQLASH KODI",
-      "Ro'yxatdan o'tishni yakunlash uchun quyidagi tasdiqlash kodini kiriting:",
+      "Animem.uz — Ro'yxatdan o'tish tasdiqlash kodi: " + code,
+      "RO'YXATDAN O'TISHNI TASDIQLASH",
+      "Animem.uz platformasida yangi akkaunt yaratishni yakunlash uchun bir martalik xavfsizlik kodingiz:",
       code,
-      "Ushbu kod 10 daqiqa davomida amal qiladi. Agarda siz ro'yxatdan o'tishni so'ramagan bo'lsangiz, ushbu xabarni e'tiborsiz qoldiring."
+      "Ushbu kod 10 daqiqa davomida amal qiladi. Agarda siz ro'yxatdan o'tish so'rovini yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring."
     );
 
     if (emailResult.ok) {
@@ -1350,13 +1452,13 @@ app.post("/api/auth/send-code", async (req, res) => {
       });
     }
 
-    // Fallback: If external email service fails (e.g. invalid key or unverified domain), preserve code & return devCode
+    // Fallback: If external email service fails (e.g. key pending configuration on server), preserve code & return message
     console.warn(`[MailerSend Auth] Email sending failed for ${cleanEmail}: ${emailResult.error}`);
     return res.json({
       success: true,
       emailSent: false,
       devCode: code,
-      message: `Tasdiqlash kodi tayyorlandi! ${emailResult.error ? `(Email xizmati cheklovi tufayli tasdiqlash kodi: ${code})` : ''}`,
+      message: `Tasdiqlash kodi tayyorlandi! ${emailResult.error ? `(Email xizmati: ${emailResult.error}. Tasdiqlash kodi: ${code})` : ''}`,
     });
   } catch (error: any) {
     console.error("Send code error:", error);
@@ -1389,12 +1491,20 @@ app.post("/api/auth/forgot-password-send-code", async (req, res) => {
       return res.status(400).json({ error: "Ushbu email manzili bilan foydalanuvchi topilmadi!" });
     }
 
+    // Anti-spam 60s cooldown check
+    const existingReset = passwordResetCodes[cleanEmail];
+    if (existingReset && existingReset.createdAt && (Date.now() - existingReset.createdAt < 60000)) {
+      const waitSeconds = Math.ceil((60000 - (Date.now() - existingReset.createdAt)) / 1000);
+      return res.status(429).json({ error: `Iltimos, yangi kod so'rashdan oldin ${waitSeconds} soniya kuting.` });
+    }
+
     // Generate 6-digit random code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store code in memory for 10 minutes
     passwordResetCodes[cleanEmail] = {
       code,
+      createdAt: Date.now(),
       expiresAt: Date.now() + 10 * 60 * 1000,
       verified: false,
     };
@@ -1404,11 +1514,11 @@ app.post("/api/auth/forgot-password-send-code", async (req, res) => {
     // Send email via MailerSend
     const emailResult = await sendMailerSendEmail(
       cleanEmail,
-      "Animem.uz - Parolni tiklash kodi: " + code,
-      "PAROLNI TIKLASH KODI",
-      "Parolingizni tiklash va yangisini o'rnatish uchun tasdiqlash kodi:",
+      "Animem.uz — Parolni tiklash tasdiqlash kodi: " + code,
+      "PAROLNI TIKLASH",
+      "Akkauntingiz parolini tiklash va yangi parol o'rnatish uchun bir martalik xavfsizlik kodingiz:",
       code,
-      "Ushbu kod 10 daqiqa davomida amal qiladi. Agarda siz parolni tiklashni so'ramagan bo'lsangiz, ushbu xabarni e'tiborsiz qoldiring."
+      "Ushbu kod 10 daqiqa davomida amal qiladi. Agarda siz parolni tiklash so'rovini yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring — hisobingiz xavfsiz."
     );
 
     if (emailResult.ok) {
@@ -1419,13 +1529,13 @@ app.post("/api/auth/forgot-password-send-code", async (req, res) => {
       });
     }
 
-    // Fallback: If external email service fails (e.g. invalid key or unverified domain), preserve code & return devCode
+    // Fallback: If external email service fails (e.g. key pending configuration), preserve code & return message
     console.warn(`[Forgot Password] Email sending failed for ${cleanEmail}: ${emailResult.error}`);
     return res.json({
       success: true,
       emailSent: false,
       devCode: code,
-      message: `Parolni tiklash kodi tayyorlandi! ${emailResult.error ? `(Email xizmati cheklovi tufayli tasdiqlash kodi: ${code})` : ''}`,
+      message: `Parolni tiklash kodi tayyorlandi! ${emailResult.error ? `(Email xizmati: ${emailResult.error}. Tasdiqlash kodi: ${code})` : ''}`,
     });
   } catch (error: any) {
     console.error("Forgot password send code error:", error);
