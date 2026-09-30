@@ -6,7 +6,6 @@ import { motion } from 'motion/react';
 import ReCAPTCHA from 'react-google-recaptcha';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 import { auth, googleProvider, facebookAuth, facebookProvider } from '../lib/firebase';
-import TelegramAuthModal from '../components/TelegramAuthModal';
 
 declare global {
   interface Window {
@@ -89,57 +88,87 @@ export default function Register() {
     return () => { isMounted = false; };
   }, [login, navigate]);
 
-  // Telegram Login State
-  const [showTelegramModal, setShowTelegramModal] = useState(false);
+  // Telegram Bot Login State
+  const [tgLoading, setTgLoading] = useState(false);
 
-  // Listen for OAuth popup callbacks & handle Telegram OpenID redirect query params
+  // Handle Telegram Bot authentication redirect & polling
   useEffect(() => {
-    // Check if redirected from Telegram OpenID Connect
     const urlParams = new URLSearchParams(window.location.search);
-    const tgCode = urlParams.get('code');
-    if (tgCode && window.location.pathname === '/register') {
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-      
+    const authSession = urlParams.get('auth_session');
+    const localSession = localStorage.getItem('animem_tg_session');
+    const targetSessionId = authSession || localSession;
+
+    let isMounted = true;
+
+    if (authSession) {
+      // Clean query string from browser address bar
+      window.history.replaceState({}, document.title, window.location.pathname);
       setLoading(true);
-      fetch('/api/auth/telegram/exchange', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: tgCode,
-          redirect_uri: window.location.origin + '/register'
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.token && data.user) {
-          login(data.token, data.user);
-          navigate('/');
-        } else {
-          setError(data.error || "Telegram orqali kirishda xatolik yuz berdi");
-        }
-      })
-      .catch(err => {
-        setError(err.message || "Telegram orqali kirishda xatolik");
-      })
-      .finally(() => setLoading(false));
     }
 
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+    if (targetSessionId) {
+      let pollCount = 0;
+      const maxPolls = 150; // Poll for up to 5 minutes
 
-      if (event.data?.type === 'DISCORD_AUTH_SUCCESS' || event.data?.type === 'TELEGRAM_AUTH_SUCCESS') {
-        const { token: userToken, user: authUser } = event.data;
-        if (userToken && authUser) {
-          login(userToken, authUser);
-          navigate('/');
+      const checkTelegramSession = async () => {
+        try {
+          const res = await fetch(`/api/auth/telegram/status/${targetSessionId}`);
+          const data = await res.json();
+          if (!isMounted) return true;
+
+          if (data.status === 'authorized' && data.token && data.user) {
+            localStorage.removeItem('animem_tg_session');
+            setLoading(false);
+            login(data.token, data.user);
+            navigate('/');
+            return true;
+          } else if (data.status === 'expired') {
+            localStorage.removeItem('animem_tg_session');
+            if (authSession) {
+              setError("Telegram seansi muddati tugagan. Iltimos qaytadan urining.");
+              setLoading(false);
+            }
+            return true;
+          }
+        } catch (err) {
+          console.error("Telegram status check error:", err);
         }
-      } else if (event.data?.type === 'DISCORD_AUTH_ERROR') {
-        setError(event.data.error || 'Discord avtorizatsiyasida xatolik yuz berdi');
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+        return false;
+      };
+
+      // Check immediately
+      checkTelegramSession();
+
+      const interval = setInterval(async () => {
+        pollCount++;
+        const finished = await checkTelegramSession();
+        if (finished || pollCount >= maxPolls) {
+          clearInterval(interval);
+          if (authSession && isMounted) {
+            setLoading(false);
+          }
+        }
+      }, 2000);
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+
+        if (event.data?.type === 'TELEGRAM_AUTH_SUCCESS') {
+          const { token: userToken, user: authUser } = event.data;
+          if (userToken && authUser) {
+            login(userToken, authUser);
+            navigate('/');
+          }
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      return () => {
+        isMounted = false;
+        clearInterval(interval);
+        window.removeEventListener('message', handleMessage);
+      };
+    }
   }, [login, navigate]);
 
   const handleDiscordLoginStart = async () => {
@@ -155,9 +184,23 @@ export default function Register() {
     }
   };
 
-  const handleTelegramLoginStart = () => {
-    setError('');
-    setShowTelegramModal(true);
+  const handleTelegramLoginStart = async () => {
+    try {
+      setError('');
+      setTgLoading(true);
+      const res = await fetch('/api/auth/telegram/session');
+      const data = await res.json();
+      if (!data.sessionId) throw new Error("Telegram seansini yaratib bo'lmadi");
+
+      const sid = data.sessionId;
+      localStorage.setItem('animem_tg_session', sid);
+
+      // To'g'ridan-to'g'ri Telegram botga yo'naltirish (hech qanday modal/oyna chiqmaydi)
+      window.location.href = `https://t.me/animem_auth_bot?start=${sid}`;
+    } catch (err: any) {
+      setError(err.message || "Telegram botga ulanishda xatolik yuz berdi");
+      setTgLoading(false);
+    }
   };
 
   const handleGoogleLogin = async () => {
@@ -663,8 +706,9 @@ export default function Register() {
 
             {/* Option 3: Telegram (Tavsiya) */}
             <button
+              disabled={tgLoading}
               onClick={handleTelegramLoginStart}
-              className="w-full bg-[#0088cc] hover:bg-[#0077b5] text-white p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-pointer relative shadow-lg shadow-[#0088cc]/20"
+              className="w-full bg-[#0088cc] hover:bg-[#0077b5] text-white p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-pointer relative shadow-lg shadow-[#0088cc]/20 disabled:opacity-60"
             >
               <div className="absolute top-3 right-3">
                 <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
@@ -672,16 +716,20 @@ export default function Register() {
                 </span>
               </div>
               <div className="w-10 h-10 bg-white/10 rounded-sm flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-white">
-                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
-                </svg>
+                {tgLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : (
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-white">
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
+                  </svg>
+                )}
               </div>
               <div className="flex-1 pr-16">
                 <div className="text-sm font-black text-white">
-                  Telegram bilan kirish
+                  {tgLoading ? "Telegram botga o'tilmoqda..." : "Telegram bilan kirish"}
                 </div>
                 <div className="text-[11px] text-white/70">
-                  Telegram bot (@animem_auth_bot) orqali tezkor kirish
+                  {tgLoading ? "Iltimos kuting..." : "Telegram bot (@animem_auth_bot) orqali tezkor kirish"}
                 </div>
               </div>
             </button>
@@ -929,16 +977,6 @@ export default function Register() {
           </Link>
         </div>
       </motion.div>
-
-      {/* Telegram Auth Modal */}
-      <TelegramAuthModal
-        isOpen={showTelegramModal}
-        onClose={() => setShowTelegramModal(false)}
-        onSuccess={(token, user) => {
-          login(token, user);
-          navigate('/');
-        }}
-      />
     </div>
   );
 }

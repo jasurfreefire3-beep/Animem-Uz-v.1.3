@@ -6457,12 +6457,25 @@ async function runTelegramBot() {
                     createdAt: session.createdAt || Date.now()
                   });
 
+                  // 1. Remove contact keyboard cleanly
+                  await sendTelegramMessage(chat.id, "✅ Telefon raqamingiz muvaffaqiyatli tasdiqlandi!", { remove_keyboard: true });
+
+                  // 2. Send authorization confirmation with 1-click inline button to return to site
                   await sendTelegramMessage(chat.id,
-                    `<b>Siz ANIMEUZ saytiga muvaffaqiyatli kirdingiz! 🎉</b>\n\n` +
-                    `👤 <b>Ism:</b> ${name}\n` +
+                    `<b>Siz ANIMEM.UZ saytiga muvaffaqiyatli kirdingiz! 🎉</b>\n\n` +
+                    `👤 <b>Foydalanuvchi:</b> ${name}\n` +
                     (phone ? `📞 <b>Telefon:</b> ${phone}\n\n` : '\n') +
-                    `Saytda avtorizatsiya yakunlandi! Endi saytga qaytib tomoshani davom ettirishingiz mumkin.`,
-                    { remove_keyboard: true }
+                    `Avtorizatsiya muvaffaqiyatli yakunlandi! Saytga qaytib tomoshani davom ettirish uchun quyidagi tugmani bosing 👇`,
+                    {
+                      inline_keyboard: [
+                        [
+                          {
+                            text: "▶️ Saytga kirish (Avtomatik login)",
+                            url: `https://animem.uz/login?auth_session=${sessionId}`
+                          }
+                        ]
+                      ]
+                    }
                   );
                 } catch (contactErr) {
                   console.error("Error processing Telegram contact auth:", contactErr);
