@@ -1162,8 +1162,9 @@ app.get("/api/watch-room/:roomId", (req, res) => {
 
 app.post("/api/watch-room/create", (req, res) => {
   const { animeSlug, animeTitle, episodeIndex } = req.body;
-  const roomId = "room_" + Math.random().toString(36).substring(2, 9);
+  const roomId = req.body.roomId || ("room_" + Math.random().toString(36).substring(2, 9));
   res.json({
+    ok: true,
     success: true,
     roomId,
     url: `/anime/${animeSlug}?room=${roomId}`,

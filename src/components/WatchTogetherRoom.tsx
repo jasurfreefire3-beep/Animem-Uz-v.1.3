@@ -77,22 +77,41 @@ export default function WatchTogetherRoom({
 
   // Connect socket and join room
   useEffect(() => {
+    // Optimistically set current user as initial participant
+    const selfParticipant: WatchParticipant = {
+      socketId: 'self',
+      userId: user?.id,
+      userName: user?.name || "Muxlis",
+      userAvatar: user?.avatar_url || null,
+      isHost: true,
+    };
+    setParticipants([selfParticipant]);
+
     const socketUrl = import.meta.env.VITE_API_BASE_URL || 
       (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') 
         ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' 
         : window.location.origin);
 
-    const socket = io(socketUrl);
+    const socket = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    });
     socketRef.current = socket;
 
+    const joinData = {
+      roomId,
+      animeSlug: toSlug(anime.title),
+      animeTitle: anime.title,
+      episodeIndex: currentEpisode,
+      user: user ? { id: user.id, name: user.name, avatar_url: user.avatar_url } : null,
+    };
+
+    if (socket.connected) {
+      socket.emit('joinWatchRoom', joinData);
+    }
+
     socket.on('connect', () => {
-      socket.emit('joinWatchRoom', {
-        roomId,
-        animeSlug: toSlug(anime.title),
-        animeTitle: anime.title,
-        episodeIndex: currentEpisode,
-        user: user ? { id: user.id, name: user.name, avatar_url: user.avatar_url } : null,
-      });
+      socket.emit('joinWatchRoom', joinData);
     });
 
     socket.on('watchRoomInit', (data) => {

@@ -64,42 +64,37 @@ export default function AnimeDetails() {
     }
   }, [searchParams]);
 
-  const handleStartWatchTogether = async () => {
+  const handleStartWatchTogether = () => {
     if (activeWatchRoomId) {
       document.getElementById('watch-together-section')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
-    setIsCreatingRoom(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/watch-room/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          animeSlug: toSlug(anime?.title || ''),
-          animeTitle: anime?.title || '',
-          episodeIndex: activeEpisode - 1,
-          hostUser: user ? { id: user.id, name: user.name, avatar_url: user.avatar_url } : null
-        })
-      });
+    // Instantly generate unique room identifier
+    const newRoomId = 'room_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36).slice(-4);
+    setActiveWatchRoomId(newRoomId);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('room', newRoomId);
+      return next;
+    });
 
-      const data = await res.json();
-      if (data.ok && data.roomId) {
-        setActiveWatchRoomId(data.roomId);
-        setSearchParams(prev => {
-          const next = new URLSearchParams(prev);
-          next.set('room', data.roomId);
-          return next;
-        });
-        setTimeout(() => {
-          document.getElementById('watch-together-section')?.scrollIntoView({ behavior: 'smooth' });
-        }, 150);
-      }
-    } catch (err) {
-      console.error("Failed to create watch room:", err);
-    } finally {
-      setIsCreatingRoom(false);
-    }
+    // Notify backend in background
+    fetch(`${API_BASE}/api/watch-room/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomId: newRoomId,
+        animeSlug: toSlug(anime?.title || ''),
+        animeTitle: anime?.title || '',
+        episodeIndex: activeEpisode - 1,
+        hostUser: user ? { id: user.id, name: user.name, avatar_url: user.avatar_url } : null
+      })
+    }).catch(() => {});
+
+    setTimeout(() => {
+      document.getElementById('watch-together-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const fetchRatingSummary = async (animeId: number) => {
