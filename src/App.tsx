@@ -11,6 +11,7 @@ import InstallAppButton from './components/InstallAppButton';
 import { Send, X, Instagram } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Footer from './components/Footer';
+import RandomAnimeModal from './components/RandomAnimeModal';
 
 import { AdminPasscodeGate } from './components/AdminPasscodeGate';
 import { usePresenceTracker } from './hooks/usePresenceTracker';
@@ -317,6 +318,7 @@ export default function App() {
       <InstallAppButton />
       <SpinBetterAdModal />
       <NotificationPromptModal />
+      <RandomAnimeModal />
     </div>
   );
 }

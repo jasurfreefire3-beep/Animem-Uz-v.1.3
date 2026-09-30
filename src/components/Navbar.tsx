@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Notification, Anime, toSlug } from '../types';
-import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe } from 'lucide-react';
+import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe, Dices } from 'lucide-react';
+import { openAnimeRoulette } from './RandomAnimeModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   getNotificationPermission, 
@@ -346,6 +347,17 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           className="p-1.5 text-white/60 hover:text-white transition-colors sm:hidden cursor-pointer"
         >
           <Search size={16} />
+        </button>
+
+        {/* Anime Roulette / Random Anime Button */}
+        <button
+          type="button"
+          onClick={openAnimeRoulette}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-[#ff006a]/20 via-[#ff006a]/10 to-purple-600/20 hover:from-[#ff006a]/30 hover:to-purple-600/30 border border-[#ff006a]/40 hover:border-[#ff006a] text-xs font-bold text-white transition-all shadow-[0_0_12px_rgba(255,0,106,0.2)] cursor-pointer"
+          title="Anime Ruletka - Tasodifiy anime topish"
+        >
+          <Dices size={15} className="text-[#ff006a]" />
+          <span className="hidden sm:inline text-[11px] font-black uppercase tracking-wider">Ruletka</span>
         </button>
 
         {/* Language Switcher Dropdown */}

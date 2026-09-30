@@ -852,7 +852,30 @@ async function testDbConnection() {
 }
 testDbConnection();
 
-// --- Socket.io Real-time Chat Logic ---
+// --- Watch Together (Do'stlar bilan birga ko'rish) Data Structures ---
+interface WatchParticipant {
+  socketId: string;
+  userId?: number | string;
+  userName: string;
+  userAvatar?: string | null;
+  isHost?: boolean;
+}
+
+interface WatchRoom {
+  roomId: string;
+  animeSlug: string;
+  animeTitle?: string;
+  episodeIndex: number;
+  currentTime: number;
+  isPlaying: boolean;
+  lastUpdated: number;
+  participants: Map<string, WatchParticipant>;
+}
+
+const watchRooms = new Map<string, WatchRoom>();
+const socketToWatchRoom = new Map<string, string>(); // socketId -> roomId
+
+// --- Socket.io Real-time Chat & Watch Together Logic ---
 io.on("connection", async (socket) => {
   console.log("A user connected to the chat:", socket.id);
 
@@ -968,12 +991,184 @@ io.on("connection", async (socket) => {
     }
   });
 
+  // --- Watch Together (Do'stlar bilan birga ko'rish) Sockets ---
+  socket.on("joinWatchRoom", (data) => {
+    try {
+      const { roomId, animeSlug, animeTitle, episodeIndex, user } = data;
+      if (!roomId) return;
+
+      let room = watchRooms.get(roomId);
+      if (!room) {
+        room = {
+          roomId,
+          animeSlug: animeSlug || "",
+          animeTitle: animeTitle || "Anime",
+          episodeIndex: typeof episodeIndex === "number" ? episodeIndex : 0,
+          currentTime: 0,
+          isPlaying: false,
+          lastUpdated: Date.now(),
+          participants: new Map(),
+        };
+        watchRooms.set(roomId, room);
+      }
+
+      const isHost = room.participants.size === 0;
+      const participant: WatchParticipant = {
+        socketId: socket.id,
+        userId: user?.id,
+        userName: user?.name || "Muxlis",
+        userAvatar: user?.avatar_url || user?.avatar || null,
+        isHost,
+      };
+
+      room.participants.set(socket.id, participant);
+      socketToWatchRoom.set(socket.id, roomId);
+      socket.join(roomId);
+
+      // Send initial state to the joiner
+      socket.emit("watchRoomInit", {
+        roomState: {
+          episodeIndex: room.episodeIndex,
+          currentTime: room.currentTime,
+          isPlaying: room.isPlaying,
+          animeSlug: room.animeSlug,
+          animeTitle: room.animeTitle,
+        },
+        isHost,
+        participants: Array.from(room.participants.values()),
+      });
+
+      // Broadcast updated participant list to everyone in room
+      io.to(roomId).emit("watchRoomUsers", Array.from(room.participants.values()));
+
+      // Notify others in room
+      socket.to(roomId).emit("watchRoomNotification", {
+        type: "join",
+        text: `${participant.userName} xonaga qo'shildi 👋`,
+      });
+    } catch (e) {
+      console.error("Error in joinWatchRoom:", e);
+    }
+  });
+
+  socket.on("watchSyncAction", (data) => {
+    try {
+      const { roomId, action, time, episodeIndex } = data;
+      if (!roomId) return;
+      const room = watchRooms.get(roomId);
+      if (room) {
+        room.lastUpdated = Date.now();
+        if (typeof time === "number") room.currentTime = time;
+        if (action === "play") room.isPlaying = true;
+        if (action === "pause") room.isPlaying = false;
+        if (action === "changeEpisode" && typeof episodeIndex === "number") {
+          room.episodeIndex = episodeIndex;
+          room.currentTime = 0;
+          room.isPlaying = true;
+        }
+      }
+      // Broadcast to other participants in the room
+      socket.to(roomId).emit("watchSyncAction", data);
+    } catch (e) {
+      console.error("Error in watchSyncAction:", e);
+    }
+  });
+
+  socket.on("watchRoomChatMessage", (data) => {
+    try {
+      const { roomId, text, user } = data;
+      if (!roomId || !text || !text.trim()) return;
+
+      const message = {
+        id: Date.now() + Math.random().toString(36).substring(2, 7),
+        roomId,
+        text: text.trim(),
+        user: {
+          name: user?.name || "Muxlis",
+          avatar_url: user?.avatar_url || user?.avatar || null,
+        },
+        time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
+      };
+
+      io.to(roomId).emit("watchRoomMessage", message);
+    } catch (e) {
+      console.error("Error in watchRoomChatMessage:", e);
+    }
+  });
+
+  const leaveCurrentWatchRoom = () => {
+    const roomId = socketToWatchRoom.get(socket.id);
+    if (!roomId) return;
+
+    socketToWatchRoom.delete(socket.id);
+    socket.leave(roomId);
+
+    const room = watchRooms.get(roomId);
+    if (!room) return;
+
+    const leavingUser = room.participants.get(socket.id);
+    const wasHost = leavingUser?.isHost;
+    room.participants.delete(socket.id);
+
+    if (room.participants.size === 0) {
+      watchRooms.delete(roomId);
+    } else {
+      if (wasHost) {
+        const firstParticipant = room.participants.values().next().value;
+        if (firstParticipant) {
+          firstParticipant.isHost = true;
+        }
+      }
+      io.to(roomId).emit("watchRoomUsers", Array.from(room.participants.values()));
+      if (leavingUser) {
+        io.to(roomId).emit("watchRoomNotification", {
+          type: "leave",
+          text: `${leavingUser.userName} xonani tark etdi`,
+        });
+      }
+    }
+  };
+
+  socket.on("leaveWatchRoom", () => {
+    leaveCurrentWatchRoom();
+  });
+
   socket.on("disconnect", () => {
     console.log("User disconnected from the chat:", socket.id);
+    leaveCurrentWatchRoom();
   });
 });
 
 // --- API ROUTES ---
+
+// Watch Together Room API
+app.get("/api/watch-room/:roomId", (req, res) => {
+  const { roomId } = req.params;
+  const room = watchRooms.get(roomId);
+  if (!room) {
+    return res.json({ exists: false });
+  }
+  res.json({
+    exists: true,
+    room: {
+      roomId: room.roomId,
+      animeSlug: room.animeSlug,
+      animeTitle: room.animeTitle,
+      episodeIndex: room.episodeIndex,
+      participantCount: room.participants.size,
+    },
+  });
+});
+
+app.post("/api/watch-room/create", (req, res) => {
+  const { animeSlug, animeTitle, episodeIndex } = req.body;
+  const roomId = "room_" + Math.random().toString(36).substring(2, 9);
+  res.json({
+    success: true,
+    roomId,
+    url: `/anime/${animeSlug}?room=${roomId}`,
+  });
+});
 
 // Video streaming proxy endpoint to bypass CORS / hotlinking / referrer restrictions
 app.get("/api/proxy-video", async (req, res) => {

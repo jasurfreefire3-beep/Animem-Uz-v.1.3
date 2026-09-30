@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Anime, Drama, toSlug } from '../types';
-import { Star, PlayCircle, Calendar, Play, Clock, Grid, MessageSquare, ChevronLeft, ChevronRight, TrendingUp, Info, Eye, Film } from 'lucide-react';
+import { Star, PlayCircle, Calendar, Play, Clock, Grid, MessageSquare, ChevronLeft, ChevronRight, TrendingUp, Info, Eye, Film, Dices, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AnimeCard from '../components/AnimeCard';
 import DramaCard from '../components/DramaCard';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { openAnimeRoulette } from '../components/RandomAnimeModal';
 
 export default function Home() {
   const { user } = useAuth();
@@ -273,6 +274,37 @@ export default function Home() {
         </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Anime Roulette Interactive Promo Banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#ff006a]/20 via-[#181826] to-[#0c0d14] border border-[#ff006a]/40 p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4 text-center sm:text-left">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#ff006a] to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-[#ff006a]/30">
+            <Dices className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
+                Anime Ruletka
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#ff006a] text-white">
+                Omadingizni sinang
+              </span>
+            </div>
+            <p className="text-xs text-white/60 mt-0.5">
+              Qaysi animeni tomosha qilishni bilmayapsizmi? Ruletkani aylantiring va tasodifiy ajoyib anime toping!
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={openAnimeRoulette}
+          className="w-full sm:w-auto px-6 py-3 bg-[#ff006a] hover:bg-[#d40058] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-[#ff006a]/30 flex items-center justify-center gap-2 cursor-pointer transform hover:-translate-y-0.5 shrink-0"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Ruletkani aylantirish</span>
+        </button>
+      </div>
 
       {/* Main Content Layout */}
       <div className="flex flex-col xl:flex-row gap-8">

@@ -17,10 +17,12 @@ import {
   Sun,
   Shield,
   X,
-  MessageSquare
+  MessageSquare,
+  Dices
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { translateGenre } from '../types';
+import { openAnimeRoulette } from './RandomAnimeModal';
 
 const logoImg = "https://files.catbox.moe/45hoi6.png";
 
@@ -130,6 +132,20 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
       <div className="flex-1 overflow-y-auto custom-scrollbar py-4 px-4 space-y-6">
         {/* Main Menu */}
         <div className="space-y-1">
+          {/* Featured Roulette Trigger */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onClose) onClose();
+              openAnimeRoulette();
+            }}
+            className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-black transition-all bg-gradient-to-r from-[#ff006a]/20 via-[#ff006a]/10 to-purple-600/20 border border-[#ff006a]/40 text-white hover:border-[#ff006a] hover:from-[#ff006a]/30 hover:to-purple-600/30 shadow-[0_0_15px_rgba(255,0,106,0.15)] cursor-pointer mb-2.5 group"
+          >
+            <Dices size={17} className="text-[#ff006a] group-hover:rotate-45 transition-transform" />
+            <span className="flex-1 text-left uppercase tracking-wider">Anime Ruletka</span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[#ff006a] text-white">Yangi</span>
+          </button>
+
           {menuItems.map((item) => {
             const Icon = item.icon;
             const active = isItemActive(item.path);

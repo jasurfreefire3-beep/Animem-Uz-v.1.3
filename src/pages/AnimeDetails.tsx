@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Anime, Comment, translateGenre, toSlug } from '../types';
-import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import VideoPlayer from '../components/VideoPlayer';
+import WatchTogetherRoom from '../components/WatchTogetherRoom';
 import AgeGate from '../components/AgeGate';
 import AdBanner728x90 from '../components/AdBanner728x90';
 import NativeBannerAd from '../components/NativeBannerAd';
@@ -51,6 +52,55 @@ export default function AnimeDetails() {
     () => localStorage.getItem('animem_18plus_ok') === '1'
   );
   const [notFound, setNotFound] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const roomFromUrl = searchParams.get('room');
+  const [activeWatchRoomId, setActiveWatchRoomId] = useState<string | null>(roomFromUrl);
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+
+  useEffect(() => {
+    const r = searchParams.get('room');
+    if (r) {
+      setActiveWatchRoomId(r);
+    }
+  }, [searchParams]);
+
+  const handleStartWatchTogether = async () => {
+    if (activeWatchRoomId) {
+      document.getElementById('watch-together-section')?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    setIsCreatingRoom(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/watch-room/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          animeSlug: toSlug(anime?.title || ''),
+          animeTitle: anime?.title || '',
+          episodeIndex: activeEpisode - 1,
+          hostUser: user ? { id: user.id, name: user.name, avatar_url: user.avatar_url } : null
+        })
+      });
+
+      const data = await res.json();
+      if (data.ok && data.roomId) {
+        setActiveWatchRoomId(data.roomId);
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.set('room', data.roomId);
+          return next;
+        });
+        setTimeout(() => {
+          document.getElementById('watch-together-section')?.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+    } catch (err) {
+      console.error("Failed to create watch room:", err);
+    } finally {
+      setIsCreatingRoom(false);
+    }
+  };
 
   const fetchRatingSummary = async (animeId: number) => {
     try {
@@ -804,6 +854,18 @@ export default function AnimeDetails() {
                     <span className="hidden min-[400px]:inline">{isFavorited ? 'SEVIMLILARDA' : 'SEVIMLILAR'}</span>
                     <span className="inline min-[400px]:hidden">{isFavorited ? 'SAQLANDI' : 'SAQLASH'}</span>
                   </button>
+
+                  {/* Watch Together Action Button */}
+                  <button 
+                    type="button"
+                    onClick={handleStartWatchTogether}
+                    disabled={isCreatingRoom}
+                    className="flex-1 min-w-[155px] md:flex-none px-4 md:px-5 py-3 rounded-sm font-black transition-all flex items-center justify-center gap-2 text-[11px] md:text-sm border uppercase tracking-wider bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 border-[#ff006a]/50 hover:border-[#ff006a] hover:from-[#ff006a]/30 hover:to-purple-600/30 text-white shadow-[0_0_15px_rgba(255,0,106,0.2)] cursor-pointer"
+                    title="Do'stlar bilan jonli birga ko'rish"
+                  >
+                    <Users className="w-4 h-4 text-[#ff006a] shrink-0" />
+                    <span>{isCreatingRoom ? "OCHILMOQDA..." : activeWatchRoomId ? "XONANI KO'RISH" : "BIRGA KO'RISH"}</span>
+                  </button>
                 </div>
              </div>
           </div>
@@ -903,6 +965,58 @@ export default function AnimeDetails() {
                       poster={anime.banner_url || anime.image_url} 
                       animeTitle={anime.title} 
                     />
+                 )}
+               </div>
+
+               {/* Watch Together Live Room or Quick Invite Banner */}
+               <div id="watch-together-section" className="mb-4">
+                 {activeWatchRoomId ? (
+                   <WatchTogetherRoom
+                     roomId={activeWatchRoomId}
+                     anime={anime}
+                     currentEpisode={activeEpisode - 1}
+                     onEpisodeChange={(epIdx) => {
+                       const targetEp = combinedEpisodes[epIdx];
+                       if (targetEp) handleEpisodeClick(targetEp);
+                     }}
+                     onClose={() => {
+                       setActiveWatchRoomId(null);
+                       setSearchParams(prev => {
+                         const next = new URLSearchParams(prev);
+                         next.delete('room');
+                         return next;
+                       });
+                     }}
+                   />
+                 ) : (
+                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-xl bg-gradient-to-r from-[#ff006a]/15 via-[#181824] to-[#0c0d14] border border-[#ff006a]/30">
+                     <div className="flex items-center gap-3">
+                       <div className="w-9 h-9 rounded-xl bg-[#ff006a] flex items-center justify-center text-white shadow-lg shadow-[#ff006a]/30 shrink-0">
+                         <Users className="w-5 h-5" />
+                       </div>
+                       <div>
+                         <div className="flex items-center gap-2">
+                           <span className="text-xs font-black text-white uppercase tracking-wider">
+                             Do'stlar bilan birga tomosha qiling
+                           </span>
+                           <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                             Jonli
+                           </span>
+                         </div>
+                         <p className="text-[11px] text-white/60">
+                           Birga tomosha qilish xonasi yarating va do'stlar bilan bir vaqtda sinxron ko'ring!
+                         </p>
+                       </div>
+                     </div>
+                     <button
+                       type="button"
+                       onClick={handleStartWatchTogether}
+                       disabled={isCreatingRoom}
+                       className="w-full sm:w-auto px-4 py-2 bg-[#ff006a] hover:bg-[#d40058] disabled:opacity-50 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-[#ff006a]/20 cursor-pointer shrink-0"
+                     >
+                       {isCreatingRoom ? "Ochilmoqda..." : "Xona yaratish"}
+                     </button>
+                   </div>
                  )}
                </div>
 
@@ -1194,30 +1308,48 @@ export default function AnimeDetails() {
                            className="w-full bg-[#000] border border-[#222] rounded-sm p-3 text-white text-sm focus:outline-none focus:border-[#ff006a]/50 resize-none h-20 mb-3 transition-colors placeholder:text-white/30"
                         />
                         <div className="flex items-center justify-between">
-                           <div className="relative">
+                           <div className="flex items-center gap-2">
+                              <div className="relative">
+                                 <button
+                                    type="button"
+                                    onClick={() => setShowCommentGifPicker(!showCommentGifPicker)}
+                                    className={`px-2.5 py-1.5 rounded-sm text-xs font-black tracking-wider transition-all cursor-pointer border flex items-center gap-1.5 ${
+                                       showCommentGifPicker
+                                          ? 'text-white bg-[#ff006a] border-[#ff006a] shadow-sm shadow-[#ff006a]/40'
+                                          : 'text-[#ff006a] bg-[#ff006a]/10 border-[#ff006a]/30 hover:bg-[#ff006a] hover:text-white hover:border-[#ff006a]'
+                                    }`}
+                                    title="Anime GIF Stiker qo'shish"
+                                 >
+                                    GIF
+                                 </button>
+                                 {showCommentGifPicker && (
+                                    <div className="absolute top-full left-0 mt-2 z-50">
+                                       <GifPicker
+                                          onSelectGif={(gifUrl) => {
+                                             setNewComment((prev) => (prev ? `${prev} [gif]${gifUrl}[/gif]` : `[gif]${gifUrl}[/gif]`));
+                                             setShowCommentGifPicker(false);
+                                          }}
+                                          onClose={() => setShowCommentGifPicker(false)}
+                                       />
+                                    </div>
+                                 )}
+                              </div>
+
                               <button
                                  type="button"
-                                 onClick={() => setShowCommentGifPicker(!showCommentGifPicker)}
-                                 className={`px-2.5 py-1.5 rounded-sm text-xs font-black tracking-wider transition-all cursor-pointer border flex items-center gap-1.5 ${
-                                    showCommentGifPicker
-                                       ? 'text-white bg-[#ff006a] border-[#ff006a] shadow-sm shadow-[#ff006a]/40'
-                                       : 'text-[#ff006a] bg-[#ff006a]/10 border-[#ff006a]/30 hover:bg-[#ff006a] hover:text-white hover:border-[#ff006a]'
-                                 }`}
-                                 title="Anime GIF Stiker qo'shish"
+                                 onClick={() => {
+                                    const curTime = (window as any).getAnimemPlayerTime ? (window as any).getAnimemPlayerTime() : 0;
+                                    const m = Math.floor(curTime / 60);
+                                    const s = Math.floor(curTime % 60);
+                                    const timeFormatted = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+                                    setNewComment((prev) => (prev ? `${prev} ${timeFormatted} ` : `${timeFormatted} `));
+                                 }}
+                                 className="px-2.5 py-1.5 rounded-sm text-xs font-bold tracking-wider transition-all cursor-pointer border flex items-center gap-1.5 text-white/80 bg-white/5 border-white/10 hover:bg-[#ff006a]/20 hover:text-[#ff006a] hover:border-[#ff006a]/40"
+                                 title="Videoning ayni vaqtdagi daqiqasini izohga qo'shish"
                               >
-                                 GIF
+                                 <Clock size={13} className="text-[#ff006a]" />
+                                 <span>Vaqt qo'shish</span>
                               </button>
-                              {showCommentGifPicker && (
-                                 <div className="absolute top-full left-0 mt-2 z-50">
-                                    <GifPicker
-                                       onSelectGif={(gifUrl) => {
-                                          setNewComment((prev) => (prev ? `${prev} [gif]${gifUrl}[/gif]` : `[gif]${gifUrl}[/gif]`));
-                                          setShowCommentGifPicker(false);
-                                       }}
-                                       onClose={() => setShowCommentGifPicker(false)}
-                                    />
-                                 </div>
-                              )}
                            </div>
 
                            <button type="submit" className="bg-[#ff006a] hover:bg-[#d40058] text-white px-5 py-2 rounded-sm text-xs font-bold flex items-center gap-1.5 transition-colors">

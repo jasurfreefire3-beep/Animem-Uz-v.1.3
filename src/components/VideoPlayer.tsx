@@ -131,6 +131,65 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
     };
   }, [animeTitle, isEmbed, playerId, poster, source]);
 
+  // Support interactive seeking (e.g. comment timestamps & Watch Together sync)
+  useEffect(() => {
+    const handleSeek = (e: any) => {
+      const time = e.detail?.time;
+      if (typeof time === 'number' && !isNaN(time)) {
+        if (!isEmbed && playerRef.current?.api) {
+          try {
+            playerRef.current.api('seek', time);
+            playerRef.current.api('play');
+          } catch (err) {
+            console.warn("Seek error:", err);
+          }
+        }
+        const stage = document.querySelector('.animem-player-shell');
+        stage?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+
+    const handleSync = (e: any) => {
+      const { action, time } = e.detail || {};
+      if (!isEmbed && playerRef.current?.api) {
+        try {
+          if (action === 'play') {
+            if (typeof time === 'number') playerRef.current.api('seek', time);
+            playerRef.current.api('play');
+          } else if (action === 'pause') {
+            if (typeof time === 'number') playerRef.current.api('seek', time);
+            playerRef.current.api('pause');
+          } else if (action === 'seek' && typeof time === 'number') {
+            playerRef.current.api('seek', time);
+          }
+        } catch (err) {
+          console.warn("Watch sync error:", err);
+        }
+      }
+    };
+
+    (window as any).getAnimemPlayerTime = () => {
+      if (!isEmbed && playerRef.current?.api) {
+        try {
+          const t = playerRef.current.api('time');
+          return typeof t === 'number' ? t : 0;
+        } catch {
+          return 0;
+        }
+      }
+      return 0;
+    };
+
+    window.addEventListener('animem-seek-to', handleSeek);
+    window.addEventListener('animem-watch-sync', handleSync);
+
+    return () => {
+      window.removeEventListener('animem-seek-to', handleSeek);
+      window.removeEventListener('animem-watch-sync', handleSync);
+      delete (window as any).getAnimemPlayerTime;
+    };
+  }, [isEmbed]);
+
   return (
     <div className="animem-player-shell group">
       <div className="animem-player-stage">
