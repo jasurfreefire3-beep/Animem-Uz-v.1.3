@@ -1409,12 +1409,13 @@ async function sendEmailNotification(
   const htmlContent = buildAnimeEmailHtml(title, subtitle, code, note);
   const textContent = `${title}\n\n${subtitle}\n\nTasdiqlash kodi: ${code}\n\n${note}\n\nUshbu xat avtomatik tarzda yuborilgan bir martalik tranzaksion xabardir.\n© ${new Date().getFullYear()} Animem.uz | support@animem.uz`;
   
-  // From address: prioritizes environment config or falls back to support@animem.uz
-  const defaultFrom = (process.env.SMTP_FROM || (process.env.GMAIL_USER ? `"Animem.uz" <${process.env.GMAIL_USER}>` : '"Animem.uz" <support@animem.uz>')).trim();
+  // From address: default is support@animem.uz
+  const defaultFrom = (process.env.SMTP_FROM || '"Animem.uz" <support@animem.uz>').trim();
 
   // --- STRATEGY 1: Direct SMTP via Gmail or Custom SMTP (Eng ishonchli va hech qanday tashqi API talab qilmaydi) ---
   const smtpUser = (process.env.GMAIL_USER || process.env.SMTP_USER || "").trim();
-  const smtpPass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.SMTP_PASS || "").trim();
+  // Strip spaces if user copied 16-letter App Password with spaces (e.g. "abcd efgh ijkl mnop")
+  const smtpPass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.SMTP_PASS || "").replace(/\s+/g, "").trim();
 
   if (smtpUser && smtpPass) {
     try {
