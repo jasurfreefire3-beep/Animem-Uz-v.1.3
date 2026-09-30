@@ -24,6 +24,8 @@ export default function NotificationPromptModal() {
     const timer = setTimeout(() => {
       if (shouldShowNotificationPrompt()) {
         setIsOpen(true);
+        // Mark as shown immediately so that on any future visit or refresh, it will NEVER appear again
+        localStorage.setItem('animem_push_prompt_shown', 'true');
       }
     }, 2800);
 
@@ -31,6 +33,7 @@ export default function NotificationPromptModal() {
   }, []);
 
   const handleEnable = async () => {
+    localStorage.setItem('animem_push_prompt_shown', 'true');
     setIsActivating(true);
     try {
       const granted = await requestNotificationPermission();
@@ -52,6 +55,7 @@ export default function NotificationPromptModal() {
   };
 
   const handleDismiss = () => {
+    localStorage.setItem('animem_push_prompt_shown', 'true');
     dismissNotificationPrompt();
     setIsOpen(false);
   };

@@ -14,6 +14,7 @@ export interface NotificationPayload {
 
 const STORAGE_KEYS = {
   PUSH_ENABLED: 'animem_push_enabled',
+  PROMPT_SHOWN: 'animem_push_prompt_shown',
   PROMPT_DISMISSED_AT: 'animem_push_prompt_dismissed_at',
   LAST_ANIME_ID: 'animem_last_known_anime_id',
   LAST_NOTIF_ID: 'animem_last_known_notif_id',
@@ -133,6 +134,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 
   try {
+    localStorage.setItem(STORAGE_KEYS.PROMPT_SHOWN, 'true');
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       localStorage.setItem(STORAGE_KEYS.PUSH_ENABLED, 'true');
@@ -163,27 +165,36 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Check if the notification prompt modal should be shown to the user
+ * Check if the notification prompt modal should be shown to the user.
+ * Strictly shown at most ONCE per device/browser.
  */
 export function shouldShowNotificationPrompt(): boolean {
   if (!isNotificationSupported()) return false;
   if (Notification.permission === 'granted' || Notification.permission === 'denied') return false;
 
+  const shown = localStorage.getItem(STORAGE_KEYS.PROMPT_SHOWN);
+  if (shown === 'true') {
+    return false;
+  }
+
   const dismissedAt = localStorage.getItem(STORAGE_KEYS.PROMPT_DISMISSED_AT);
   if (dismissedAt) {
-    const passedHours = (Date.now() - Number(dismissedAt)) / (1000 * 60 * 60);
-    if (passedHours < 48) {
-      return false;
-    }
+    return false;
+  }
+
+  const pushEnabled = localStorage.getItem(STORAGE_KEYS.PUSH_ENABLED);
+  if (pushEnabled !== null) {
+    return false;
   }
 
   return true;
 }
 
 /**
- * Dismiss the notification prompt for 2 days
+ * Dismiss the notification prompt permanently so it is never shown again
  */
 export function dismissNotificationPrompt(): void {
+  localStorage.setItem(STORAGE_KEYS.PROMPT_SHOWN, 'true');
   localStorage.setItem(STORAGE_KEYS.PROMPT_DISMISSED_AT, Date.now().toString());
 }
 

@@ -18,17 +18,20 @@ export default function InstallAppButton() {
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
 
   useEffect(() => {
-    // 1. Check if the app is already installed / running in standalone mode
+    // 1. Check if the app is already installed / running in standalone mode or already shown/dismissed
     const isStandalone = 
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true ||
       document.referrer.includes('android-app://');
 
     const storedInstalled = localStorage.getItem('animem_pwa_installed') === 'true';
-    const storedDismissed = localStorage.getItem('animem_pwa_dismissed');
+    const storedDismissed = Boolean(localStorage.getItem('animem_pwa_dismissed'));
+    const storedShown = localStorage.getItem('animem_pwa_prompt_shown') === 'true';
 
-    if (isStandalone || storedInstalled) {
-      setIsInstalled(true);
+    if (isStandalone || storedInstalled || storedDismissed || storedShown) {
+      if (isStandalone || storedInstalled) {
+        setIsInstalled(true);
+      }
       setShowButton(false);
       return;
     }
@@ -39,7 +42,14 @@ export default function InstallAppButton() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShowButton(true);
+      
+      const alreadyShown = localStorage.getItem('animem_pwa_prompt_shown') === 'true' ||
+                           Boolean(localStorage.getItem('animem_pwa_dismissed')) ||
+                           localStorage.getItem('animem_pwa_installed') === 'true';
+      if (!alreadyShown) {
+        setShowButton(true);
+        localStorage.setItem('animem_pwa_prompt_shown', 'true');
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -49,24 +59,26 @@ export default function InstallAppButton() {
       setIsInstalled(true);
       setShowButton(false);
       localStorage.setItem('animem_pwa_installed', 'true');
+      localStorage.setItem('animem_pwa_prompt_shown', 'true');
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 5000);
     };
 
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // If not dismissed recently within 2 days, show button
-    const now = Date.now();
-    const isDismissedRecently = storedDismissed && (now - parseInt(storedDismissed, 10) < 2 * 24 * 60 * 60 * 1000);
-
-    if (!isDismissedRecently) {
-      const timer = setTimeout(() => {
+    // Show button once per user lifetime after brief delay
+    const timer = setTimeout(() => {
+      const alreadyShown = localStorage.getItem('animem_pwa_prompt_shown') === 'true' ||
+                           Boolean(localStorage.getItem('animem_pwa_dismissed')) ||
+                           localStorage.getItem('animem_pwa_installed') === 'true';
+      if (!alreadyShown) {
         setShowButton(true);
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
+        localStorage.setItem('animem_pwa_prompt_shown', 'true');
+      }
+    }, 2500);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
@@ -74,6 +86,7 @@ export default function InstallAppButton() {
 
   const handleInstallClick = async () => {
     // DIRECT AUTOMATIC INSTALL: No tutorial/explainer dialogs
+    localStorage.setItem('animem_pwa_prompt_shown', 'true');
     if (deferredPrompt) {
       try {
         await deferredPrompt.prompt();
@@ -108,7 +121,8 @@ export default function InstallAppButton() {
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowButton(false);
-    localStorage.setItem('animem_pwa_dismissed', Date.now().toString());
+    localStorage.setItem('animem_pwa_dismissed', 'true');
+    localStorage.setItem('animem_pwa_prompt_shown', 'true');
   };
 
   if (isInstalled) {
