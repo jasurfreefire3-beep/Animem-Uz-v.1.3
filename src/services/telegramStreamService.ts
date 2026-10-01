@@ -202,6 +202,10 @@ export async function getStreamMetadata(channelId: string, messageId: number): P
 }
 
 export async function streamTelegramVideo(req: any, res: any, channelId: string, messageId: number): Promise<void> {
+  const cleanId = channelId.replace(/^-100/, '').replace(/^-/, '');
+  const cacheKey = `${cleanId}_${messageId}`;
+  const headKey = `${cacheKey}_head`;
+
   try {
     const meta = await getStreamMetadata(channelId, messageId);
     if (!meta || !meta.document) {
@@ -211,9 +215,6 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
 
     const totalSize = meta.size;
     const mimeType = meta.mimeType || 'video/mp4';
-    const cleanId = channelId.replace(/^-100/, '').replace(/^-/, '');
-    const cacheKey = `${cleanId}_${messageId}`;
-    const headKey = `${cacheKey}_head`;
 
     const rangeHeader = req.headers.range;
 
@@ -234,6 +235,10 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
         start = parseInt(match[1], 10);
         if (match[2]) {
           end = parseInt(match[2], 10);
+        } else {
+          // Open-ended range like "bytes=0-": cap chunk window to 4 MB for smooth streaming & fast seeking
+          const MAX_CHUNK = 4 * 1024 * 1024;
+          end = Math.min(start + MAX_CHUNK - 1, totalSize - 1);
         }
       }
     }
@@ -241,12 +246,6 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
     if (start >= totalSize || end >= totalSize || start > end) {
       res.status(416).setHeader('Content-Range', `bytes */${totalSize}`).end();
       return;
-    }
-
-    // Limit maximum chunk size per HTTP response (e.g. 4 MB) for fast responsiveness and smooth seeking
-    const MAX_CHUNK = 4 * 1024 * 1024;
-    if (!rangeHeader || !rangeHeader.split('-')[1]) {
-      end = Math.min(start + MAX_CHUNK - 1, totalSize - 1);
     }
 
     const chunkSize = end - start + 1;
@@ -261,16 +260,27 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
     res.setHeader('Content-Length', chunkSize);
     res.setHeader('Content-Type', mimeType);
 
-    // Fast-start optimization: Check if head buffer is already cached
-    if (start === 0 && end <= 2 * 1024 * 1024 && videoHeadCache.has(headKey)) {
+    // Fast-start optimization: Check if head buffer is already cached in RAM
+    if (start < 2 * 1024 * 1024 && videoHeadCache.has(headKey)) {
       const cachedHead = videoHeadCache.get(headKey)!;
-      if (cachedHead.length >= chunkSize) {
-        res.end(cachedHead.subarray(0, chunkSize));
+      if (end < cachedHead.length) {
+        res.end(cachedHead.subarray(start, end + 1));
         return;
       }
     }
 
     const tgClient = await getTelegramClient();
+
+    // Must construct Api.InputDocumentFileLocation for GramJS iterDownload
+    const fileLocation = new Api.InputDocumentFileLocation({
+      id: meta.document.id,
+      accessHash: meta.document.accessHash,
+      fileReference: meta.document.fileReference,
+      thumbSize: '',
+    });
+
+    const PART_SIZE = 512 * 1024;
+    const chunkLimit = Math.ceil(chunkSize / PART_SIZE);
 
     let isAborted = false;
     req.on('close', () => {
@@ -278,35 +288,54 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
     });
 
     const downloadStream = tgClient.iterDownload({
-      file: meta.document,
+      file: fileLocation,
+      dcId: meta.document.dcId,
       offset: bigInt(start),
-      limit: chunkSize,
-      chunkSize: 512 * 1024,
-      requestSize: 512 * 1024,
+      limit: chunkLimit,
+      chunkSize: PART_SIZE,
+      requestSize: PART_SIZE,
     });
 
-    const receivedChunks: Buffer[] = [];
+    let bytesRemaining = chunkSize;
+    const headChunks: Buffer[] = [];
+    let headBytes = 0;
 
     for await (const chunk of downloadStream) {
       if (isAborted || res.writableEnded || res.destroyed) {
         break;
       }
-      res.write(chunk);
 
-      // Cache the first 2 MB head chunk for other users
-      if (start === 0 && receivedChunks.reduce((acc, c) => acc + c.length, 0) < 2 * 1024 * 1024) {
-        receivedChunks.push(chunk);
+      const bytesToSend = Math.min(chunk.length, bytesRemaining);
+      const slice = chunk.subarray(0, bytesToSend);
+      res.write(slice);
+      bytesRemaining -= bytesToSend;
+
+      if (start === 0 && headBytes < 2 * 1024 * 1024) {
+        headChunks.push(slice);
+        headBytes += slice.length;
+      }
+
+      if (bytesRemaining <= 0) {
+        break;
       }
     }
 
-    if (start === 0 && receivedChunks.length > 0 && !videoHeadCache.has(headKey)) {
-      videoHeadCache.set(headKey, Buffer.concat(receivedChunks));
+    if (start === 0 && headChunks.length > 0 && !videoHeadCache.has(headKey)) {
+      if (videoHeadCache.size > 50) {
+        const firstKey = videoHeadCache.keys().next().value;
+        if (firstKey) videoHeadCache.delete(firstKey);
+      }
+      videoHeadCache.set(headKey, Buffer.concat(headChunks));
     }
 
     if (!res.writableEnded) {
       res.end();
     }
   } catch (err: any) {
+    if (err?.errorMessage === 'FILEREF_UPGRADE_NEEDED' || err?.message?.includes('FILEREF')) {
+      mediaMetaCache.delete(cacheKey);
+      videoHeadCache.delete(headKey);
+    }
     if (!res.headersSent) {
       res.status(500).json({ error: "Video oqimini uzatishda xatolik yuz berdi" });
     } else if (!res.writableEnded) {

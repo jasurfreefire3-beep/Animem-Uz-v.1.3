@@ -83,9 +83,10 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const resolveSource = (raw: string): string => {
     if (!raw) return '/assets/sample/video.mp4';
     const trimmed = raw.trim();
-    if (trimmed.startsWith('/api/tgstream/')) {
+    if (trimmed.includes('/api/tgstream/')) {
+      const tgPath = trimmed.substring(trimmed.indexOf('/api/tgstream/'));
       const apiBase = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : '');
-      return `${apiBase}${trimmed}`;
+      return `${apiBase}${tgPath}`;
     }
     return trimmed;
   };
