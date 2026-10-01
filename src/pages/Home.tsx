@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import { Anime, Drama, toSlug } from '../types';
 import { Star, PlayCircle, Calendar, Play, Clock, Grid, MessageSquare, ChevronLeft, ChevronRight, TrendingUp, Info, Eye, Film } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -99,7 +100,17 @@ export default function Home() {
     };
 
     fetchHomeData();
-    return () => { isMounted = false; };
+
+    const socketUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : window.location.origin);
+    const socket = io(socketUrl);
+    socket.on('contentUpdated', () => {
+      fetchHomeData();
+    });
+
+    return () => { 
+      isMounted = false; 
+      socket.disconnect();
+    };
   }, []);
 
   const bannerAnimes = animes.filter(a => a.is_banner);

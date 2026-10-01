@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import { Film, Search, Filter, Sparkles, Heart, Clock, TrendingUp, Calendar } from 'lucide-react';
 import { Drama } from '../types';
 import DramaCard from '../components/DramaCard';
@@ -21,11 +22,23 @@ export default function Dramas() {
       metaDesc.setAttribute('content', "Eng sara koreys, yapon va xitoy dramalarini (doramalarni) o'zbek tilida, HD sifatda bepul tomosha qiling.");
     }
     fetchDramas();
+
+    const socketUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : window.location.origin);
+    const socket = io(socketUrl);
+    socket.on('contentUpdated', (data: any) => {
+      if (!data || data.type === 'drama' || data.type === 'all') {
+        fetchDramas();
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const fetchDramas = async () => {
     try {
-      const res = await fetch('/api/dramas');
+      const res = await fetch(`/api/dramas?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setDramas(data);

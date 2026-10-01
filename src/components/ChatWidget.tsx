@@ -273,7 +273,15 @@ export default function ChatWidget() {
 
     socket.on('newMessage', (newMsg: Message) => {
       setMessages((prev) => {
-        if (prev.some(m => String(m.id) === String(newMsg.id))) return prev;
+        const idx = prev.findIndex(m => 
+          String(m.id) === String(newMsg.id) ||
+          (String(m.id).startsWith('temp_') && String(m.user_id) === String(newMsg.user_id) && m.content === newMsg.content)
+        );
+        if (idx !== -1) {
+          const updated = [...prev];
+          updated[idx] = newMsg;
+          return updated;
+        }
         return [...prev, newMsg];
       });
       setIsLoading(false);
@@ -316,9 +324,30 @@ export default function ChatWidget() {
 
   const sendChatMessage = async (contentToSend: string) => {
     if (!contentToSend || !user) return;
+
+    const userAvatar = (user as any).avatar_url || (user as any).avatar || null;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const optimisticMsg: Message = {
+      id: tempId,
+      user_id: user.id,
+      user_name: user.name,
+      user_avatar: userAvatar,
+      content: contentToSend,
+      reply_to_id: replyingTo ? String(replyingTo.id) : null,
+      reply_to_name: replyingTo ? replyingTo.user_name : null,
+      reply_to_content: replyingTo ? replyingTo.content : null,
+      created_at: new Date().toISOString(),
+    };
+
+    // 0ms darhol ekranda ko'rsatish
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setIsLoading(false);
+    scrollToBottom();
+
     const payload = {
       user_id: user.id,
       user_name: user.name,
+      user_avatar: userAvatar,
       content: contentToSend,
       reply_to_id: replyingTo ? String(replyingTo.id) : null,
       reply_to_name: replyingTo ? replyingTo.user_name : null,

@@ -43,7 +43,7 @@ export default function AdminDramalar({ token }: AdminDramalarProps) {
 
   const fetchDramas = async () => {
     try {
-      const res = await fetch('/api/dramas');
+      const res = await fetch(`/api/dramas?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setDramas(data);
@@ -97,7 +97,7 @@ export default function AdminDramalar({ token }: AdminDramalarProps) {
   const fetchDramaEpisodesList = async (dramaId: string | number) => {
     try {
       setLoadingEpisodes(true);
-      const res = await fetch(`/api/dramas/${dramaId}/episodes`);
+      const res = await fetch(`/api/dramas/${dramaId}/episodes?t=${Date.now()}`);
       if (res.ok) {
         const eps: DramaEpisode[] = await res.json();
         setDramaEpisodes(eps);

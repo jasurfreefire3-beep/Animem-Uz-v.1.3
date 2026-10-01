@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import { Anime, translateGenre, getEnglishGenre, toSlug } from '../types';
 import { Star, Play, Grid, List, Film, Eye, Search, X, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -83,7 +84,19 @@ export default function Animelar() {
       }
     };
     fetchAnimes();
-    return () => { isMounted = false; };
+
+    const socketUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : window.location.origin);
+    const socket = io(socketUrl);
+    socket.on('contentUpdated', (data: any) => {
+      if (!data || data.type === 'anime' || data.type === 'all') {
+        fetchAnimes();
+      }
+    });
+
+    return () => { 
+      isMounted = false; 
+      socket.disconnect();
+    };
   }, []);
 
   const genres = [

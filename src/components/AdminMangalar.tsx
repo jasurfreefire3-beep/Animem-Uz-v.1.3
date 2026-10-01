@@ -57,7 +57,7 @@ export default function AdminMangalar({ token }: AdminMangalarProps) {
 
   const fetchMangas = async () => {
     try {
-      const res = await fetch('/api/mangas');
+      const res = await fetch(`/api/mangas?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setMangas(data);
@@ -71,7 +71,7 @@ export default function AdminMangalar({ token }: AdminMangalarProps) {
 
   const fetchMangaDetails = async (id: string) => {
     try {
-      const res = await fetch(`/api/mangas/${id}`);
+      const res = await fetch(`/api/mangas/${id}?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setMangaChapters(data.chapters || []);

@@ -366,6 +366,26 @@ const io = new Server(server, {
   },
 });
 
+// Instant content cache invalidation & real-time broadcast to all connected clients
+function notifyContentUpdate(type: "anime" | "manga" | "drama" | "all") {
+  if (type === "anime" || type === "all") {
+    invalidateServerCache("api_all_animes");
+    invalidateServerCache("api_anime_");
+    cachedRatings = null;
+  }
+  if (type === "manga" || type === "all") {
+    invalidateServerCache("api_all_mangas");
+    invalidateServerCache("api_manga_");
+  }
+  if (type === "drama" || type === "all") {
+    invalidateServerCache("api_all_dramas");
+    invalidateServerCache("api_drama_");
+  }
+  try {
+    io.emit("contentUpdated", { type, timestamp: Date.now() });
+  } catch (e) {}
+}
+
 // Middleware to authenticate JWT tokens
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers["authorization"];
@@ -1055,74 +1075,65 @@ io.on("connection", (socket) => {
 
   socket.on("sendMessage", async (data) => {
     try {
-      const { user_id, user_name, content, reply_to_id, reply_to_name, reply_to_content } = data || {};
+      const { user_id, user_name, user_avatar, content, reply_to_id, reply_to_name, reply_to_content } = data || {};
       if (!content || !content.trim()) return;
 
-      let insertedMessage: any = null;
+      const broadcastMsg: any = {
+        id: Date.now(),
+        user_id,
+        user_name: user_name || "Anonim",
+        user_avatar: user_avatar || null,
+        content,
+        reply_to_id,
+        reply_to_name,
+        reply_to_content,
+        created_at: new Date().toISOString(),
+      };
 
-      try {
-        const [result]: any = await dbQuery(
-          "INSERT INTO messages (user_id, user_name, content, reply_to_id, reply_to_name, reply_to_content) VALUES (?, ?, ?, ?, ?, ?)",
-          [
-            user_id || null,
-            user_name || "Anonim",
-            content,
-            reply_to_id || null,
-            reply_to_name || null,
-            reply_to_content || null,
-          ]
-        );
+      // 1. Zudlik bilan (0-ms) barcha mijozlarga tarqatish!
+      io.emit("newMessage", broadcastMsg);
 
-        let user_avatar = null;
-        if (user_id) {
-          try {
-            const [uRows]: any = await dbQuery("SELECT avatar_url FROM users WHERE id = ?", [user_id]);
-            if (uRows && uRows[0]) {
-              user_avatar = uRows[0].avatar_url;
-            }
-          } catch (e) {}
+      // 2. Fon rejimida asinxron MySQL va localstore-ga yozish (hech kimni kutdirmaydi)
+      (async () => {
+        try {
+          const [result]: any = await dbQuery(
+            "INSERT INTO messages (user_id, user_name, content, reply_to_id, reply_to_name, reply_to_content) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+              user_id || null,
+              user_name || "Anonim",
+              content,
+              reply_to_id || null,
+              reply_to_name || null,
+              reply_to_content || null,
+            ]
+          );
+
+          if (result && result.insertId) {
+            broadcastMsg.id = result.insertId;
+          }
+
+          if (user_id && !broadcastMsg.user_avatar) {
+            try {
+              const [uRows]: any = await dbQuery("SELECT avatar_url FROM users WHERE id = ?", [user_id]);
+              if (uRows && uRows[0] && uRows[0].avatar_url) {
+                broadcastMsg.user_avatar = uRows[0].avatar_url;
+              }
+            } catch (e) {}
+          }
+        } catch (dbErr) {
+          console.warn("Socket DB message async save warning:", dbErr);
         }
 
-        insertedMessage = {
-          id: result.insertId,
-          user_id,
-          user_name: user_name || "Anonim",
-          user_avatar,
-          content,
-          reply_to_id,
-          reply_to_name,
-          reply_to_content,
-          created_at: new Date().toISOString(),
-        };
-      } catch (dbErr) {
-        console.warn("Socket DB message save failed, fallback to local store:", dbErr);
-      }
-
-      const store = loadLocalStore();
-      if (!store.messages) store.messages = [];
-
-      if (!insertedMessage) {
-        insertedMessage = {
-          id: Date.now(),
-          user_id,
-          user_name: user_name || "Anonim",
-          user_avatar: null,
-          content,
-          reply_to_id,
-          reply_to_name,
-          reply_to_content,
-          created_at: new Date().toISOString(),
-        };
-      }
-
-      store.messages.push(insertedMessage);
-      if (store.messages.length > 500) {
-        store.messages = store.messages.slice(-500);
-      }
-      saveLocalStore(store);
-
-      // Broadcast new message to everyone
-      io.emit("newMessage", insertedMessage);
+        try {
+          const store = loadLocalStore();
+          if (!store.messages) store.messages = [];
+          store.messages.push(broadcastMsg);
+          if (store.messages.length > 500) {
+            store.messages = store.messages.slice(-500);
+          }
+          saveLocalStore(store);
+        } catch (storeErr) {}
+      })();
     } catch (err) {
       console.error("Error saving new chat message via socket:", err);
     }
@@ -3690,7 +3701,13 @@ interface RatingRecord {
   created_at: string;
 }
 
+let cachedRatings: RatingRecord[] | null = null;
+let ratingsCacheTime = 0;
+
 async function getRatingsFromFile(): Promise<RatingRecord[]> {
+  if (cachedRatings && (Date.now() - ratingsCacheTime < 30000)) {
+    return cachedRatings;
+  }
   try {
     if (!fs.existsSync(DATA_FILE_PATH)) {
       let initialRatings: RatingRecord[] = [];
@@ -3703,7 +3720,6 @@ async function getRatingsFromFile(): Promise<RatingRecord[]> {
           rating: r.rating,
           created_at: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString()
         }));
-        console.log("Successfully migrated ratings from MySQL to data.json:", initialRatings.length);
       } catch (dbErr) {
         console.warn("Could not fetch ratings from MySQL on initialization, starting with empty list:", dbErr);
       }
@@ -3723,9 +3739,6 @@ async function getRatingsFromFile(): Promise<RatingRecord[]> {
     return cachedRatings || [];
   }
 }
-
-let cachedRatings: RatingRecord[] | null = null;
-let ratingsCacheTime = 0;
 
 async function saveRatingsToFile(ratings: RatingRecord[]): Promise<boolean> {
   try {
@@ -3775,8 +3788,8 @@ app.get("/api/health", (req, res) => {
 });
 
 app.get("/api/animes", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
-  const cached = getCache<any[]>("api_all_animes", 300000);
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  const cached = getCache<any[]>("api_all_animes", 15000);
   if (cached) {
     return res.json(cached);
   }
@@ -3798,7 +3811,7 @@ app.get("/api/animes", async (req, res) => {
 
 // Get single anime
 app.get("/api/animes/:id", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
   const id = req.params.id;
   const cacheKey = `api_anime_${id}`;
   const cached = getCache<any>(cacheKey, 15000);
@@ -3856,7 +3869,7 @@ app.get("/api/animes/:id", async (req, res) => {
 
 // Get single anime by slug
 app.get("/api/animes/by-slug/:slug", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
   const slug = req.params.slug;
   const cacheKey = `api_anime_slug_${slug}`;
   const cached = getCache<any>(cacheKey, 15000);
@@ -4718,6 +4731,8 @@ app.post("/api/animes", authenticateToken, async (req: any, res) => {
       tag: `anime-${insertId}`
     }).catch(() => {});
 
+    notifyContentUpdate("anime");
+
     res.status(201).json({ id: insertId });
   } catch (err) {
     console.error("Add anime error:", err);
@@ -4857,6 +4872,8 @@ app.put("/api/animes/:id", authenticateToken, async (req: any, res) => {
     }
     saveLocalStore(store);
 
+    notifyContentUpdate("anime");
+
     res.json({ message: "Anime tahrirlandi" });
   } catch (err) {
     console.error("Update anime error:", err);
@@ -4877,6 +4894,8 @@ app.delete("/api/animes/:id", authenticateToken, async (req: any, res) => {
     const store = loadLocalStore();
     store.animes = (store.animes || []).filter((a: any) => String(a.id) !== String(id));
     saveLocalStore(store);
+
+    notifyContentUpdate("anime");
 
     res.json({ message: "Anime o'chirildi" });
   } catch (err) {
@@ -4939,6 +4958,8 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
     }
     saveLocalStore(store);
 
+    notifyContentUpdate("anime");
+
     res.json({ message: "Qism saqlandi", id: epId });
   } catch (err) {
     console.error("Save episode error:", err);
@@ -4965,6 +4986,8 @@ app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, as
     );
     saveLocalStore(store);
 
+    notifyContentUpdate("anime");
+
     res.json({ message: "Qism o'chirildi" });
   } catch (err) {
     console.error("Delete episode error:", err);
@@ -4976,8 +4999,8 @@ app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, as
 
 // GET All Mangas
 app.get("/api/mangas", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=15, stale-while-revalidate=60");
-  const cached = getCache<any[]>("api_all_mangas", 20000);
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  const cached = getCache<any[]>("api_all_mangas", 15000);
   if (cached) {
     return res.json(cached);
   }
@@ -5006,7 +5029,7 @@ app.get("/api/mangas", async (req, res) => {
 
 // GET Single Manga Details with Chapters
 app.get("/api/mangas/:id", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
   const id = req.params.id;
   const cacheKey = `api_manga_${id}`;
   const cached = getCache<any>(cacheKey, 15000);
@@ -5187,6 +5210,8 @@ app.post("/api/mangas", authenticateToken, async (req: any, res) => {
       console.error("[MySQL] Failed to insert manga:", dbErr);
     }
 
+    notifyContentUpdate("manga");
+
     res.status(201).json({ message: "Manga muvaffaqiyatli qo'shildi", manga: newManga });
   } catch (err) {
     console.error("Create manga error:", err);
@@ -5235,6 +5260,8 @@ app.put("/api/mangas/:id", authenticateToken, async (req: any, res) => {
       console.error("[MySQL] Failed to update manga:", dbErr);
     }
 
+    notifyContentUpdate("manga");
+
     const resManga = idx >= 0 ? store.mangas[idx] : updatedData;
     res.json({ message: "Manga tahrirlandi", manga: resManga });
   } catch (err) {
@@ -5264,6 +5291,8 @@ app.delete("/api/mangas/:id", authenticateToken, async (req: any, res) => {
       console.error("[MySQL] Failed to delete manga:", dbErr);
     }
 
+    notifyContentUpdate("manga");
+
     res.json({ message: "Manga o'chirildi" });
   } catch (err) {
     console.error("Delete manga error:", err);
@@ -5287,6 +5316,8 @@ app.delete("/api/admin/mangas-clear", authenticateToken, async (req: any, res) =
     } catch (dbErr) {
       console.error("[MySQL] Failed to clear mangas:", dbErr);
     }
+
+    notifyContentUpdate("manga");
 
     res.json({ message: "Barcha test mangalar o'chirildi" });
   } catch (err) {
@@ -5372,6 +5403,8 @@ app.post("/api/mangas/:mangaId/chapters", authenticateToken, async (req: any, re
       console.error("[MySQL] Failed to save chapter:", dbErr);
     }
 
+    notifyContentUpdate("manga");
+
     res.json({ message: "Bob muvaffaqiyatli saqlandi", chapter: chapterObj });
   } catch (err) {
     console.error("Save manga chapter error:", err);
@@ -5415,6 +5448,8 @@ app.delete("/api/mangas/:mangaId/chapters/:chapterNumber", authenticateToken, as
       console.error("[MySQL] Failed to delete chapter:", dbErr);
     }
 
+    notifyContentUpdate("manga");
+
     res.json({ message: "Bob o'chirildi" });
   } catch (err) {
     console.error("Delete manga chapter error:", err);
@@ -5426,8 +5461,8 @@ app.delete("/api/mangas/:mangaId/chapters/:chapterNumber", authenticateToken, as
 
 // GET All Dramas
 app.get("/api/dramas", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
-  const cached = getCache<any[]>("api_all_dramas", 300000);
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  const cached = getCache<any[]>("api_all_dramas", 15000);
   if (cached) {
     return res.json(cached);
   }
@@ -5469,6 +5504,7 @@ app.get("/api/dramas", async (req, res) => {
 
 // GET Single Drama Details with Episodes
 app.get("/api/dramas/:id", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, must-revalidate");
   const id = req.params.id;
   try {
     let drama: any = null;
@@ -5609,6 +5645,8 @@ app.post("/api/dramas/:id/episodes", authenticateToken, async (req: any, res) =>
       console.warn("MySQL save drama episode error:", dbErr);
     }
 
+    notifyContentUpdate("drama");
+
     res.status(201).json(newEpisode);
   } catch (err) {
     console.error("Create drama episode error:", err);
@@ -5645,6 +5683,8 @@ app.put("/api/dramas/episodes/:episodeId", authenticateToken, async (req: any, r
       console.warn("MySQL update drama episode error:", dbErr);
     }
 
+    notifyContentUpdate("drama");
+
     res.json({ message: "Qism yangilandi" });
   } catch (err) {
     console.error("Update drama episode error:", err);
@@ -5667,6 +5707,8 @@ app.delete("/api/dramas/episodes/:episodeId", authenticateToken, async (req: any
     } catch (dbErr) {
       console.warn("MySQL delete drama episode error:", dbErr);
     }
+
+    notifyContentUpdate("drama");
 
     res.json({ message: "Qism o'chirildi" });
   } catch (err) {
@@ -5739,6 +5781,8 @@ app.post("/api/dramas", authenticateToken, async (req: any, res) => {
       console.warn("MySQL save drama warning:", dbErr);
     }
 
+    notifyContentUpdate("drama");
+
     res.status(201).json(newDrama);
   } catch (err) {
     console.error("Create drama error:", err);
@@ -5780,6 +5824,8 @@ app.put("/api/dramas/:id", authenticateToken, async (req: any, res) => {
       console.warn("MySQL update drama warning:", dbErr);
     }
 
+    notifyContentUpdate("drama");
+
     res.json({ message: "Drama muvaffaqiyatli yangilandi" });
   } catch (err) {
     console.error("Update drama error:", err);
@@ -5806,6 +5852,8 @@ app.delete("/api/dramas/:id", authenticateToken, async (req: any, res) => {
     } catch (dbErr) {
       console.warn("MySQL delete drama warning:", dbErr);
     }
+
+    notifyContentUpdate("drama");
 
     res.json({ message: "Drama va uning barcha qismlari o'chirildi" });
   } catch (err) {

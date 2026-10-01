@@ -77,7 +77,7 @@ export default function Admin() {
     if (user?.role === 'admin' || hasPasscodeAuth) {
       const fetchAnimes = async () => {
         try {
-          const res = await fetch(`${API_BASE}/api/animes`);
+          const res = await fetch(`${API_BASE}/api/animes?t=${Date.now()}`);
           if (res.ok) {
             const data = await safeJson(res);
             setAnimes(data);
@@ -185,7 +185,7 @@ export default function Admin() {
       setActiveTab('manage_animes');
 
       // Refresh animes list
-      const freshRes = await fetch(`${API_BASE}/api/animes`);
+      const freshRes = await fetch(`${API_BASE}/api/animes?t=${Date.now()}`);
       if (freshRes.ok) {
         const data = await safeJson(freshRes);
         setAnimes(data);

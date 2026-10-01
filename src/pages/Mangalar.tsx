@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import { BookOpen, Search, Filter, Star, Eye, Layers } from 'lucide-react';
 import { Manga, translateGenre } from '../types';
 
@@ -13,11 +14,23 @@ export default function Mangalar() {
 
   useEffect(() => {
     fetchMangas();
+
+    const socketUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : window.location.origin);
+    const socket = io(socketUrl);
+    socket.on('contentUpdated', (data: any) => {
+      if (!data || data.type === 'manga' || data.type === 'all') {
+        fetchMangas();
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const fetchMangas = async () => {
     try {
-      const res = await fetch('/api/mangas');
+      const res = await fetch(`/api/mangas?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setMangas(data);
