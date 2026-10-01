@@ -7,8 +7,6 @@ const TG_API_ID = 6;
 const TG_API_HASH = 'eb06d4abfb49dc3eeb1aeb98ae0f581e';
 const TG_BOT_TOKEN = process.env.TG_STREAM_BOT_TOKEN || '8969080492:AAFeXz93y6CjIBv0AmdlfVlE0N53gf_J6gY';
 
-// Pre-authenticated session for instant DC2 connection without migration delay
-const TG_SESSION_STRING = process.env.TG_STREAM_SESSION || '1AgAOMTQ5LjE1NC4xNjcuNDEBu30uNOaBQLU22V0MXKVZoObcNXax7nTKozcB0RlXOOPgo0yxdmYpNvV5lN3qDdtQzhlbQsEYDfy3HAJ3jr4btcM9Ygb2B1gEALErqrInQi3uHKDN+z51q6z3jvD+nbtJtqOc4/vSuiGOGkz5C0LloWicsd9I0LAHyL5wW18UsAuiWBr1FLkXbM+Eq+bhPmEgX/KD5Ofzu2Gr1KAatMAxHKNpl/iGmiVhCfNoJUs1X84eNLYbfQyDh6taDDYslILSWzLM3en66TXkiDCgX+a02C/Ik0bdXMgunjuxXqsrkbpmxAbrUSYwm/Ri1SnDQVvJon0TVwgDbPYHbpxdybjcNwI=';
 
 let client: TelegramClient | null = null;
 let isInitializing = false;
@@ -92,7 +90,10 @@ export async function getTelegramClient(): Promise<TelegramClient> {
 
   isInitializing = true;
   try {
-    const session = new StringSession(TG_SESSION_STRING);
+    const session = new StringSession(process.env.TG_STREAM_SESSION || '');
+    if (!process.env.TG_STREAM_SESSION) {
+      session.setDC(2, '149.154.167.41', 443);
+    }
     client = new TelegramClient(session, TG_API_ID, TG_API_HASH, {
       connectionRetries: 5,
       autoReconnect: true,
