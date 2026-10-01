@@ -138,7 +138,7 @@ function registerTelegramEventHandler(tgClient: TelegramClient) {
       const cacheKey = `${cleanChannelId}_${messageId}`;
       mediaMetaCache.set(cacheKey, mediaInfo);
 
-      const STREAM_DOMAIN = process.env.TG_STREAM_DOMAIN || 's3.animem.uz';
+      const STREAM_DOMAIN = process.env.TG_STREAM_DOMAIN || 's3.animem.uz.animem.uz';
       const streamUrl = `https://${STREAM_DOMAIN}/api/tgstream/${cleanChannelId}/${messageId}`;
 
       const replyHtml = 

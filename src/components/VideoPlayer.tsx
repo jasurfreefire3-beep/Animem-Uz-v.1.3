@@ -89,7 +89,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
       if (isLocal) {
         return tgPath;
       }
-      return `https://s3.animem.uz${tgPath}`;
+      return `https://s3.animem.uz.animem.uz${tgPath}`;
     }
     return trimmed;
   };
