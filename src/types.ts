@@ -194,6 +194,7 @@ export const GENRE_MAP: Record<string, string> = {
 };
 
 export function translateGenre(genre: string): string {
+  if (!genre || typeof genre !== 'string') return '';
   const normalized = genre.trim();
   for (const [eng, uzb] of Object.entries(GENRE_MAP)) {
     if (eng.toLowerCase() === normalized.toLowerCase()) return uzb;
@@ -203,6 +204,7 @@ export function translateGenre(genre: string): string {
 }
 
 export function getEnglishGenre(genre: string): string {
+  if (!genre || typeof genre !== 'string') return '';
   const normalized = genre.trim();
   for (const [eng, uzb] of Object.entries(GENRE_MAP)) {
     if (uzb.toLowerCase() === normalized.toLowerCase()) return eng;
@@ -212,7 +214,7 @@ export function getEnglishGenre(genre: string): string {
 }
 
 export function toSlug(text: string): string {
-  if (!text) return "";
+  if (!text || typeof text !== 'string') return "";
   return text
     .toLowerCase()
     .replace(/o['’`‘ʻʼ]/g, "o")

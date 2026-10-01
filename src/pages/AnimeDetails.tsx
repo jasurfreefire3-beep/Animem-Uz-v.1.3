@@ -637,8 +637,11 @@ export default function AnimeDetails() {
     );
   }
 
-  const genres = anime.janrlar ? anime.janrlar.split(',').map(g => g.trim()) : [];
-  const episodesCount = anime.qismlar_soni || 1;
+  const genres = typeof anime.janrlar === 'string'
+    ? anime.janrlar.split(',').map(g => g.trim()).filter(Boolean)
+    : (Array.isArray(anime.janrlar) ? (anime.janrlar as any[]).map(g => String(g).trim()).filter(Boolean) : []);
+  const parsedEpisodes = parseInt(String(anime.qismlar_soni ?? 1), 10);
+  const episodesCount = Math.max(1, isNaN(parsedEpisodes) ? 1 : Math.min(parsedEpisodes, 5000));
   const generatedEpisodes = Array.from({ length: episodesCount }, (_, i) => i + 1);
 
   // Merge generated and fetched episodes
@@ -679,7 +682,7 @@ export default function AnimeDetails() {
       "ratingValue": anime.rating || 9.2,
       "reviewCount": anime.rating_count || 32
     },
-    "genre": genres.map(g => translateGenre(g)),
+    "genre": genres.map(g => translateGenre(g)).filter(Boolean),
     "dateCreated": anime.yil || 2026,
     "provider": {
       "@type": "Organization",
@@ -787,7 +790,7 @@ export default function AnimeDetails() {
                   ))}
                 </div>
 
-                {anime.tags && (
+                {typeof anime.tags === 'string' && anime.tags.trim() && (
                   <div className="hidden md:flex flex-wrap justify-start gap-1.5 mb-6">
                     {anime.tags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
                       <span key={tag} className="bg-white/5 border border-white/10 text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-0.5 rounded-sm transition-colors">
@@ -891,9 +894,9 @@ export default function AnimeDetails() {
                  <Eye className="w-4 h-4 text-[#ff006a]" /> Tavsif
                </h2>
                <p className="text-white/70 text-sm leading-relaxed text-justify">
-                 {isExpanded ? anime.description : anime.description.slice(0, 300) + (anime.description.length > 300 ? '...' : '')}
+                 {isExpanded ? (anime.description || '') : (anime.description ? (anime.description.slice(0, 300) + (anime.description.length > 300 ? '...' : '')) : '')}
                </p>
-               {anime.description.length > 300 && (
+               {Boolean(anime.description && anime.description.length > 300) && (
                  <button 
                    onClick={() => setIsExpanded(!isExpanded)} 
                    className="text-[#ff006a] text-xs font-bold mt-2 hover:underline"
@@ -943,7 +946,7 @@ export default function AnimeDetails() {
                </div>
 
                <div className="-mx-4 sm:mx-0 mb-3 md:mb-4">
-                 {(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
+                 {String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
                     <div className="w-full min-h-[250px] sm:min-h-[360px] md:min-h-[480px] bg-[#0a0a0c] border border-white/10 sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-6 text-center">
                       <div className="w-12 h-12 sm:w-20 sm:h-20 bg-[#0088cc]/20 rounded-full flex items-center justify-center mb-4 sm:mb-6 shrink-0">
                         <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-10 sm:h-10 fill-[#0088cc]">
@@ -1026,7 +1029,7 @@ export default function AnimeDetails() {
                </div>
 
                {/* Telegramda ko'rish (Elongated Banner Button) */}
-               {anime.telegram_url && anime.telegram_url.trim() !== '' && (
+               {typeof anime.telegram_url === 'string' && anime.telegram_url.trim() !== '' && (
                  <div className="mb-4">
                    <a
                      href={anime.telegram_url}
@@ -1299,10 +1302,10 @@ export default function AnimeDetails() {
                            />
                         ) : (
                            <div className="w-6 h-6 bg-[#333] rounded-sm flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                              {user.name.charAt(0).toUpperCase()}
+                              {(user.name || user.username || user.email || 'U').charAt(0).toUpperCase()}
                            </div>
                         )}
-                        <span className="text-white/70 text-xs font-medium">{user.name}</span>
+                        <span className="text-white/70 text-xs font-medium">{user.name || user.username || 'Foydalanuvchi'}</span>
                      </div>
                      <form onSubmit={handleCommentSubmit}>
                         <textarea
@@ -1398,14 +1401,14 @@ export default function AnimeDetails() {
                                  />
                               ) : (
                                  <div className="shrink-0 w-11 h-11 bg-gradient-to-br from-[#2a2a2e] to-[#151518] rounded-full border-2 border-[#ff006a]/30 flex items-center justify-center text-[#ff006a] text-sm font-extrabold shadow-md hover:text-white transition-colors">
-                                    {comment.user_name.charAt(0).toUpperCase()}
+                                    {(comment.user_name || 'U').charAt(0).toUpperCase()}
                                  </div>
                               )}
                            </Link>
                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1.5">
                                  <Link to={`/user/${comment.user_id}`} className="text-white/90 font-bold text-xs hover:text-[#ff006a] hover:underline transition-colors">
-                                    {comment.user_name}
+                                    {comment.user_name || 'Foydalanuvchi'}
                                  </Link>
                                  <span className="text-white/30 text-[10px]">
                                     {new Date(comment.created_at).toLocaleDateString()}
@@ -1474,7 +1477,7 @@ export default function AnimeDetails() {
                                           )}
                                           <div className="flex-1 min-w-0">
                                              <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-white/90 text-xs font-bold">{rep.user_name}</span>
+                                                <span className="text-white/90 text-xs font-bold">{rep.user_name || 'Foydalanuvchi'}</span>
                                                 <span className="text-white/35 text-[9px] ml-auto">{new Date(rep.created_at).toLocaleDateString()}</span>
                                              </div>
                                              <div className="text-white/70 text-xs leading-relaxed">

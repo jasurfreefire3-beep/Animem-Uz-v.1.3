@@ -16,7 +16,7 @@ interface VideoPlayerProps {
 }
 
 function parseEmbedUrl(rawUrl: string): { isEmbed: boolean; embedUrl: string } {
-  if (!rawUrl) return { isEmbed: false, embedUrl: '' };
+  if (!rawUrl || typeof rawUrl !== 'string') return { isEmbed: false, embedUrl: '' };
 
   const trimmed = rawUrl.trim();
   const lowerUrl = trimmed.toLowerCase();
@@ -81,7 +81,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const playerRef = useRef<{ api?: (command: string, value?: unknown) => unknown } | null>(null);
   const [hasError, setHasError] = useState(false);
   const resolveSource = (raw: string): string => {
-    if (!raw) return '/assets/sample/video.mp4';
+    if (!raw || typeof raw !== 'string') return '/assets/sample/video.mp4';
     const trimmed = raw.trim();
     if (trimmed.includes('/api/tgstream/')) {
       const tgPath = trimmed.substring(trimmed.indexOf('/api/tgstream/'));

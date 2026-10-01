@@ -193,7 +193,7 @@ export default function MangaDetails() {
     );
   }
 
-  const genres = manga.janrlar ? manga.janrlar.split(',').map(g => g.trim()) : [];
+  const genres = typeof manga.janrlar === 'string' ? manga.janrlar.split(',').map(g => g.trim()).filter(Boolean) : (Array.isArray(manga.janrlar) ? (manga.janrlar as any[]).map(g => String(g).trim()).filter(Boolean) : []);
   const chapters = manga.chapters || [];
   const firstChapter = chapters.length > 0 ? chapters[0] : null;
 
@@ -293,7 +293,7 @@ export default function MangaDetails() {
               ))}
             </div>
 
-            {manga.tags && (
+            {typeof manga.tags === 'string' && manga.tags.trim() && (
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5">
                 {manga.tags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
                   <span key={tag} className="bg-white/5 border border-white/10 text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-0.5 rounded-sm transition-colors">
@@ -354,7 +354,7 @@ export default function MangaDetails() {
           <p className={`text-white/70 text-sm leading-relaxed whitespace-pre-line ${showFullDesc ? '' : 'line-clamp-4'}`}>
             {manga.description}
           </p>
-          {manga.description && manga.description.length > 200 && (
+          {Boolean(manga.description && manga.description.length > 200) && (
             <button 
               onClick={() => setShowFullDesc(!showFullDesc)}
               className="text-[#ff006a] hover:text-[#ff3385] text-xs font-bold uppercase tracking-wider mt-2 flex items-center transition-colors"

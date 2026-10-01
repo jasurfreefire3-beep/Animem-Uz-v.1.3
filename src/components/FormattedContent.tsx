@@ -24,14 +24,14 @@ export function parseTimestampToSeconds(timestamp: string): number {
 }
 
 export function isGifContent(content: string): boolean {
-  if (!content) return false;
+  if (!content || typeof content !== 'string') return false;
   return /\[gif\][\s\S]*?\[\/gif\]/i.test(content) || 
          ANIMEM_IMAGE_REGEX.test(content) ||
          /^\/api\/media\/gif_[a-zA-Z0-9_-]+/i.test(content.trim());
 }
 
 export function extractGifs(content: string): string[] {
-  if (!content) return [];
+  if (!content || typeof content !== 'string') return [];
   const matches: string[] = [];
   
   let match;
@@ -60,7 +60,7 @@ interface Segment {
 }
 
 export function parseContentSegments(rawContent: string): Segment[] {
-  if (!rawContent) return [];
+  if (!rawContent || typeof rawContent !== 'string') return [];
 
   const segments: Array<{ type: 'text' | 'gif'; value: string }> = [];
   const gifTagRegex = /\[gif\]([\s\S]*?)\[\/gif\]/gi;
