@@ -80,9 +80,18 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const playerId = useRef(`animem-player-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`).current;
   const playerRef = useRef<{ api?: (command: string, value?: unknown) => unknown } | null>(null);
   const [hasError, setHasError] = useState(false);
-  const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const resolveSource = (raw: string): string => {
+    if (!raw) return '/assets/sample/video.mp4';
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('/api/tgstream/')) {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : '');
+      return `${apiBase}${trimmed}`;
+    }
+    return trimmed;
+  };
+
   const { isEmbed, embedUrl } = parseEmbedUrl(url);
-  const source = url || '/assets/sample/video.mp4';
+  const source = resolveSource(url);
 
   useEffect(() => {
     if (isEmbed) {

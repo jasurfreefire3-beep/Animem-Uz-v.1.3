@@ -23,6 +23,7 @@ const execPromise = util.promisify(exec);
 
 import compression from "compression";
 import webpush from "web-push";
+import { initTelegramStreamService, streamTelegramVideo } from "./src/services/telegramStreamService";
 
 dotenv.config();
 
@@ -3785,6 +3786,16 @@ async function mergeRatingsWithAnimes(animes: any[]): Promise<any[]> {
 // Health check endpoint
 app.get("/api/health", (req, res) => {
   res.status(200).send("OK");
+});
+
+// ==================== TELEGRAM VIDEO STREAMING ENDPOINT ====================
+app.get("/api/tgstream/:channelId/:messageId", async (req, res) => {
+  const { channelId, messageId } = req.params;
+  const numMsgId = Number.parseInt(messageId, 10);
+  if (!channelId || isNaN(numMsgId)) {
+    return res.status(400).json({ error: "Noto'g'ri kanal yoki xabar parametri" });
+  }
+  await streamTelegramVideo(req, res, channelId, numMsgId);
 });
 
 app.get("/api/animes", async (req, res) => {
@@ -8850,6 +8861,8 @@ async function start() {
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    // Initialize Telegram Streamer bot for 2GB video direct streaming
+    initTelegramStreamService();
   });
 
   // Dual-port listening: ensures container handles traffic from both Northflank (port 3000) and Hugging Face (port 7860)
