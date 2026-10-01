@@ -138,7 +138,8 @@ function registerTelegramEventHandler(tgClient: TelegramClient) {
       const cacheKey = `${cleanChannelId}_${messageId}`;
       mediaMetaCache.set(cacheKey, mediaInfo);
 
-      const streamUrl = `https://animem.uz/api/tgstream/${cleanChannelId}/${messageId}`;
+      const STREAM_DOMAIN = process.env.TG_STREAM_DOMAIN || 's3.animem.uz';
+      const streamUrl = `https://${STREAM_DOMAIN}/api/tgstream/${cleanChannelId}/${messageId}`;
 
       const replyHtml = 
         `🎬 <b>Video Muvaffaqiyatli Qabul Qilindi!</b>\n\n` +
@@ -160,6 +161,47 @@ function registerTelegramEventHandler(tgClient: TelegramClient) {
       console.warn('[Telegram Streamer] Error handling incoming video message:', err?.message || err);
     }
   }, new NewMessage({}));
+}
+
+function isAuthorizedStreamRequest(req: any): { allowed: boolean; reason?: string } {
+  const referer = req.headers.referer || req.headers.referrer;
+  const origin = req.headers.origin;
+  const secFetchSite = req.headers['sec-fetch-site'];
+
+  // 1. Check Referer if present
+  if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      const host = refUrl.hostname.toLowerCase();
+      const isAllowedHost = host === 'animem.uz' || host.endsWith('.animem.uz') || host === 'localhost' || host === '127.0.0.1';
+      if (!isAllowedHost) {
+        return { allowed: false, reason: `Ruxsat etilmagan referer: ${host}` };
+      }
+    } catch {
+      return { allowed: false, reason: 'Noto\'g\'ri referer formati' };
+    }
+  }
+
+  // 2. Check Origin if present
+  if (origin) {
+    try {
+      const origUrl = new URL(origin);
+      const host = origUrl.hostname.toLowerCase();
+      const isAllowedHost = host === 'animem.uz' || host.endsWith('.animem.uz') || host === 'localhost' || host === '127.0.0.1';
+      if (!isAllowedHost) {
+        return { allowed: false, reason: `Ruxsat etilmagan origin: ${host}` };
+      }
+    } catch {
+      return { allowed: false, reason: 'Noto\'g\'ri origin formati' };
+    }
+  }
+
+  // 3. Modern browser sec-fetch-site: block cross-site embeds (even if referer was hidden)
+  if (secFetchSite === 'cross-site') {
+    return { allowed: false, reason: 'Begona saytlardan yuklash taqiqlangan (cross-site)' };
+  }
+
+  return { allowed: true };
 }
 
 export async function getStreamMetadata(channelId: string, messageId: number): Promise<MediaMetadata | null> {
@@ -203,6 +245,17 @@ export async function getStreamMetadata(channelId: string, messageId: number): P
 }
 
 export async function streamTelegramVideo(req: any, res: any, channelId: string, messageId: number): Promise<void> {
+  // Anti-Leech / Hotlink Protection
+  const authCheck = isAuthorizedStreamRequest(req);
+  if (!authCheck.allowed) {
+    console.warn(`[Telegram Streamer] Blocked unauthorized request (${channelId}/${messageId}):`, authCheck.reason);
+    res.status(403).json({
+      error: "Kirish taqiqlangan",
+      detail: "Ushbu video oqimidan faqat Animem.uz saytida yoki to'g'ridan-to'g'ri brauzerda foydalanish mumkin."
+    });
+    return;
+  }
+
   const cleanId = channelId.replace(/^-100/, '').replace(/^-/, '');
   const cacheKey = `${cleanId}_${messageId}`;
   const headKey = `${cacheKey}_head`;
@@ -219,9 +272,14 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
 
     const rangeHeader = req.headers.range;
 
-    // CORS & Player headers
+    // CORS & Player headers: Restrict CORS to trusted origins
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', 'https://animem.uz');
+    }
     res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
     res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
 
