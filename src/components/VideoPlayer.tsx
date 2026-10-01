@@ -80,6 +80,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const playerId = useRef(`animem-player-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`).current;
   const playerRef = useRef<{ api?: (command: string, value?: unknown) => unknown } | null>(null);
   const [hasError, setHasError] = useState(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const resolveSource = (raw: string): string => {
     if (!raw || typeof raw !== 'string') return '/assets/sample/video.mp4';
     const trimmed = raw.trim();

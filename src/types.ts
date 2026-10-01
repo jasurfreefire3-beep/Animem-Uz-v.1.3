@@ -1,6 +1,7 @@
 export interface User {
   id: string | number;
   name: string;
+  username?: string;
   role: 'user' | 'admin';
   email?: string;
   phone?: string;
@@ -138,7 +139,7 @@ export interface Drama {
 
 export interface Message {
   id: string;
-  user_id: string;
+  user_id: string | number;
   user_name: string;
   user_avatar?: string;
   avatar_url?: string;
