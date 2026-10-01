@@ -17,6 +17,8 @@ interface MediaMetadata {
   size: number;
   mimeType: string;
   duration: number;
+  videoCodec?: string | null;
+  isHevc?: boolean;
   cachedAt: number;
 }
 
@@ -65,6 +67,9 @@ function extractMediaFromMessage(message: any): MediaMetadata | null {
   const size = Number(doc.size || 0);
   const duration = videoAttr?.duration || 0;
   const mimeType = doc.mimeType || 'video/mp4';
+  const videoCodec = videoAttr?.videoCodec || null;
+  const lowerName = fileName.toLowerCase();
+  const isHevc = lowerName.includes('hevc') || lowerName.includes('x265') || lowerName.includes('h.265') || lowerName.includes('h265');
 
   return {
     document: doc,
@@ -72,6 +77,8 @@ function extractMediaFromMessage(message: any): MediaMetadata | null {
     size,
     mimeType,
     duration,
+    videoCodec,
+    isHevc,
     cachedAt: Date.now()
   };
 }
@@ -141,11 +148,24 @@ function registerTelegramEventHandler(tgClient: TelegramClient) {
       const STREAM_DOMAIN = process.env.TG_STREAM_DOMAIN || 's3.animem.uz.animem.uz';
       const streamUrl = `https://${STREAM_DOMAIN}/api/tgstream/${cleanChannelId}/${messageId}`;
 
+      let codecInfo = `🎞 <b>Format:</b> <code>H.264 (AVC)</code> ✅ <i>(Brauzerlarga 100% mos)</i>\n\n`;
+      let warningBlock = '';
+
+      if (mediaInfo.isHevc) {
+        codecInfo = `🎞 <b>Format:</b> <code>HEVC (H.265 / x265)</code> ⚠️\n\n`;
+        warningBlock = 
+          `⚠️ <b>DIQQAT (Format Ogohlantirishi):</b>\n` +
+          `Ushbu video <b>HEVC (H.265)</b> formatida! Brauzerlar (ayniqsa kompyuterdagi Chrome/Firefox) H.265 kodeki litsenziyasi yo'qligi sababli bu videoni <b>faqat audio</b> qilib ochadi.\n` +
+          `💡 <i>Saytda barcha foydalanuvchilarda video to'liq va qotmasdan ochilishi uchun videolarni <b>H.264 (x264 / AVC)</b> formatida yuklang!</i>\n\n`;
+      }
+
       const replyHtml = 
         `🎬 <b>Video Muvaffaqiyatli Qabul Qilindi!</b>\n\n` +
         `📁 <b>Fayl:</b> <code>${mediaInfo.fileName}</code>\n` +
         `⚖️ <b>Hajmi:</b> <b>${formatBytes(mediaInfo.size)}</b>\n` +
-        `⏱ <b>Davomiyligi:</b> ${formatDuration(mediaInfo.duration)}\n\n` +
+        `⏱ <b>Davomiyligi:</b> ${formatDuration(mediaInfo.duration)}\n` +
+        codecInfo +
+        warningBlock +
         `🔗 <b>Sayt uchun Video URL (Direct Stream):</b>\n` +
         `<code>${streamUrl}</code>\n\n` +
         `💡 <i>Ushbu havolani nusxalab, Animem.uz sayti Admin panelidagi qism "video_url" maydoniga qo'yishingiz mumkin. Sayt pleyerida darhol qotmasdan o'ynaydi!</i>`;
