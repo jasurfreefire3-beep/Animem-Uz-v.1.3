@@ -315,9 +315,8 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
         if (match[2]) {
           end = parseInt(match[2], 10);
         } else {
-          // Open-ended range like "bytes=0-": cap chunk window to 4 MB for smooth streaming & fast seeking
-          const MAX_CHUNK = 4 * 1024 * 1024;
-          end = Math.min(start + MAX_CHUNK - 1, totalSize - 1);
+          // Open-ended range like "bytes=0-": stream continuously to the end of file
+          end = totalSize - 1;
         }
       }
     }
@@ -338,6 +337,12 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
 
     res.setHeader('Content-Length', chunkSize);
     res.setHeader('Content-Type', mimeType);
+
+    // Fast response for HEAD requests without fetching data from Telegram
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
 
     // Fast-start optimization: Check if head buffer is already cached in RAM
     if (start < 2 * 1024 * 1024 && videoHeadCache.has(headKey)) {
@@ -386,7 +391,7 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
 
       const bytesToSend = Math.min(chunk.length, bytesRemaining);
       const slice = chunk.subarray(0, bytesToSend);
-      res.write(slice);
+      const ok = res.write(slice);
       bytesRemaining -= bytesToSend;
 
       if (start === 0 && headBytes < 2 * 1024 * 1024) {
@@ -396,6 +401,10 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
 
       if (bytesRemaining <= 0) {
         break;
+      }
+
+      if (!ok) {
+        await new Promise(resolve => res.once('drain', resolve));
       }
     }
 
