@@ -163,6 +163,30 @@ async function initPgDb() {
 }
 initPgDb();
 
+// =================================================================
+// DATABASE CONFIGURATION (Cloudflare D1 Primary, MySQL Fallback)
+// =================================================================
+const USE_D1 = process.env.USE_D1 !== "false";
+const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "778abe99df133217050e4af575708af8";
+const CF_DATABASE_ID = process.env.CLOUDFLARE_DATABASE_ID || "11e1d448-17a4-4156-ba89-434fa4e6bb1e";
+let CF_API_TOKEN = process.env.CLOUDFLARE_D1_TOKEN || process.env.CLOUDFLARE_API_TOKEN || "";
+
+// Auto-read local wrangler token if running locally and env token not set
+if (!CF_API_TOKEN) {
+  try {
+    const tomlPath = "/home/kali/.config/.wrangler/config/default.toml";
+    if (fs.existsSync(tomlPath)) {
+      const toml = fs.readFileSync(tomlPath, "utf-8");
+      for (const line of toml.split("\n")) {
+        if (line.startsWith("oauth_token")) {
+          CF_API_TOKEN = line.split("=")[1].trim().replace(/"/g, "");
+          break;
+        }
+      }
+    }
+  } catch (e) {}
+}
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST || "db.fr-pari1.bengt.wasmernet.com",
   port: Number(process.env.DB_PORT) || 10272,
@@ -178,14 +202,62 @@ const pool = mysql.createPool({
   connectTimeout: 20000,
 });
 
-// Create Server
-
 (pool as any).on("error", (err: any) => {
   console.error("[DB Pool Error]", err?.message || err);
 });
 
-// Resilient query wrapper with automatic retry on connection drops
+async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> {
+  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`;
+  const cleanSql = sql.replace(/\bNOW\(\)/gi, "CURRENT_TIMESTAMP");
+  const cleanParams = (params || []).map((p) => {
+    if (typeof p === "boolean") return p ? 1 : 0;
+    if (p instanceof Date) return p.toISOString().slice(0, 19).replace("T", " ");
+    return p;
+  });
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${CF_API_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ sql: cleanSql, params: cleanParams }),
+  });
+
+  const data = (await res.json()) as any;
+  if (!data?.success) {
+    const errMsg = data?.errors?.[0]?.message || JSON.stringify(data?.errors || "D1 Query Failed");
+    throw new Error(`[D1 Error] ${errMsg} (Query: ${cleanSql.slice(0, 80)})`);
+  }
+
+  const queryResult = data.result[0];
+  const isSelect = /^\s*(SELECT|PRAGMA|WITH|SHOW|DESCRIBE|EXPLAIN)/i.test(cleanSql.trim());
+
+  if (isSelect) {
+    return [queryResult.results || [], []] as unknown as T;
+  } else {
+    const meta = queryResult.meta || {};
+    return [
+      {
+        insertId: meta.last_row_id || 0,
+        affectedRows: meta.changes || 0,
+        changedRows: meta.changes || 0,
+      },
+      [],
+    ] as unknown as T;
+  }
+}
+
+// Resilient query wrapper with automatic fallback between D1 and MySQL
 async function dbQuery<T = any>(sql: string, params?: any[], retries = 3): Promise<T> {
+  if (USE_D1 && CF_API_TOKEN) {
+    try {
+      return await d1ExecuteQuery<T>(sql, params);
+    } catch (d1Err: any) {
+      console.warn(`[D1 Query Warning] ${d1Err.message}, falling back to MySQL pool...`);
+    }
+  }
+
   try {
     const res = await pool.query(sql, params);
     return res as unknown as T;
@@ -405,6 +477,16 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
 // Check and ensure database connection on start
 async function testDbConnection() {
+  if (USE_D1 && CF_API_TOKEN) {
+    try {
+      const [rows]: any = await d1ExecuteQuery("SELECT COUNT(*) as cnt FROM animes;");
+      console.log(`[D1] Connected to Cloudflare D1 successfully! Found ${rows[0]?.cnt || 0} animes.`);
+      return;
+    } catch (err: any) {
+      console.warn(`[D1 Connection Test Failed, falling back to MySQL] ${err.message}`);
+    }
+  }
+
   let connection: any = null;
   try {
     connection = await pool.getConnection();
