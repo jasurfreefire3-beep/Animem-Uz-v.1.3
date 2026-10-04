@@ -23,7 +23,7 @@ const execPromise = util.promisify(exec);
 
 import compression from "compression";
 import webpush from "web-push";
-import { initTelegramStreamService, streamTelegramVideo } from "./src/services/telegramStreamService";
+import { initTelegramStreamService, streamTelegramVideo, handleHlsMasterPlaylist, handleHlsMediaPlaylist, handleHlsSegment } from "./src/services/telegramStreamService";
 
 dotenv.config();
 
@@ -3870,7 +3870,7 @@ app.get("/api/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-// ==================== TELEGRAM VIDEO STREAMING ENDPOINT ====================
+// ==================== TELEGRAM VIDEO STREAMING ENDPOINTS ====================
 app.get("/api/tgstream/:channelId/:messageId", async (req, res) => {
   const { channelId, messageId } = req.params;
   const numMsgId = Number.parseInt(messageId, 10);
@@ -3878,6 +3878,37 @@ app.get("/api/tgstream/:channelId/:messageId", async (req, res) => {
     return res.status(400).json({ error: "Noto'g'ri kanal yoki xabar parametri" });
   }
   await streamTelegramVideo(req, res, channelId, numMsgId);
+});
+
+// HLS Stream Master Playlist
+app.get("/api/tghls/:channelId/:messageId/master.m3u8", async (req, res) => {
+  const { channelId, messageId } = req.params;
+  const numMsgId = Number.parseInt(messageId, 10);
+  if (!channelId || isNaN(numMsgId)) {
+    return res.status(400).json({ error: "Noto'g'ri kanal yoki xabar parametri" });
+  }
+  await handleHlsMasterPlaylist(req, res, channelId, numMsgId);
+});
+
+// HLS Stream Media Playlist
+app.get("/api/tghls/:channelId/:messageId/index.m3u8", async (req, res) => {
+  const { channelId, messageId } = req.params;
+  const numMsgId = Number.parseInt(messageId, 10);
+  if (!channelId || isNaN(numMsgId)) {
+    return res.status(400).json({ error: "Noto'g'ri kanal yoki xabar parametri" });
+  }
+  await handleHlsMediaPlaylist(req, res, channelId, numMsgId);
+});
+
+// HLS Stream Segment Delivery
+app.get("/api/tghls/:channelId/:messageId/segment_:segmentNum.ts", async (req, res) => {
+  const { channelId, messageId, segmentNum } = req.params;
+  const numMsgId = Number.parseInt(messageId, 10);
+  const numSeg = Number.parseInt(segmentNum, 10);
+  if (!channelId || isNaN(numMsgId) || isNaN(numSeg)) {
+    return res.status(400).json({ error: "Noto'g'ri segment parametri" });
+  }
+  await handleHlsSegment(req, res, channelId, numMsgId, numSeg);
 });
 
 app.get("/api/animes", async (req, res) => {

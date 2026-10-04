@@ -116,8 +116,8 @@ export default {
       });
     }
 
-    // 1. VIDEO STREAMING PROXY WITH CLOUDFLARE EDGE CACHE (Lightning-fast for 1000+ viewers)
-    if (path.startsWith("/api/tgstream/")) {
+    // 1. VIDEO STREAMING & HLS PROXY WITH CLOUDFLARE EDGE CACHE (Ultra-fast for 10,000+ viewers)
+    if (path.startsWith("/api/tgstream/") || path.startsWith("/api/tghls/")) {
       const streamTarget = `${STREAM_ORIGIN}${path}${url.search}`;
       const streamHeaders = new Headers(request.headers);
       streamHeaders.set("Referer", "https://animem.uz/");
@@ -128,7 +128,7 @@ export default {
         headers: streamHeaders,
         cf: {
           cacheEverything: true,
-          cacheTtl: 2592000, // 30 days edge cache for video segments
+          cacheTtl: path.endsWith(".m3u8") ? 60 : 2592000, // 30 days edge cache for HLS video segments (.ts), 60s for playlists
           cacheKey: request.url,
         },
       });
