@@ -207,14 +207,47 @@ export default {
         const commentMatch = path.match(/^\/api\/(?:animes|comments)\/([0-9]+)(?:\/comments)?$/);
         if (commentMatch) {
           const animeId = commentMatch[1];
-          const rows = await queryD1(env, "SELECT * FROM comments WHERE anime_id = ? ORDER BY id DESC LIMIT 100;", [animeId]);
-          return new Response(JSON.stringify(rows), { headers: corsHeaders });
+          const rows = await queryD1(
+            env,
+            `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar 
+             FROM comments c 
+             LEFT JOIN users u ON c.user_id = u.id 
+             WHERE c.anime_id = ? 
+             ORDER BY c.id DESC LIMIT 100;`,
+            [animeId]
+          );
+          const parsed = rows.map((r) => {
+            let liked_users = [];
+            let disliked_users = [];
+            let replies = [];
+            try { liked_users = JSON.parse(r.liked_users || "[]"); } catch {}
+            try { disliked_users = JSON.parse(r.disliked_users || "[]"); } catch {}
+            try { replies = JSON.parse(r.replies || "[]"); } catch {}
+            return { ...r, liked_users, disliked_users, replies };
+          });
+          return new Response(JSON.stringify(parsed), { headers: corsHeaders });
         }
 
         // Recent comments: /api/comments/recent
         if (path === "/api/comments/recent") {
-          const rows = await queryD1(env, "SELECT * FROM comments ORDER BY id DESC LIMIT 20;");
-          return new Response(JSON.stringify(rows), { headers: corsHeaders });
+          const rows = await queryD1(
+            env,
+            `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, a.title AS anime_title 
+             FROM comments c 
+             LEFT JOIN users u ON c.user_id = u.id 
+             LEFT JOIN animes a ON c.anime_id = a.id 
+             ORDER BY c.id DESC LIMIT 20;`
+          );
+          const parsed = rows.map((r) => {
+            let liked_users = [];
+            let disliked_users = [];
+            let replies = [];
+            try { liked_users = JSON.parse(r.liked_users || "[]"); } catch {}
+            try { disliked_users = JSON.parse(r.disliked_users || "[]"); } catch {}
+            try { replies = JSON.parse(r.replies || "[]"); } catch {}
+            return { ...r, liked_users, disliked_users, replies };
+          });
+          return new Response(JSON.stringify(parsed), { headers: corsHeaders });
         }
 
         // Dramas: /api/dramas

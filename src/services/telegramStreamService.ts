@@ -186,19 +186,25 @@ function registerTelegramEventHandler(tgClient: TelegramClient) {
 function isAuthorizedStreamRequest(req: any): { allowed: boolean; reason?: string } {
   const referer = req.headers.referer || req.headers.referrer;
   const origin = req.headers.origin;
-  const secFetchSite = req.headers['sec-fetch-site'];
 
-  // 1. Check Referer if present
+  // 1. Check Referer if present: allow animem.uz, telegram, t.me, localhost, or direct player requests
   if (referer) {
     try {
       const refUrl = new URL(referer);
       const host = refUrl.hostname.toLowerCase();
-      const isAllowedHost = host === 'animem.uz' || host.endsWith('.animem.uz') || host === 'localhost' || host === '127.0.0.1';
+      const isAllowedHost = 
+        host === 'animem.uz' || 
+        host.endsWith('.animem.uz') || 
+        host.endsWith('.telegram.org') || 
+        host === 'telegram.org' || 
+        host === 't.me' || 
+        host === 'localhost' || 
+        host === '127.0.0.1';
       if (!isAllowedHost) {
         return { allowed: false, reason: `Ruxsat etilmagan referer: ${host}` };
       }
     } catch {
-      return { allowed: false, reason: 'Noto\'g\'ri referer formati' };
+      return { allowed: true };
     }
   }
 
@@ -207,18 +213,20 @@ function isAuthorizedStreamRequest(req: any): { allowed: boolean; reason?: strin
     try {
       const origUrl = new URL(origin);
       const host = origUrl.hostname.toLowerCase();
-      const isAllowedHost = host === 'animem.uz' || host.endsWith('.animem.uz') || host === 'localhost' || host === '127.0.0.1';
+      const isAllowedHost = 
+        host === 'animem.uz' || 
+        host.endsWith('.animem.uz') || 
+        host.endsWith('.telegram.org') || 
+        host === 'telegram.org' || 
+        host === 't.me' || 
+        host === 'localhost' || 
+        host === '127.0.0.1';
       if (!isAllowedHost) {
         return { allowed: false, reason: `Ruxsat etilmagan origin: ${host}` };
       }
     } catch {
-      return { allowed: false, reason: 'Noto\'g\'ri origin formati' };
+      return { allowed: true };
     }
-  }
-
-  // 3. Modern browser sec-fetch-site: block cross-site embeds (even if referer was hidden)
-  if (secFetchSite === 'cross-site') {
-    return { allowed: false, reason: 'Begona saytlardan yuklash taqiqlangan (cross-site)' };
   }
 
   return { allowed: true };

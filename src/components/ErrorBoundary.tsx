@@ -35,12 +35,26 @@ export default class ErrorBoundary extends Component<Props, State> {
           <p className="text-white/70 text-sm max-w-md mb-6 leading-relaxed">
             Sahifani yuklashda xatolik yuz berdi. Qayta yuklash tugmasini bosing.
           </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-[#ff006a] hover:bg-[#d40058] text-white font-bold px-6 py-3 rounded-md text-xs uppercase tracking-wider shadow-lg shadow-[#ff006a]/30 cursor-pointer"
-          >
-            Qayta yuklash
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.reload();
+              }}
+              className="bg-[#ff006a] hover:bg-[#d40058] text-white font-bold px-6 py-3 rounded-md text-xs uppercase tracking-wider shadow-lg shadow-[#ff006a]/30 cursor-pointer"
+            >
+              Qayta yuklash
+            </button>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.href = '/';
+              }}
+              className="bg-white/10 hover:bg-white/20 text-white font-bold px-6 py-3 rounded-md text-xs uppercase tracking-wider transition-colors cursor-pointer"
+            >
+              Bosh sahifa
+            </button>
+          </div>
         </div>
       );
     }
