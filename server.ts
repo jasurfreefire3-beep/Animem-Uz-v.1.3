@@ -23,7 +23,7 @@ const execPromise = util.promisify(exec);
 
 import compression from "compression";
 import webpush from "web-push";
-import { initTelegramStreamService, streamTelegramVideo, handleHlsMasterPlaylist, handleHlsMediaPlaylist, handleHlsSegment } from "./src/services/telegramStreamService";
+
 
 dotenv.config();
 
@@ -3870,45 +3870,9 @@ app.get("/api/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-// ==================== TELEGRAM VIDEO STREAMING ENDPOINTS ====================
-app.get("/api/tgstream/:channelId/:messageId", async (req, res) => {
-  const { channelId, messageId } = req.params;
-  const numMsgId = Number.parseInt(messageId, 10);
-  if (!channelId || isNaN(numMsgId)) {
-    return res.status(400).json({ error: "Noto'g'ri kanal yoki xabar parametri" });
-  }
-  await streamTelegramVideo(req, res, channelId, numMsgId);
-});
-
-// HLS Stream Master Playlist
-app.get("/api/tghls/:channelId/:messageId/master.m3u8", async (req, res) => {
-  const { channelId, messageId } = req.params;
-  const numMsgId = Number.parseInt(messageId, 10);
-  if (!channelId || isNaN(numMsgId)) {
-    return res.status(400).json({ error: "Noto'g'ri kanal yoki xabar parametri" });
-  }
-  await handleHlsMasterPlaylist(req, res, channelId, numMsgId);
-});
-
-// HLS Stream Media Playlist
-app.get("/api/tghls/:channelId/:messageId/index.m3u8", async (req, res) => {
-  const { channelId, messageId } = req.params;
-  const numMsgId = Number.parseInt(messageId, 10);
-  if (!channelId || isNaN(numMsgId)) {
-    return res.status(400).json({ error: "Noto'g'ri kanal yoki xabar parametri" });
-  }
-  await handleHlsMediaPlaylist(req, res, channelId, numMsgId);
-});
-
-// HLS Stream Segment Delivery
-app.get("/api/tghls/:channelId/:messageId/segment_:segmentNum.ts", async (req, res) => {
-  const { channelId, messageId, segmentNum } = req.params;
-  const numMsgId = Number.parseInt(messageId, 10);
-  const numSeg = Number.parseInt(segmentNum, 10);
-  if (!channelId || isNaN(numMsgId) || isNaN(numSeg)) {
-    return res.status(400).json({ error: "Noto'g'ri segment parametri" });
-  }
-  await handleHlsSegment(req, res, channelId, numMsgId, numSeg);
+// ==================== TELEGRAM VIDEO STREAMING REDIRECT TO VPS ====================
+app.get(["/api/tgstream/:channelId/:messageId", "/api/tghls/*"], (req, res) => {
+  res.redirect(302, `https://s3.animem.uz${req.url}`);
 });
 
 app.get("/api/animes", async (req, res) => {
@@ -8974,8 +8938,6 @@ async function start() {
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    // Initialize Telegram Streamer bot for 2GB video direct streaming
-    initTelegramStreamService();
   });
 
   // Dual-port listening: ensures container handles traffic from both Northflank (port 3000) and Hugging Face (port 7860)
