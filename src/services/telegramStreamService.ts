@@ -5,7 +5,8 @@ import bigInt from 'big-integer';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
+import { EventEmitter } from 'events';
 
 const TG_API_ID = 6;
 const TG_API_HASH = 'eb06d4abfb49dc3eeb1aeb98ae0f581e';
@@ -185,6 +186,11 @@ function registerTelegramEventHandler(tgClient: TelegramClient) {
       });
 
       console.log(`[Telegram Streamer] Replied with stream URL for message #${messageId} in channel ${cleanChannelId}`);
+
+      // Auto-start background HLS processing & pre-segmentation immediately!
+      ensureVideoProcessing(cleanChannelId, messageId).catch(err => {
+        console.warn(`[HLS Streamer] Auto pre-processing note (${cleanChannelId}/${messageId}):`, err?.message || err);
+      });
     } catch (err: any) {
       console.warn('[Telegram Streamer] Error handling incoming video message:', err?.message || err);
     }
@@ -380,8 +386,11 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
       thumbSize: '',
     });
 
-    const PART_SIZE = 1024 * 1024; // 1 MB chunks for 2x faster throughput
-    const chunkLimit = Math.ceil(chunkSize / PART_SIZE);
+    const TG_CHUNK_SIZE = 512 * 1024; // 512 KB optimal chunk size
+    const TG_ALIGN = 4096; // Telegram MTProto requires 4KB alignment
+    const alignedStart = Math.floor(start / TG_ALIGN) * TG_ALIGN;
+    const skipBytes = start - alignedStart;
+    const chunkLimit = Math.ceil((chunkSize + skipBytes) / TG_CHUNK_SIZE);
 
     let isAborted = false;
     req.on('close', () => {
@@ -391,13 +400,14 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
     const downloadStream = tgClient.iterDownload({
       file: fileLocation,
       dcId: meta.document.dcId,
-      offset: bigInt(start),
+      offset: bigInt(alignedStart),
       limit: chunkLimit,
-      chunkSize: PART_SIZE,
-      requestSize: PART_SIZE,
+      chunkSize: TG_CHUNK_SIZE,
+      requestSize: TG_CHUNK_SIZE,
     });
 
     let bytesRemaining = chunkSize;
+    let skipped = 0;
     const headChunks: Buffer[] = [];
     let headBytes = 0;
 
@@ -406,8 +416,17 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
         break;
       }
 
-      const bytesToSend = Math.min(chunk.length, bytesRemaining);
-      const slice = chunk.subarray(0, bytesToSend);
+      let dataChunk = chunk;
+      if (skipped < skipBytes) {
+        const toSkip = Math.min(skipBytes - skipped, dataChunk.length);
+        dataChunk = dataChunk.subarray(toSkip);
+        skipped += toSkip;
+      }
+
+      if (dataChunk.length === 0) continue;
+
+      const bytesToSend = Math.min(dataChunk.length, bytesRemaining);
+      const slice = dataChunk.subarray(0, bytesToSend);
       const ok = res.write(slice);
       bytesRemaining -= bytesToSend;
 
@@ -480,7 +499,7 @@ function getFfmpegBinary(): string {
 }
 
 const hlsSegmentCache = new Map<string, Buffer>();
-const HLS_MAX_CACHE_ITEMS = 600; // In-memory buffer limit (~800MB)
+const HLS_MAX_CACHE_ITEMS = 800; // In-memory buffer limit (~1GB)
 const HLS_SEGMENT_DURATION = 6;  // 6 seconds per segment
 const HLS_CACHE_DIR = process.env.HLS_CACHE_DIR || path.join(os.tmpdir(), 'tghls_cache');
 
@@ -492,6 +511,259 @@ try {
   console.warn('[HLS Streamer] Cache dir notice:', e);
 }
 
+// Automatic cache cleanup: remove folders older than 7 days
+function cleanOldHlsCache(): void {
+  try {
+    if (!fs.existsSync(HLS_CACHE_DIR)) return;
+    const entries = fs.readdirSync(HLS_CACHE_DIR);
+    const now = Date.now();
+    for (const entry of entries) {
+      const fullPath = path.join(HLS_CACHE_DIR, entry);
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory() && (now - stat.mtimeMs > 7 * 86400 * 1000)) {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+      }
+    }
+  } catch {}
+}
+
+setInterval(cleanOldHlsCache, 3600000);
+
+interface VideoProcessState {
+  channelId: string;
+  messageId: number;
+  videoFolder: string;
+  partFile: string;
+  sourceFile: string;
+  indexFile: string;
+  bytesDownloaded: number;
+  totalSize: number;
+  isCompleted: boolean;
+  error?: string;
+  emitter: EventEmitter;
+}
+
+const activeVideoDownloads = new Map<string, VideoProcessState>();
+
+function sliceSegmentSync(inputFile: string, videoFolder: string, segIdx: number, isHevc = false): boolean {
+  const targetSegFile = path.join(videoFolder, `segment_${segIdx}.ts`);
+  if (fs.existsSync(targetSegFile) && fs.statSync(targetSegFile).size > 1000) return true;
+
+  const tempSegFile = path.join(videoFolder, `temp_seg_${segIdx}_${Date.now()}.ts`);
+  const ffmpegBin = getFfmpegBinary();
+  const startTime = segIdx * HLS_SEGMENT_DURATION;
+  const bsfFilter = isHevc ? 'hevc_mp4toannexb' : 'h264_mp4toannexb';
+
+  // Fast stream copy
+  const res = spawnSync(ffmpegBin, [
+    '-ss', String(startTime),
+    '-i', inputFile,
+    '-t', String(HLS_SEGMENT_DURATION),
+    '-c', 'copy',
+    '-bsf:v', bsfFilter,
+    '-f', 'mpegts',
+    '-y',
+    tempSegFile
+  ], { timeout: 10000 });
+
+  if (res.status === 0 && fs.existsSync(tempSegFile) && fs.statSync(tempSegFile).size > 1000) {
+    try {
+      fs.renameSync(tempSegFile, targetSegFile);
+      const buf = fs.readFileSync(targetSegFile);
+      const cacheKey = `${path.basename(videoFolder)}_seg_${segIdx}`;
+      hlsSegmentCache.set(cacheKey, buf);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Fallback with AAC audio conversion
+  const fb = spawnSync(ffmpegBin, [
+    '-ss', String(startTime),
+    '-i', inputFile,
+    '-t', String(HLS_SEGMENT_DURATION),
+    '-c:v', 'copy',
+    '-bsf:v', bsfFilter,
+    '-c:a', 'aac',
+    '-f', 'mpegts',
+    '-y',
+    tempSegFile
+  ], { timeout: 15000 });
+
+  if (fb.status === 0 && fs.existsSync(tempSegFile) && fs.statSync(tempSegFile).size > 1000) {
+    try {
+      fs.renameSync(tempSegFile, targetSegFile);
+      const buf = fs.readFileSync(targetSegFile);
+      const cacheKey = `${path.basename(videoFolder)}_seg_${segIdx}`;
+      hlsSegmentCache.set(cacheKey, buf);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  if (fs.existsSync(tempSegFile)) {
+    try { fs.unlinkSync(tempSegFile); } catch {}
+  }
+  return false;
+}
+
+export async function ensureVideoProcessing(channelId: string, messageId: number): Promise<VideoProcessState | null> {
+  const cleanId = channelId.replace(/^-100/, '').replace(/^-/, '');
+  const key = `${cleanId}_${messageId}`;
+  const videoFolder = path.join(HLS_CACHE_DIR, key);
+  const partFile = path.join(videoFolder, 'source.mp4.part');
+  const sourceFile = path.join(videoFolder, 'source.mp4');
+  const indexFile = path.join(videoFolder, 'index.m3u8');
+
+  // If already completely segmented into HLS:
+  if (fs.existsSync(indexFile)) {
+    return null;
+  }
+
+  // If already actively downloading:
+  if (activeVideoDownloads.has(key)) {
+    return activeVideoDownloads.get(key)!;
+  }
+
+  const meta = await getStreamMetadata(channelId, messageId);
+  if (!meta || !meta.document) return null;
+
+  if (!fs.existsSync(videoFolder)) {
+    fs.mkdirSync(videoFolder, { recursive: true });
+  }
+
+  const emitter = new EventEmitter();
+  emitter.setMaxListeners(200);
+
+  const state: VideoProcessState = {
+    channelId: cleanId,
+    messageId,
+    videoFolder,
+    partFile,
+    sourceFile,
+    indexFile,
+    bytesDownloaded: fs.existsSync(partFile) ? fs.statSync(partFile).size : 0,
+    totalSize: meta.size,
+    isCompleted: false,
+    emitter,
+  };
+
+  activeVideoDownloads.set(key, state);
+
+  // Background downloader and HLS segmenter
+  (async () => {
+    try {
+      const tgClient = await getTelegramClient();
+      const fileLocation = new Api.InputDocumentFileLocation({
+        id: meta.document.id,
+        accessHash: meta.document.accessHash,
+        fileReference: meta.document.fileReference,
+        thumbSize: '',
+      });
+
+      const TG_CHUNK_SIZE = 512 * 1024;
+      let startOffset = state.bytesDownloaded;
+      startOffset = Math.floor(startOffset / TG_CHUNK_SIZE) * TG_CHUNK_SIZE;
+      state.bytesDownloaded = startOffset;
+
+      const remainingBytes = meta.size - startOffset;
+      const chunkLimit = Math.ceil(remainingBytes / TG_CHUNK_SIZE);
+
+      const writeStream = fs.createWriteStream(partFile, { flags: startOffset > 0 ? 'a' : 'w' });
+
+      const downloadStream = tgClient.iterDownload({
+        file: fileLocation,
+        dcId: meta.document.dcId,
+        offset: bigInt(startOffset),
+        limit: chunkLimit,
+        chunkSize: TG_CHUNK_SIZE,
+        requestSize: TG_CHUNK_SIZE,
+      });
+
+      let seg0Done = fs.existsSync(path.join(videoFolder, 'segment_0.ts'));
+      let seg1Done = fs.existsSync(path.join(videoFolder, 'segment_1.ts'));
+
+      for await (const chunk of downloadStream) {
+        writeStream.write(chunk);
+        state.bytesDownloaded += chunk.length;
+        state.emitter.emit('progress', state.bytesDownloaded);
+
+        // Pre-slice segment 0 as soon as 3MB downloaded
+        if (!seg0Done && state.bytesDownloaded >= Math.min(meta.size, 3 * 1024 * 1024)) {
+          sliceSegmentSync(partFile, videoFolder, 0, meta.isHevc);
+          seg0Done = true;
+          state.emitter.emit('segment_ready', 0);
+        }
+
+        // Pre-slice segment 1 as soon as 6MB downloaded
+        if (!seg1Done && state.bytesDownloaded >= Math.min(meta.size, 6 * 1024 * 1024)) {
+          sliceSegmentSync(partFile, videoFolder, 1, meta.isHevc);
+          seg1Done = true;
+          state.emitter.emit('segment_ready', 1);
+        }
+      }
+
+      await new Promise<void>((resolve) => writeStream.end(resolve));
+
+      // Download complete: rename .part to .mp4
+      if (fs.existsSync(partFile)) {
+        try { fs.renameSync(partFile, sourceFile); } catch {}
+      }
+
+      // Now run full HLS segmentation on the complete local source file!
+      const ffmpegBin = getFfmpegBinary();
+      const bsfFilter = meta.isHevc ? 'hevc_mp4toannexb' : 'h264_mp4toannexb';
+      const hlsRes = spawnSync(ffmpegBin, [
+        '-i', sourceFile,
+        '-c', 'copy',
+        '-bsf:v', bsfFilter,
+        '-f', 'hls',
+        '-hls_time', String(HLS_SEGMENT_DURATION),
+        '-hls_list_size', '0',
+        '-hls_segment_filename', path.join(videoFolder, 'segment_%d.ts'),
+        '-y',
+        indexFile
+      ], { timeout: 60000 });
+
+      if (hlsRes.status !== 0) {
+        // Fallback: Transcode audio to AAC if raw stream copy failed
+        spawnSync(ffmpegBin, [
+          '-i', sourceFile,
+          '-c:v', 'copy',
+          '-bsf:v', bsfFilter,
+          '-c:a', 'aac',
+          '-f', 'hls',
+          '-hls_time', String(HLS_SEGMENT_DURATION),
+          '-hls_list_size', '0',
+          '-hls_segment_filename', path.join(videoFolder, 'segment_%d.ts'),
+          '-y',
+          indexFile
+        ], { timeout: 120000 });
+      }
+
+      state.isCompleted = true;
+      state.emitter.emit('completed');
+
+      // Once all segments are safely on disk, remove source.mp4 to keep disk footprint low
+      if (fs.existsSync(sourceFile) && fs.existsSync(indexFile)) {
+        try { fs.unlinkSync(sourceFile); } catch {}
+      }
+
+      console.log(`[HLS Streamer] Fully segmented video (${key}) into HLS segments on disk!`);
+    } catch (err: any) {
+      console.warn(`[HLS Streamer] Background process error (${key}):`, err?.message || err);
+      state.error = err?.message || String(err);
+      state.emitter.emit('error', state.error);
+    } finally {
+      activeVideoDownloads.delete(key);
+    }
+  })();
+
+  return state;
+}
+
 export async function handleHlsMasterPlaylist(req: any, res: any, channelId: string, messageId: number): Promise<void> {
   const authCheck = isAuthorizedStreamRequest(req);
   if (!authCheck.allowed) {
@@ -500,8 +772,11 @@ export async function handleHlsMasterPlaylist(req: any, res: any, channelId: str
     return;
   }
 
+  // Start background processing immediately on playlist request!
+  ensureVideoProcessing(channelId, messageId).catch(() => {});
+
   const origin = req.headers.origin;
-  res.setHeader('Access-Control-Allow-Origin', origin || 'https://animem.uz');
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
   res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
@@ -527,6 +802,30 @@ export async function handleHlsMediaPlaylist(req: any, res: any, channelId: stri
   }
 
   const cleanId = channelId.replace(/^-100/, '').replace(/^-/, '');
+  const videoFolder = path.join(HLS_CACHE_DIR, `${cleanId}_${messageId}`);
+  const indexFile = path.join(videoFolder, 'index.m3u8');
+
+  // Trigger background processing if not yet started
+  ensureVideoProcessing(channelId, messageId).catch(() => {});
+
+  const origin = req.headers.origin;
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
+  res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+  res.setHeader('Cache-Control', 'public, max-age=60');
+
+  // If complete index.m3u8 is already on disk, serve it with proper segment URLs
+  if (fs.existsSync(indexFile)) {
+    try {
+      let content = await fs.promises.readFile(indexFile, 'utf8');
+      content = content.replace(/(segment_\d+\.ts)/g, `/api/tghls/${cleanId}/${messageId}/$1`);
+      res.status(200).send(content);
+      return;
+    } catch {}
+  }
+
+  // Otherwise generate estimated VOD playlist so player immediately shows timeline
   const meta = await getStreamMetadata(channelId, messageId);
   if (!meta) {
     res.status(404).json({ error: "Video topilmadi" });
@@ -554,17 +853,8 @@ export async function handleHlsMediaPlaylist(req: any, res: any, channelId: stri
   }
   playlist += `#EXT-X-ENDLIST\n`;
 
-  const origin = req.headers.origin;
-  res.setHeader('Access-Control-Allow-Origin', origin || 'https://animem.uz');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
-  res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-  res.setHeader('Cache-Control', 'public, max-age=60');
-
   res.status(200).send(playlist);
 }
-
-const pendingSegmentJobs = new Map<string, Promise<Buffer>>();
 
 export async function handleHlsSegment(req: any, res: any, channelId: string, messageId: number, segmentIndex: number): Promise<void> {
   const authCheck = isAuthorizedStreamRequest(req);
@@ -579,7 +869,7 @@ export async function handleHlsSegment(req: any, res: any, channelId: string, me
   const segmentFilePath = path.join(videoFolder, `segment_${segmentIndex}.ts`);
 
   const origin = req.headers.origin;
-  res.setHeader('Access-Control-Allow-Origin', origin || 'https://animem.uz');
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
   res.setHeader('Content-Type', 'video/MP2T');
@@ -590,7 +880,7 @@ export async function handleHlsSegment(req: any, res: any, channelId: string, me
     return;
   }
 
-  // 1. Check RAM Cache (Instant 0.1ms for 10,000 concurrent viewers)
+  // 1. RAM Cache (Instant 0.1ms for 10,000 concurrent viewers)
   if (hlsSegmentCache.has(cacheKey)) {
     const data = hlsSegmentCache.get(cacheKey)!;
     res.setHeader('Content-Length', data.length);
@@ -598,8 +888,8 @@ export async function handleHlsSegment(req: any, res: any, channelId: string, me
     return;
   }
 
-  // 2. Check Disk Cache (Instant 1ms)
-  if (fs.existsSync(segmentFilePath)) {
+  // 2. Disk Cache (Instant 1ms)
+  if (fs.existsSync(segmentFilePath) && fs.statSync(segmentFilePath).size > 1000) {
     try {
       const data = await fs.promises.readFile(segmentFilePath);
       if (hlsSegmentCache.size >= HLS_MAX_CACHE_ITEMS) {
@@ -613,140 +903,63 @@ export async function handleHlsSegment(req: any, res: any, channelId: string, me
     } catch {}
   }
 
-  // 3. Generate Segment using FFmpeg stream copy
-  let jobPromise = pendingSegmentJobs.get(cacheKey);
-  if (!jobPromise) {
-    jobPromise = (async () => {
-      if (!fs.existsSync(videoFolder)) {
-        await fs.promises.mkdir(videoFolder, { recursive: true });
-      }
+  // 3. Ensure background download/processing is started
+  const state = await ensureVideoProcessing(channelId, messageId);
 
-      const tempFile = path.join(videoFolder, `temp_${segmentIndex}_${Date.now()}.ts`);
-      const startTime = segmentIndex * HLS_SEGMENT_DURATION;
-      const ffmpegBin = getFfmpegBinary();
-      const localPort = process.env.PORT || 3000;
-      const sourceUrl = `http://127.0.0.1:${localPort}/api/tgstream/${channelId}/${messageId}`;
+  // Check if segment can be sliced immediately from available bytes on disk
+  const partFile = path.join(videoFolder, 'source.mp4.part');
+  const sourceFile = path.join(videoFolder, 'source.mp4');
+  const availableInput = fs.existsSync(sourceFile) ? sourceFile : (fs.existsSync(partFile) ? partFile : null);
 
-      return new Promise<Buffer>((resolve, reject) => {
-        const proc = spawn(ffmpegBin, [
-          '-ss', String(startTime),
-          '-i', sourceUrl,
-          '-t', String(HLS_SEGMENT_DURATION),
-          '-c', 'copy',
-          '-bsf:v', 'h264_mp4toannexb',
-          '-f', 'mpegts',
-          '-y',
-          tempFile
-        ]);
+  if (availableInput) {
+    const meta = await getStreamMetadata(channelId, messageId);
+    const ok = sliceSegmentSync(availableInput, videoFolder, segmentIndex, meta?.isHevc);
+    if (ok && fs.existsSync(segmentFilePath) && fs.statSync(segmentFilePath).size > 1000) {
+      const data = await fs.promises.readFile(segmentFilePath);
+      hlsSegmentCache.set(cacheKey, data);
+      res.setHeader('Content-Length', data.length);
+      res.status(200).end(data);
+      return;
+    }
+  }
 
-        let stderr = '';
-        proc.stderr?.on('data', (d) => { stderr += d.toString(); });
-
-        proc.on('close', async (code) => {
-          if (code === 0 && fs.existsSync(tempFile)) {
-            try {
-              await fs.promises.rename(tempFile, segmentFilePath);
-              const buffer = await fs.promises.readFile(segmentFilePath);
-              if (hlsSegmentCache.size >= HLS_MAX_CACHE_ITEMS) {
-                const oldest = hlsSegmentCache.keys().next().value;
-                if (oldest) hlsSegmentCache.delete(oldest);
-              }
-              hlsSegmentCache.set(cacheKey, buffer);
-              resolve(buffer);
-            } catch (err) {
-              reject(err);
-            }
-          } else {
-            // Fallback: Try with AAC audio conversion if raw bitstream filter fails
-            const fallbackProc = spawn(ffmpegBin, [
-              '-ss', String(startTime),
-              '-i', sourceUrl,
-              '-t', String(HLS_SEGMENT_DURATION),
-              '-c:v', 'copy',
-              '-c:a', 'aac',
-              '-f', 'mpegts',
-              '-y',
-              tempFile
-            ]);
-            fallbackProc.on('close', async (fCode) => {
-              if (fCode === 0 && fs.existsSync(tempFile)) {
-                await fs.promises.rename(tempFile, segmentFilePath);
-                const buffer = await fs.promises.readFile(segmentFilePath);
-                hlsSegmentCache.set(cacheKey, buffer);
-                resolve(buffer);
-              } else {
-                reject(new Error(`FFmpeg error (code ${code}, fallback ${fCode}): ${stderr.slice(-250)}`));
-              }
-            });
+  // 4. Wait for background download to yield this segment or finish
+  if (state && !state.isCompleted) {
+    const meta = await getStreamMetadata(channelId, messageId);
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 8000); // 8s max wait
+      const onProgress = () => {
+        const currentInput = fs.existsSync(sourceFile) ? sourceFile : (fs.existsSync(partFile) ? partFile : null);
+        if (currentInput) {
+          if (sliceSegmentSync(currentInput, videoFolder, segmentIndex, meta?.isHevc)) {
+            clearTimeout(timer);
+            state.emitter.off('progress', onProgress);
+            state.emitter.off('completed', onCompleted);
+            resolve();
           }
-        });
-
-        proc.on('error', (err) => {
-          reject(err);
-        });
-      });
-    })();
-
-    pendingSegmentJobs.set(cacheKey, jobPromise);
+        }
+      };
+      const onCompleted = () => {
+        clearTimeout(timer);
+        state.emitter.off('progress', onProgress);
+        state.emitter.off('completed', onCompleted);
+        resolve();
+      };
+      state.emitter.on('progress', onProgress);
+      state.emitter.on('completed', onCompleted);
+    });
   }
 
-  try {
-    const buffer = await jobPromise;
-    res.setHeader('Content-Length', buffer.length);
-    res.status(200).end(buffer);
-
-    // Prefetch next segment in background for 0ms buffer-free streaming!
-    prefetchNextSegment(channelId, messageId, segmentIndex + 1).catch(() => {});
-  } catch (err: any) {
-    console.error(`[HLS Streamer] Segment transcode error (${cacheKey}):`, err?.message || err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Segment yaratishda xatolik yuz berdi" });
-    } else if (!res.writableEnded) {
-      res.end();
-    }
-  } finally {
-    pendingSegmentJobs.delete(cacheKey);
-  }
-}
-
-async function prefetchNextSegment(channelId: string, messageId: number, nextIdx: number): Promise<void> {
-  const cleanId = channelId.replace(/^-100/, '').replace(/^-/, '');
-  const nextCacheKey = `${cleanId}_${messageId}_seg_${nextIdx}`;
-  const videoFolder = path.join(HLS_CACHE_DIR, `${cleanId}_${messageId}`);
-  const nextFilePath = path.join(videoFolder, `segment_${nextIdx}.ts`);
-
-  if (hlsSegmentCache.has(nextCacheKey) || fs.existsSync(nextFilePath) || pendingSegmentJobs.has(nextCacheKey)) {
-    return;
+  // Check disk again after waiting
+  if (fs.existsSync(segmentFilePath) && fs.statSync(segmentFilePath).size > 1000) {
+    try {
+      const data = await fs.promises.readFile(segmentFilePath);
+      hlsSegmentCache.set(cacheKey, data);
+      res.setHeader('Content-Length', data.length);
+      res.status(200).end(data);
+      return;
+    } catch {}
   }
 
-  const meta = await getStreamMetadata(channelId, messageId);
-  if (!meta) return;
-  const duration = (meta.duration && meta.duration > 0) ? meta.duration : (meta.size ? Math.ceil(meta.size / (250 * 1024)) : 1440);
-  if (nextIdx * HLS_SEGMENT_DURATION >= duration) return;
-
-  const ffmpegBin = getFfmpegBinary();
-  const localPort = process.env.PORT || 3000;
-  const sourceUrl = `http://127.0.0.1:${localPort}/api/tgstream/${channelId}/${messageId}`;
-  const tempFile = path.join(videoFolder, `temp_${nextIdx}_${Date.now()}.ts`);
-
-  const proc = spawn(ffmpegBin, [
-    '-ss', String(nextIdx * HLS_SEGMENT_DURATION),
-    '-i', sourceUrl,
-    '-t', String(HLS_SEGMENT_DURATION),
-    '-c', 'copy',
-    '-bsf:v', 'h264_mp4toannexb',
-    '-f', 'mpegts',
-    '-y',
-    tempFile
-  ]);
-
-  proc.on('close', async (code) => {
-    if (code === 0 && fs.existsSync(tempFile)) {
-      try {
-        await fs.promises.rename(tempFile, nextFilePath);
-        const buf = await fs.promises.readFile(nextFilePath);
-        hlsSegmentCache.set(nextCacheKey, buf);
-      } catch {}
-    }
-  });
+  res.status(503).json({ error: "Segment tayyorlanmoqda, iltimos qaytadan urining" });
 }
