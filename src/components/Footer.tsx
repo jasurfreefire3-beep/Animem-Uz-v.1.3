@@ -18,7 +18,7 @@ const FacebookIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => 
 );
 
 export default function Footer() {
-  const { t, getLocalizedPath } = useLanguage();
+  const { t, currentLanguage, getLocalizedPath } = useLanguage();
 
   return (
     <footer className="bg-[#0b0b0e] border-t border-[#1a1a20] text-white/70 pt-6 pb-20 md:pb-10 mt-16 font-sans">
