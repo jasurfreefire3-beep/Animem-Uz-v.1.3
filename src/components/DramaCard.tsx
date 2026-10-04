@@ -12,10 +12,25 @@ interface DramaCardProps {
 export default function DramaCard({ drama, onLikeChange }: DramaCardProps) {
   const { user, token } = useAuth();
   const [likes, setLikes] = useState(drama.likes || 0);
+
+  const getLikedList = (raw: any): (string | number)[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
   const [isLiked, setIsLiked] = useState(() => {
-    if (!drama.liked_users) return false;
+    const list = getLikedList(drama.liked_users);
     const identifier = user ? `user_${user.id}` : null;
-    return identifier ? (drama.liked_users || []).map(String).includes(identifier) : false;
+    return identifier ? list.map(String).includes(identifier) : false;
   });
   const [likeLoading, setLikeLoading] = useState(false);
 
@@ -65,7 +80,7 @@ export default function DramaCard({ drama, onLikeChange }: DramaCardProps) {
   const slug = toSlug(drama.title || 'drama');
   const dramaUrl = `/drama/${drama.id}`;
 
-  const genresList = (drama.janrlar || '')
+  const genresList = String(drama.janrlar || '')
     .split(',')
     .map(g => g.trim())
     .filter(Boolean)

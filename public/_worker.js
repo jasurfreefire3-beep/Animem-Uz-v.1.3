@@ -253,7 +253,21 @@ export default {
         // Dramas: /api/dramas
         if (path === "/api/dramas") {
           const rows = await queryD1(env, "SELECT * FROM dramas ORDER BY id DESC;");
-          return new Response(JSON.stringify(rows), { headers: corsHeaders });
+          const parsed = rows.map((r) => {
+            let liked_users = [];
+            try {
+              if (typeof r.liked_users === "string") {
+                liked_users = JSON.parse(r.liked_users || "[]");
+              } else if (Array.isArray(r.liked_users)) {
+                liked_users = r.liked_users;
+              }
+            } catch {}
+            return {
+              ...r,
+              liked_users: Array.isArray(liked_users) ? liked_users : [],
+            };
+          });
+          return new Response(JSON.stringify(parsed), { headers: corsHeaders });
         }
 
         // Drama details: /api/dramas/:id
@@ -261,7 +275,23 @@ export default {
         if (dramaMatch) {
           const id = dramaMatch[1];
           const rows = await queryD1(env, "SELECT * FROM dramas WHERE id = ?;", [id]);
-          return new Response(JSON.stringify(rows[0] || {}), { headers: corsHeaders });
+          if (rows.length === 0) return new Response(JSON.stringify({}), { headers: corsHeaders });
+          const r = rows[0];
+          let liked_users = [];
+          try {
+            if (typeof r.liked_users === "string") {
+              liked_users = JSON.parse(r.liked_users || "[]");
+            } else if (Array.isArray(r.liked_users)) {
+              liked_users = r.liked_users;
+            }
+          } catch {}
+          return new Response(
+            JSON.stringify({
+              ...r,
+              liked_users: Array.isArray(liked_users) ? liked_users : [],
+            }),
+            { headers: corsHeaders }
+          );
         }
 
         // Drama episodes: /api/dramas/episodes/:id or /api/dramas/:id/episodes

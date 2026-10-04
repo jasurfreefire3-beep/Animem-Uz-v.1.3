@@ -46,7 +46,7 @@ export default function AdminDramalar({ token }: AdminDramalarProps) {
       const res = await fetch(`/api/dramas?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
-        setDramas(data);
+        setDramas(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error('Failed to fetch dramas:', err);

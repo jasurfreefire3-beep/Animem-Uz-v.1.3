@@ -41,7 +41,7 @@ export default function Dramas() {
       const res = await fetch(`/api/dramas?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
-        setDramas(data);
+        setDramas(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error('Failed to fetch dramas:', err);
@@ -50,21 +50,23 @@ export default function Dramas() {
     }
   };
 
+  const safeDramas = Array.isArray(dramas) ? dramas : [];
+
   // Collect all unique genres from available dramas
   const allGenres = Array.from(
     new Set(
-      dramas.flatMap(d => (d.janrlar || '').split(',').map(s => s.trim())).filter(Boolean)
+      safeDramas.flatMap(d => String(d.janrlar || '').split(',').map(s => s.trim())).filter(Boolean)
     )
   );
 
   // Collect all unique years
   const allYears = Array.from(
     new Set(
-      dramas.map(d => d.yil).filter(Boolean)
+      safeDramas.map(d => d.yil).filter(Boolean)
     )
   ).sort((a, b) => (Number(b) || 0) - (Number(a) || 0));
 
-  const filteredDramas = dramas.filter(drama => {
+  const filteredDramas = safeDramas.filter(drama => {
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch = !q || (
       (drama.title || '').toLowerCase().includes(q) ||

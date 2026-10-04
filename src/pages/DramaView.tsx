@@ -61,7 +61,16 @@ export default function DramaView() {
         // Check if liked
         const identifier = user ? `user_${user.id}` : null;
         if (identifier && data.liked_users) {
-          setIsLiked((data.liked_users || []).map(String).includes(identifier));
+          let list: (string | number)[] = [];
+          if (Array.isArray(data.liked_users)) {
+            list = data.liked_users;
+          } else if (typeof data.liked_users === 'string') {
+            try {
+              const p = JSON.parse(data.liked_users);
+              if (Array.isArray(p)) list = p;
+            } catch {}
+          }
+          setIsLiked(list.map(String).includes(identifier));
         }
       } else {
         setDrama(null);
@@ -78,7 +87,7 @@ export default function DramaView() {
       const res = await fetch('/api/dramas');
       if (res.ok) {
         const data = await res.json();
-        setAllDramas(data);
+        setAllDramas(Array.isArray(data) ? data : []);
       }
     } catch (err) {}
   };
@@ -88,7 +97,7 @@ export default function DramaView() {
       const res = await fetch(`/api/dramas/${id}/comments`);
       if (res.ok) {
         const data = await res.json();
-        setComments(data);
+        setComments(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error('Failed to fetch drama comments:', err);
@@ -214,14 +223,15 @@ export default function DramaView() {
     );
   }
 
-  const relatedDramas = allDramas
-    .filter(d => String(d.id) !== String(drama.id))
+  const relatedDramas = (Array.isArray(allDramas) ? allDramas : [])
+    .filter(d => d && String(d.id) !== String(drama?.id))
     .slice(0, 6);
 
-  const genresList = (drama.janrlar || '').split(',').map(s => s.trim()).filter(Boolean);
+  const genresList = String(drama?.janrlar || '').split(',').map(s => s.trim()).filter(Boolean);
 
-  const currentEp = episodes[currentEpisodeIndex] || null;
-  const currentVideoUrl = currentEp?.video_url || drama.video_url || '';
+  const safeEpisodes = Array.isArray(episodes) ? episodes : [];
+  const currentEp = safeEpisodes[currentEpisodeIndex] || null;
+  const currentVideoUrl = currentEp?.video_url || drama?.video_url || '';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">

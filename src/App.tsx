@@ -16,6 +16,7 @@ import { AdminPasscodeGate } from './components/AdminPasscodeGate';
 import { usePresenceTracker } from './hooks/usePresenceTracker';
 import { useLanguage } from './context/LanguageContext';
 import LoadingScreen from './components/LoadingScreen';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Code-split pages with React.lazy for instant initial bundle loading
 const Login = lazy(() => import('./pages/Login'));
@@ -197,7 +198,8 @@ export default function App() {
         {/* Main Content Area */}
         <main className="flex-1 pt-24 md:pt-20 pb-24 md:pb-12 px-4 md:px-8 max-w-[1440px] mx-auto w-full relative z-10">
           <Suspense fallback={<PageLoader />}>
-            <Routes>
+            <ErrorBoundary key={location.pathname}>
+              <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/:lang" element={<Home />} />
 
@@ -305,6 +307,7 @@ export default function App() {
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </ErrorBoundary>
           </Suspense>
         </main>
 
