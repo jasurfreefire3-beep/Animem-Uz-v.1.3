@@ -344,8 +344,9 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
       return;
     }
 
-    // Fast-start optimization: Check if head buffer is already cached in RAM
-    if (start < 2 * 1024 * 1024 && videoHeadCache.has(headKey)) {
+    // Fast-start optimization: Check if head buffer is already cached in RAM (4 MB buffer)
+    const HEAD_BUFFER_SIZE = 4 * 1024 * 1024;
+    if (start < HEAD_BUFFER_SIZE && videoHeadCache.has(headKey)) {
       const cachedHead = videoHeadCache.get(headKey)!;
       if (end < cachedHead.length) {
         res.end(cachedHead.subarray(start, end + 1));
@@ -363,7 +364,7 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
       thumbSize: '',
     });
 
-    const PART_SIZE = 512 * 1024;
+    const PART_SIZE = 1024 * 1024; // 1 MB chunks for 2x faster throughput
     const chunkLimit = Math.ceil(chunkSize / PART_SIZE);
 
     let isAborted = false;
@@ -394,7 +395,7 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
       const ok = res.write(slice);
       bytesRemaining -= bytesToSend;
 
-      if (start === 0 && headBytes < 2 * 1024 * 1024) {
+      if (start === 0 && headBytes < HEAD_BUFFER_SIZE) {
         headChunks.push(slice);
         headBytes += slice.length;
       }
@@ -409,7 +410,7 @@ export async function streamTelegramVideo(req: any, res: any, channelId: string,
     }
 
     if (start === 0 && headChunks.length > 0 && !videoHeadCache.has(headKey)) {
-      if (videoHeadCache.size > 50) {
+      if (videoHeadCache.size > 200) {
         const firstKey = videoHeadCache.keys().next().value;
         if (firstKey) videoHeadCache.delete(firstKey);
       }

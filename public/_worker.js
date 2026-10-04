@@ -1,8 +1,10 @@
 // Cloudflare Worker Handler for Animem.uz
-// Serves static assets and provides native Cloudflare D1 API endpoints at the edge
+// High-performance edge router with D1 direct queries, CDN video stream caching, and backend API proxy
 
 const ACCOUNT_ID = "778abe99df133217050e4af575708af8";
 const DATABASE_ID = "11e1d448-17a4-4156-ba89-434fa4e6bb1e";
+const BACKEND_ORIGIN = "https://p01--animem-beckend--jddxxkp4tz2g.code.run";
+const STREAM_ORIGIN = "https://s3.animem.uz.animem.uz";
 
 function toSlug(text) {
   if (!text) return "";
@@ -15,7 +17,7 @@ function toSlug(text) {
 }
 
 async function queryD1(env, sql, params = []) {
-  // 1. Try native D1 binding if configured (e.g. env.DB or env.animem)
+  // 1. Try native D1 binding if configured (env.DB or env.animem)
   const d1 = env.DB || env.animem;
   if (d1 && typeof d1.prepare === "function") {
     try {
@@ -29,6 +31,8 @@ async function queryD1(env, sql, params = []) {
 
   // 2. Direct Cloudflare D1 REST API
   const token = env.CLOUDFLARE_D1_TOKEN || "";
+  if (!token) return [];
+
   const url = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID || ACCOUNT_ID}/d1/database/${env.CLOUDFLARE_DATABASE_ID || DATABASE_ID}/query`;
 
   const cleanSql = sql.replace(/\bNOW\(\)/gi, "CURRENT_TIMESTAMP");
@@ -54,6 +58,47 @@ async function queryD1(env, sql, params = []) {
   return [];
 }
 
+async function proxyToBackend(request, targetUrl) {
+  const reqHeaders = new Headers(request.headers);
+  reqHeaders.set("X-Forwarded-Host", "animem.uz");
+  reqHeaders.set("Origin", "https://animem.uz");
+  reqHeaders.set("Referer", "https://animem.uz/");
+
+  const init = {
+    method: request.method,
+    headers: reqHeaders,
+    redirect: "follow",
+  };
+
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = request.body;
+    // @ts-ignore
+    init.duplex = "half";
+  }
+
+  try {
+    const response = await fetch(targetUrl, init);
+    const respHeaders = new Headers(response.headers);
+    respHeaders.set("Access-Control-Allow-Origin", "*");
+    respHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    respHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization, Range, X-Requested-With");
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: respHeaders,
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: "Backend server bilan aloqa uzildi", detail: err.message }), {
+      status: 502,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -65,13 +110,32 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, X-Requested-With",
+          "Access-Control-Max-Age": "86400",
         },
       });
     }
 
-    // Handle API endpoints directly on Cloudflare Edge with D1
-    if (path.startsWith("/api/") || path === "/health" || path === "/ping") {
+    // 1. VIDEO STREAMING PROXY WITH CLOUDFLARE EDGE CACHE (Lightning-fast for 1000+ viewers)
+    if (path.startsWith("/api/tgstream/")) {
+      const streamTarget = `${STREAM_ORIGIN}${path}${url.search}`;
+      const streamHeaders = new Headers(request.headers);
+      streamHeaders.set("Referer", "https://animem.uz/");
+      streamHeaders.set("Origin", "https://animem.uz");
+
+      return fetch(streamTarget, {
+        method: request.method,
+        headers: streamHeaders,
+        cf: {
+          cacheEverything: true,
+          cacheTtl: 2592000, // 30 days edge cache for video segments
+          cacheKey: request.url,
+        },
+      });
+    }
+
+    // 2. READ-ONLY DATA ENDPOINTS SERVED DIRECTLY FROM D1 AT THE EDGE (GET requests only)
+    if (request.method === "GET" && (path.startsWith("/api/") || path === "/health" || path === "/ping")) {
       const corsHeaders = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -84,13 +148,13 @@ export default {
           return new Response(JSON.stringify({ status: "ok", edge: true, d1: true }), { headers: corsHeaders });
         }
 
-        // 1. All Animes: /api/animes
+        // All Animes: /api/animes
         if (path === "/api/animes") {
           const rows = await queryD1(env, "SELECT * FROM animes ORDER BY id DESC;");
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 2. Anime by slug: /api/animes/by-slug/:slug
+        // Anime by slug: /api/animes/by-slug/:slug
         const slugMatch = path.match(/^\/api\/animes\/by-slug\/([^\/]+)$/);
         if (slugMatch) {
           const slug = decodeURIComponent(slugMatch[1]);
@@ -106,7 +170,7 @@ export default {
           return new Response(JSON.stringify({ error: "Anime topilmadi" }), { status: 404, headers: corsHeaders });
         }
 
-        // 3. Single Anime: /api/animes/:id
+        // Single Anime: /api/animes/:id
         const animeMatch = path.match(/^\/api\/animes\/([0-9]+)$/);
         if (animeMatch) {
           const id = animeMatch[1];
@@ -117,7 +181,7 @@ export default {
           return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: corsHeaders });
         }
 
-        // 4. Anime episodes: /api/animes/:id/episodes
+        // Anime episodes: /api/animes/:id/episodes
         const epMatch = path.match(/^\/api\/animes\/([0-9]+)\/episodes$/);
         if (epMatch) {
           const animeId = epMatch[1];
@@ -125,7 +189,7 @@ export default {
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 5. Ratings summary: /api/animes/:id/ratings-summary
+        // Ratings summary: /api/animes/:id/ratings-summary
         const ratingMatch = path.match(/^\/api\/animes\/([0-9]+)\/ratings-summary$/);
         if (ratingMatch) {
           const animeId = ratingMatch[1];
@@ -133,13 +197,13 @@ export default {
           return new Response(JSON.stringify(rows[0] || { avg: 0, count: 0 }), { headers: corsHeaders });
         }
 
-        // 6. User rating: /api/animes/:id/rating
+        // User rating: /api/animes/:id/rating
         const userRatingMatch = path.match(/^\/api\/animes\/([0-9]+)\/rating$/);
         if (userRatingMatch) {
           return new Response(JSON.stringify({ rating: 0 }), { headers: corsHeaders });
         }
 
-        // 7. Comments: /api/animes/:id/comments or /api/comments/:id
+        // Comments: /api/animes/:id/comments or /api/comments/:id
         const commentMatch = path.match(/^\/api\/(?:animes|comments)\/([0-9]+)(?:\/comments)?$/);
         if (commentMatch) {
           const animeId = commentMatch[1];
@@ -147,19 +211,19 @@ export default {
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 8. Recent comments: /api/comments/recent
+        // Recent comments: /api/comments/recent
         if (path === "/api/comments/recent") {
           const rows = await queryD1(env, "SELECT * FROM comments ORDER BY id DESC LIMIT 20;");
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 9. Dramas: /api/dramas
+        // Dramas: /api/dramas
         if (path === "/api/dramas") {
           const rows = await queryD1(env, "SELECT * FROM dramas ORDER BY id DESC;");
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 10. Drama details: /api/dramas/:id
+        // Drama details: /api/dramas/:id
         const dramaMatch = path.match(/^\/api\/dramas\/([0-9]+)$/);
         if (dramaMatch) {
           const id = dramaMatch[1];
@@ -167,7 +231,7 @@ export default {
           return new Response(JSON.stringify(rows[0] || {}), { headers: corsHeaders });
         }
 
-        // 11. Drama episodes: /api/dramas/episodes/:id or /api/dramas/:id/episodes
+        // Drama episodes: /api/dramas/episodes/:id or /api/dramas/:id/episodes
         const dramaEpMatch = path.match(/^\/api\/dramas\/(?:episodes\/)?([0-9]+)(?:\/episodes)?$/);
         if (dramaEpMatch) {
           const dramaId = dramaEpMatch[1];
@@ -175,13 +239,13 @@ export default {
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 12. Mangas: /api/mangas
+        // Mangas: /api/mangas
         if (path === "/api/mangas") {
           const rows = await queryD1(env, "SELECT * FROM mangas ORDER BY id DESC;");
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 13. Manga details: /api/mangas/:id
+        // Manga details: /api/mangas/:id
         const mangaMatch = path.match(/^\/api\/mangas\/([0-9]+)$/);
         if (mangaMatch) {
           const id = mangaMatch[1];
@@ -189,7 +253,7 @@ export default {
           return new Response(JSON.stringify(rows[0] || {}), { headers: corsHeaders });
         }
 
-        // 14. Manga chapters: /api/mangas/:id/chapters/:chapter
+        // Manga chapters: /api/mangas/:id/chapters/:chapter
         const mangaChMatch = path.match(/^\/api\/mangas\/([0-9]+)\/chapters\/([0-9]+)$/);
         if (mangaChMatch) {
           const mangaId = mangaChMatch[1];
@@ -198,25 +262,25 @@ export default {
           return new Response(JSON.stringify(rows[0] || {}), { headers: corsHeaders });
         }
 
-        // 15. Reels: /api/reels
+        // Reels: /api/reels
         if (path === "/api/reels") {
           const rows = await queryD1(env, "SELECT * FROM reels ORDER BY id DESC;");
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 16. Notifications: /api/notifications
+        // Notifications: /api/notifications
         if (path === "/api/notifications") {
           const rows = await queryD1(env, "SELECT * FROM notifications ORDER BY id DESC LIMIT 50;");
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 17. Chat messages: /api/chat/messages
+        // Chat messages: /api/chat/messages
         if (path === "/api/chat/messages") {
           const rows = await queryD1(env, "SELECT * FROM messages ORDER BY id DESC LIMIT 50;");
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 18. Wallpapers & Gifs
+        // Wallpapers & Gifs
         if (path === "/api/wallpapers") {
           const rows = await queryD1(env, "SELECT * FROM wallpapers ORDER BY id DESC;");
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
@@ -226,7 +290,7 @@ export default {
           return new Response(JSON.stringify(rows), { headers: corsHeaders });
         }
 
-        // 19. Media files: /api/media/:id
+        // Media files: /api/media/:id
         const mediaMatch = path.match(/^\/api\/media\/([a-zA-Z0-9_\-\.]+)$/);
         if (mediaMatch) {
           const mediaId = mediaMatch[1];
@@ -255,11 +319,18 @@ export default {
           }
         }
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+        console.warn("D1 edge query failed, falling back to backend:", err.message);
       }
     }
 
-    // Serve static assets via Cloudflare Assets
+    // 3. ALL OTHER API CALLS (POST, PUT, DELETE, auth, user, admin, upload, comments):
+    // Transparently proxied to the live backend server
+    if (path.startsWith("/api/")) {
+      const backendUrl = `${BACKEND_ORIGIN}${path}${url.search}`;
+      return await proxyToBackend(request, backendUrl);
+    }
+
+    // 4. STATIC ASSETS & SPA ROUTING VIA CLOUDFLARE ASSETS
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
       return env.ASSETS.fetch(request);
     }

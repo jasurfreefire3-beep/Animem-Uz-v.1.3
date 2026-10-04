@@ -1,8 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "animem-uz-v-1-3",
-  "main": "dist/_worker.js",
+  "main": "public/_worker.js",
   "compatibility_date": "2026-10-01",
+  "build": {
+    "command": "npm run build:client"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
