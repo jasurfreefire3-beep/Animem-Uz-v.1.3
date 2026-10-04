@@ -4,6 +4,7 @@ import { Language, translations, Translations, translateGenre, translateStatus }
 
 interface LanguageContextType {
   language: Language;
+  currentLanguage: Language;
   setLanguage: (lang: Language, updateUrl?: boolean) => void;
   t: Translations;
   translateGenre: (genre: string) => string;
@@ -94,6 +95,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     <LanguageContext.Provider
       value={{
         language,
+        currentLanguage: language,
         setLanguage,
         t: currentTranslations,
         translateGenre: (genre: string) => translateGenre(genre, language),

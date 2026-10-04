@@ -46,6 +46,17 @@ export interface Anime {
   created_at: string;
 }
 
+export interface Episode {
+  id?: number | string;
+  anime_id: number | string;
+  episode_number: number;
+  video_url: string;
+  telegram_url?: string;
+  title?: string;
+  is_filler?: boolean | number;
+  created_at?: string;
+}
+
 export interface Manga {
   id: string | number;
   title: string;

@@ -836,6 +836,11 @@ async function testDbConnection() {
       console.warn("drama_episodes table creation warning:", e);
     }
 
+    // Ensure is_filler column on episodes table
+    try {
+      await connection.query("ALTER TABLE episodes ADD COLUMN is_filler TINYINT(1) DEFAULT 0");
+    } catch (e) {}
+
     // Ensure messages table for chat
     try {
       await connection.query(`
@@ -4998,8 +5003,9 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
     if (req.user.role !== "admin") return res.sendStatus(403);
 
     const anime_id = parseInt(req.params.animeId);
-    const { episode_number, video_url } = req.body;
+    const { episode_number, video_url, is_filler } = req.body;
     const epNum = parseInt(episode_number);
+    const fillerVal = is_filler ? 1 : 0;
 
     let epId = Date.now();
     try {
@@ -5011,13 +5017,13 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
       if (existing && existing.length > 0) {
         epId = existing[0].id;
         await dbQuery(
-          "UPDATE episodes SET video_url = ? WHERE anime_id = ? AND episode_number = ?",
-          [video_url, anime_id, epNum]
+          "UPDATE episodes SET video_url = ?, is_filler = ? WHERE anime_id = ? AND episode_number = ?",
+          [video_url, fillerVal, anime_id, epNum]
         );
       } else {
         const [result]: any = await dbQuery(
-          "INSERT INTO episodes (anime_id, episode_number, video_url) VALUES (?, ?, ?)",
-          [anime_id, epNum, video_url]
+          "INSERT INTO episodes (anime_id, episode_number, video_url, is_filler) VALUES (?, ?, ?, ?)",
+          [anime_id, epNum, video_url, fillerVal]
         );
         if (result && result.insertId) epId = result.insertId;
         
@@ -5035,13 +5041,14 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
     );
 
     if (idx >= 0) {
-      store.episodes[idx] = { ...store.episodes[idx], video_url };
+      store.episodes[idx] = { ...store.episodes[idx], video_url, is_filler: fillerVal };
     } else {
       store.episodes.push({
         id: epId,
         anime_id,
         episode_number: epNum,
-        video_url
+        video_url,
+        is_filler: fillerVal
       });
     }
     saveLocalStore(store);
@@ -5052,6 +5059,75 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
   } catch (err) {
     console.error("Save episode error:", err);
     res.status(500).json({ error: "Failed to save episode" });
+  }
+});
+
+// Admin Route: Bulk Save Episodes
+app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req: any, res) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+
+    const anime_id = parseInt(req.params.animeId);
+    const { episodes } = req.body;
+    if (!Array.isArray(episodes)) {
+      return res.status(400).json({ error: "episodes massivi talab qilinadi" });
+    }
+
+    const store = loadLocalStore();
+    store.episodes = store.episodes || [];
+
+    for (const ep of episodes) {
+      const epNum = parseInt(ep.episode_number);
+      if (isNaN(epNum)) continue;
+      const video_url = ep.video_url || "";
+      const fillerVal = ep.is_filler ? 1 : 0;
+      let epId = Date.now();
+
+      try {
+        const [existing]: any = await dbQuery(
+          "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ?",
+          [anime_id, epNum]
+        );
+        if (existing && existing.length > 0) {
+          epId = existing[0].id;
+          await dbQuery(
+            "UPDATE episodes SET video_url = ?, is_filler = ? WHERE anime_id = ? AND episode_number = ?",
+            [video_url, fillerVal, anime_id, epNum]
+          );
+        } else {
+          const [result]: any = await dbQuery(
+            "INSERT INTO episodes (anime_id, episode_number, video_url, is_filler) VALUES (?, ?, ?, ?)",
+            [anime_id, epNum, video_url, fillerVal]
+          );
+          if (result && result.insertId) epId = result.insertId;
+        }
+      } catch (dbErr) {
+        // Fallback to local store
+      }
+
+      const idx = store.episodes.findIndex(
+        (e: any) => String(e.anime_id) === String(anime_id) && Number(e.episode_number) === epNum
+      );
+      if (idx >= 0) {
+        store.episodes[idx] = { ...store.episodes[idx], video_url, is_filler: fillerVal };
+      } else {
+        store.episodes.push({
+          id: epId,
+          anime_id,
+          episode_number: epNum,
+          video_url,
+          is_filler: fillerVal
+        });
+      }
+    }
+
+    saveLocalStore(store);
+    notifyContentUpdate("anime");
+
+    res.json({ message: "Barcha qismlar saqlandi", count: episodes.length });
+  } catch (err) {
+    console.error("Bulk save episodes error:", err);
+    res.status(500).json({ error: "Failed to bulk save episodes" });
   }
 });
 

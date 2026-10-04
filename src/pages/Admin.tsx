@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ShieldAlert, Plus, Link as LinkIcon, Image, Type, AlignLeft, 
   Calendar, Building, ListOrdered, Tag, Film, Tv, Video, 
-  Trash2, Edit2, Search, X, Check, Eye, Bell, BookOpen, Users, Radio
+  Trash2, Edit2, Search, X, Check, Eye, Bell, BookOpen, Users, Radio,
+  Sparkles, Layers, Zap, Save, RefreshCw, FileText
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Anime, GENRE_MAP, translateGenre } from '../types';
@@ -274,6 +275,21 @@ export default function Admin() {
   const [archiveConfig, setArchiveConfig] = useState<{ accessKey: string; secretKey: string } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{[key: number]: { percent: number; status: string; filename?: string }}>({});
 
+  // Bulk Episode Management states
+  const [showBulkPanel, setShowBulkPanel] = useState(true);
+  const [bulkMode, setBulkMode] = useState<'paste' | 'range' | 'filler'>('paste');
+  const [bulkUrlsText, setBulkUrlsText] = useState('');
+  const [bulkStartEp, setBulkStartEp] = useState<string>('1');
+  const [bulkAsFiller, setBulkAsFiller] = useState(false);
+  
+  const [rangeStartEp, setRangeStartEp] = useState<string>('1');
+  const [rangeEndEp, setRangeEndEp] = useState<string>('12');
+  const [rangeTemplate, setRangeTemplate] = useState('');
+  
+  const [fillerRangeInput, setFillerRangeInput] = useState('');
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [bulkSaveProgress, setBulkSaveProgress] = useState({ current: 0, total: 0 });
+
   useEffect(() => {
     if (user?.role === 'admin' && token) {
       fetch('/api/archive-config', {
@@ -420,17 +436,33 @@ export default function Admin() {
     }
   }, [selectedAnimeId]);
 
-  const handleSaveEpisode = async (epNum: number, urlVal: string) => {
+  const handleToggleFiller = (epNum: number) => {
+    setEpisodesList(prev => prev.map(e => {
+      if (e.episode_number === epNum) {
+        return { ...e, is_filler: !e.is_filler };
+      }
+      return e;
+    }));
+  };
+
+  const handleSaveEpisode = async (epNum: number, urlVal: string, isFiller?: boolean) => {
     if (!selectedAnimeId) return;
     setMessage({ type: '', text: '' });
     try {
+      const currentEp = episodesList.find(e => e.episode_number === epNum);
+      const fillerValue = isFiller !== undefined ? isFiller : Boolean(currentEp?.is_filler);
+
       const res = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ episode_number: epNum, video_url: urlVal })
+        body: JSON.stringify({ 
+          episode_number: epNum, 
+          video_url: urlVal,
+          is_filler: fillerValue ? 1 : 0
+        })
       });
       const resData = await safeJson(res);
       if (!res.ok) {
@@ -448,6 +480,233 @@ export default function Admin() {
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     }
+  };
+
+  // Bulk Save all episodes currently in episodesList
+  const handleBulkSaveEpisodes = async () => {
+    if (!selectedAnimeId) {
+      setMessage({ type: 'error', text: 'Iltimos, avval filmni tanlang!' });
+      return;
+    }
+    if (episodesList.length === 0) {
+      setMessage({ type: 'error', text: "Saqlash uchun qismlar ro'yxati bo'sh!" });
+      return;
+    }
+
+    setIsBulkSaving(true);
+    setBulkSaveProgress({ current: 0, total: episodesList.length });
+    setMessage({ type: '', text: '' });
+
+    try {
+      const payload = {
+        episodes: episodesList.map(ep => ({
+          episode_number: ep.episode_number,
+          video_url: ep.video_url || '',
+          is_filler: ep.is_filler ? 1 : 0
+        }))
+      };
+
+      const res = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setMessage({ type: 'success', text: `Barcha ${episodesList.length} ta qism muvaffaqiyatli saqlandi!` });
+      } else {
+        // Fallback: save in small parallel chunks
+        const total = episodesList.length;
+        let count = 0;
+        const chunkSize = 6;
+        for (let i = 0; i < episodesList.length; i += chunkSize) {
+          const chunk = episodesList.slice(i, i + chunkSize);
+          await Promise.all(chunk.map(ep =>
+            fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                episode_number: ep.episode_number,
+                video_url: ep.video_url || '',
+                is_filler: ep.is_filler ? 1 : 0
+              })
+            })
+          ));
+          count += chunk.length;
+          setBulkSaveProgress({ current: Math.min(count, total), total });
+        }
+        setMessage({ type: 'success', text: `Barcha ${episodesList.length} ta qism muvaffaqiyatli saqlandi!` });
+      }
+
+      // Refresh list from server
+      const epsRes = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`);
+      if (epsRes.ok) {
+        const data = await safeJson(epsRes);
+        setEpisodesList(data);
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: `Ommaviy saqlashda xatolik: ${err.message}` });
+    } finally {
+      setIsBulkSaving(false);
+    }
+  };
+
+  // Helper 1: Process multi-line URLs
+  const handleProcessBulkUrls = () => {
+    if (!selectedAnimeId) {
+      setMessage({ type: 'error', text: 'Iltimos, avval filmni tanlang!' });
+      return;
+    }
+    const lines = bulkUrlsText.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      setMessage({ type: 'error', text: 'Iltimos, kamida bitta havola kiriting!' });
+      return;
+    }
+
+    const startNum = parseInt(bulkStartEp) || 1;
+    setEpisodesList(prev => {
+      const copy = [...prev];
+      lines.forEach((url, i) => {
+        const epNum = startNum + i;
+        const existingIdx = copy.findIndex(e => e.episode_number === epNum);
+        if (existingIdx >= 0) {
+          copy[existingIdx] = {
+            ...copy[existingIdx],
+            video_url: url,
+            is_filler: bulkAsFiller ? 1 : copy[existingIdx].is_filler
+          };
+        } else {
+          copy.push({
+            anime_id: selectedAnimeId,
+            episode_number: epNum,
+            video_url: url,
+            is_filler: bulkAsFiller ? 1 : 0,
+            isNew: true
+          });
+        }
+      });
+      return copy.sort((a, b) => (a.episode_number || 0) - (b.episode_number || 0));
+    });
+
+    setMessage({ 
+      type: 'success', 
+      text: `${lines.length} ta qism ro'yxatga qo'shildi! Saqlash uchun "Barcha qismlarni birdan saqlash" tugmasini bosing.` 
+    });
+    setBulkUrlsText('');
+  };
+
+  // Helper 2: Generate by range
+  const handleGenerateRange = () => {
+    if (!selectedAnimeId) {
+      setMessage({ type: 'error', text: 'Iltimos, avval filmni tanlang!' });
+      return;
+    }
+    const start = parseInt(rangeStartEp) || 1;
+    const end = parseInt(rangeEndEp) || start;
+    if (start > end) {
+      setMessage({ type: 'error', text: "Boshlang'ich qism oxirgi qismdan katta bo'lishi mumkin emas!" });
+      return;
+    }
+    if (end - start > 1500) {
+      setMessage({ type: 'error', text: "Bittalab eng ko'pi bilan 1500 ta qism generatsiya qilish mumkin!" });
+      return;
+    }
+
+    const totalCount = end - start + 1;
+    setEpisodesList(prev => {
+      const copy = [...prev];
+      for (let epNum = start; epNum <= end; epNum++) {
+        const url = rangeTemplate ? rangeTemplate.replace(/\{ep\}/g, String(epNum)) : '';
+        const existingIdx = copy.findIndex(e => e.episode_number === epNum);
+        if (existingIdx >= 0) {
+          if (url) copy[existingIdx].video_url = url;
+        } else {
+          copy.push({
+            anime_id: selectedAnimeId,
+            episode_number: epNum,
+            video_url: url,
+            is_filler: 0,
+            isNew: true
+          });
+        }
+      }
+      return copy.sort((a, b) => (a.episode_number || 0) - (b.episode_number || 0));
+    });
+
+    setMessage({ 
+      type: 'success', 
+      text: `${totalCount} ta qism (${start}-dan ${end}-gacha) ro'yxatga qo'shildi! O'zgarishlarni saqlash uchun "Barcha qismlarni birdan saqlash" tugmasini bosing.` 
+    });
+  };
+
+  // Helper 3: Bulk mark/unmark fillers by range syntax: "26, 97, 101-106, 136-220"
+  const handleApplyFillerRange = (markAsFiller: boolean) => {
+    if (!selectedAnimeId) {
+      setMessage({ type: 'error', text: 'Iltimos, avval filmni tanlang!' });
+      return;
+    }
+    if (!fillerRangeInput.trim()) {
+      setMessage({ type: 'error', text: 'Iltimos, filler qismlar raqami yoki oralig\'ini kiriting (Masalan: 26, 97, 101-106)!' });
+      return;
+    }
+
+    const parts = fillerRangeInput.split(',').map(p => p.trim()).filter(Boolean);
+    const targetNumbers = new Set<number>();
+
+    for (const part of parts) {
+      if (part.includes('-')) {
+        const [s, e] = part.split('-').map(x => parseInt(x.trim()));
+        if (!isNaN(s) && !isNaN(e)) {
+          const minVal = Math.min(s, e);
+          const maxVal = Math.max(s, e);
+          for (let n = minVal; n <= maxVal; n++) {
+            targetNumbers.add(n);
+          }
+        }
+      } else {
+        const n = parseInt(part);
+        if (!isNaN(n)) targetNumbers.add(n);
+      }
+    }
+
+    if (targetNumbers.size === 0) {
+      setMessage({ type: 'error', text: 'To\'g\'ri qism raqamlari topilmadi!' });
+      return;
+    }
+
+    let modifiedCount = 0;
+    setEpisodesList(prev => {
+      const copy = [...prev];
+      targetNumbers.forEach(num => {
+        const existingIdx = copy.findIndex(e => e.episode_number === num);
+        if (existingIdx >= 0) {
+          copy[existingIdx] = { ...copy[existingIdx], is_filler: markAsFiller ? 1 : 0 };
+          modifiedCount++;
+        } else {
+          // If episode doesn't exist yet, auto-create it
+          copy.push({
+            anime_id: selectedAnimeId,
+            episode_number: num,
+            video_url: '',
+            is_filler: markAsFiller ? 1 : 0,
+            isNew: true
+          });
+          modifiedCount++;
+        }
+      });
+      return copy.sort((a, b) => (a.episode_number || 0) - (b.episode_number || 0));
+    });
+
+    setMessage({ 
+      type: 'success', 
+      text: `${modifiedCount} ta qism ${markAsFiller ? 'FILLER deb belgilandi' : 'oddiy qismga qaytarildi'}! Saqlash uchun "Barcha qismlarni birdan saqlash" tugmasini bosing.` 
+    });
   };
 
   const handleDeleteEpisode = async (epNum: number) => {
@@ -487,6 +746,7 @@ export default function Admin() {
       anime_id: selectedAnimeId,
       episode_number: nextEpNum,
       video_url: '',
+      is_filler: 0,
       isNew: true
     };
     setEpisodesList(prev => [...prev, newEp]);
@@ -1135,6 +1395,274 @@ export default function Admin() {
           {/* Season and Episode Listing */}
           {selectedAnimeId ? (
             <div className="space-y-6 pt-2">
+              {/* TEZKOR & OMMAVIY QISMLAR QO'SHISH PANELI */}
+              <div className="bg-[#0b0b10] border border-[#ff006a]/30 rounded-sm p-4 sm:p-5 space-y-4 shadow-lg shadow-[#ff006a]/5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-[#ff006a]/20 border border-[#ff006a]/40 flex items-center justify-center text-[#ff006a]">
+                      <Sparkles size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white tracking-wide flex items-center gap-2">
+                        Tezkor & Ommaviy Qismlar Paneli
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#ff006a]/20 text-[#ff006a] border border-[#ff006a]/40 font-bold uppercase">
+                          Tez va Oson
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-white/50">
+                        Ko'p qatorli havolalar, oraliq generatsiyasi va filler qismlarni bir bosishda belgilash.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkPanel(!showBulkPanel)}
+                    className="text-xs text-white/60 hover:text-white px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 transition-colors shrink-0 self-start sm:self-auto cursor-pointer"
+                  >
+                    {showBulkPanel ? "Panelni yashirish ▲" : "Panelni ko'rsatish ▼"}
+                  </button>
+                </div>
+
+                {showBulkPanel && (
+                  <div className="space-y-4 pt-1">
+                    {/* Bulk Modes Sub-Tabs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBulkMode('paste')}
+                        className={`px-3 py-2 text-xs font-bold rounded-sm border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          bulkMode === 'paste'
+                            ? 'bg-[#ff006a] border-[#ff006a] text-white shadow-md shadow-[#ff006a]/20'
+                            : 'bg-black/50 border-[#222] text-white/60 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <FileText size={14} />
+                        <span>Ko'p qatorli havolalar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setBulkMode('range')}
+                        className={`px-3 py-2 text-xs font-bold rounded-sm border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          bulkMode === 'range'
+                            ? 'bg-[#ff006a] border-[#ff006a] text-white shadow-md shadow-[#ff006a]/20'
+                            : 'bg-black/50 border-[#222] text-white/60 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <Zap size={14} />
+                        <span>Diapazon & Shablon</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setBulkMode('filler')}
+                        className={`px-3 py-2 text-xs font-bold rounded-sm border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          bulkMode === 'filler'
+                            ? 'bg-red-600 border-red-500 text-white shadow-md shadow-red-600/30'
+                            : 'bg-black/50 border-[#222] text-white/60 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <span>Fillerlarni belgilash</span>
+                      </button>
+                    </div>
+
+                    {/* Mode 1: Paste Multi-line URLs */}
+                    {bulkMode === 'paste' && (
+                      <div className="bg-black/60 border border-[#222] rounded-sm p-4 space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-white/80 flex items-center gap-1.5">
+                            <Layers size={13} className="text-[#ff006a]" />
+                            Har bir qatorga bitta video havolasini kiriting:
+                          </label>
+                          <textarea
+                            rows={5}
+                            value={bulkUrlsText}
+                            onChange={(e) => setBulkUrlsText(e.target.value)}
+                            placeholder="https://s3.animem.uz/api/tgstream/3873627200/101&#10;https://s3.animem.uz/api/tgstream/3873627200/102&#10;https://s3.animem.uz/api/tgstream/3873627200/103"
+                            className="w-full bg-[#050505] border border-[#222] rounded-sm p-3 text-xs text-white placeholder-white/20 focus:outline-none focus:border-[#ff006a] font-mono"
+                          />
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-white/60 font-semibold whitespace-nowrap">Boshlang'ich qism:</span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={bulkStartEp}
+                                onChange={(e) => setBulkStartEp(e.target.value)}
+                                className="w-16 bg-[#050505] border border-[#222] rounded-sm px-2 py-1.5 text-xs text-white text-center focus:border-[#ff006a]"
+                              />
+                            </div>
+                            <label className="flex items-center gap-2 text-[11px] text-white/70 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={bulkAsFiller}
+                                onChange={(e) => setBulkAsFiller(e.target.checked)}
+                                className="rounded bg-black border-[#222] text-red-600 focus:ring-0"
+                              />
+                              <span className="font-semibold text-red-400">Ushbu qismlar FILLER</span>
+                            </label>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleProcessBulkUrls}
+                            className="px-4 py-2 bg-[#ff006a] hover:bg-[#d40058] text-white font-bold text-xs rounded-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Plus size={14} />
+                            Ro'yxatga kiritish
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode 2: Range & URL Template */}
+                    {bulkMode === 'range' && (
+                      <div className="bg-black/60 border border-[#222] rounded-sm p-4 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] text-white/60 font-semibold block mb-1">Qaysi qismdan (Boshlanishi):</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={rangeStartEp}
+                              onChange={(e) => setRangeStartEp(e.target.value)}
+                              className="w-full bg-[#050505] border border-[#222] rounded-sm p-2 text-xs text-white focus:border-[#ff006a]"
+                              placeholder="1"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-white/60 font-semibold block mb-1">Qaysi qismgacha (Tugashi):</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={rangeEndEp}
+                              onChange={(e) => setRangeEndEp(e.target.value)}
+                              className="w-full bg-[#050505] border border-[#222] rounded-sm p-2 text-xs text-white focus:border-[#ff006a]"
+                              placeholder="24"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] text-white/60 font-semibold block mb-1">
+                            Havola shabloni (Ixtiyoriy, {'{ep}'} qism raqamiga aylanadi):
+                          </label>
+                          <input
+                            type="text"
+                            value={rangeTemplate}
+                            onChange={(e) => setRangeTemplate(e.target.value)}
+                            placeholder="https://s3.animem.uz/api/tgstream/3873627200/{ep}"
+                            className="w-full bg-[#050505] border border-[#222] rounded-sm p-2 text-xs text-white placeholder-white/20 focus:border-[#ff006a] font-mono"
+                          />
+                          <p className="text-[10px] text-white/40 mt-1">
+                            Bo'sh qoldirsangiz, qismlar bo'sh karta sifatida yaratiladi va keyin to'ldirilishi mumkin.
+                          </p>
+                        </div>
+
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={handleGenerateRange}
+                            className="px-4 py-2 bg-[#ff006a] hover:bg-[#d40058] text-white font-bold text-xs rounded-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Zap size={14} />
+                            Diapazon bo'yicha generatsiya qilish
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode 3: Bulk Filler Range */}
+                    {bulkMode === 'filler' && (
+                      <div className="bg-black/60 border border-red-900/30 rounded-sm p-4 space-y-3">
+                        <div>
+                          <label className="text-xs font-bold text-white flex items-center gap-2 mb-1">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-600 text-white uppercase">Filler</span>
+                            Filler bo'lgan qismlar raqami yoki oralig'ini kiriting:
+                          </label>
+                          <input
+                            type="text"
+                            value={fillerRangeInput}
+                            onChange={(e) => setFillerRangeInput(e.target.value)}
+                            placeholder="26, 97, 101-106, 136-220"
+                            className="w-full bg-[#050505] border border-[#222] rounded-sm p-2.5 text-xs text-white placeholder-white/20 focus:border-red-500 font-mono"
+                          />
+                          <p className="text-[11px] text-white/50 mt-1.5">
+                            💡 Vergul va tire bilan xohlagancha oraliq kiriting (Masalan: <strong className="text-white/80">26, 97, 101-106</strong>). Ro'yxatdagi qismlar bir vaqtda FILLER deb belgilanadi!
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleApplyFillerRange(true)}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-red-600/30"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-white" />
+                            Filler deb belgilash
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyFillerRange(false)}
+                            className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-[#333] text-white/80 hover:text-white font-bold text-xs rounded-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                          >
+                            Fillerni bekor qilish
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* STATS & BULK SAVE BAR */}
+              <div className="bg-[#141419] border border-[#272733] rounded-sm p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-white/70">
+                    Jami qismlar: <strong className="text-white font-black">{episodesList.length} ta</strong>
+                  </div>
+                  <div className="h-4 w-px bg-white/10" />
+                  <div className="text-xs text-red-400">
+                    Fillerlar: <strong className="text-white font-black">{episodesList.filter(e => e.is_filler).length} ta</strong>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    disabled={isBulkSaving || episodesList.length === 0}
+                    onClick={handleBulkSaveEpisodes}
+                    className="flex-1 sm:flex-initial px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black rounded-sm uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isBulkSaving ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>Saqlanmoqda ({bulkSaveProgress.current}/{bulkSaveProgress.total})...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={14} />
+                        <span>Barcha qismlarni birdan saqlash</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAddBlankEpisodeCard}
+                    className="px-3.5 py-2.5 bg-[#1b1b22] hover:bg-[#262630] border border-white/10 text-white text-xs font-bold rounded-sm transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                    title="Bitta qism qo'shish"
+                  >
+                    <Plus size={14} className="text-[#ff006a]" />
+                    <span className="hidden sm:inline">Qism</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Season 1 block */}
               <div className="bg-black/40 border border-[#222] rounded-sm p-4 sm:p-6 space-y-6">
                 
@@ -1167,7 +1695,7 @@ export default function Admin() {
                 {/* Grid of Episode cards */}
                 {episodesList.length === 0 ? (
                   <div className="text-center py-12 text-white/40 text-xs bg-[#050505] rounded-sm border border-[#222] border-dashed">
-                    Fikrlar va qismlar hozircha mavjud emas. Yuqoridagi "+ QISM QO'SHISH" tugmasini bosing!
+                    Fikrlar va qismlar hozircha mavjud emas. Yuqoridagi "+ QISM QO'SHISH" yoki Tezkor Paneldan foydalaning!
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1177,15 +1705,36 @@ export default function Admin() {
                       return (
                         <div 
                           key={idx}
-                          className="bg-[#050505] border border-[#222] rounded-sm p-4 space-y-4 hover:border-white/10 transition-colors relative"
+                          className={`rounded-sm p-4 space-y-4 transition-all relative border ${
+                            ep.is_filler
+                              ? 'bg-[#0e0407] border-red-900/60 hover:border-red-600/60 shadow-sm shadow-red-950/20'
+                              : 'bg-[#050505] border-[#222] hover:border-white/10'
+                          }`}
                         >
                           {/* Card Header */}
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-black text-white/80 uppercase tracking-widest bg-[#111] px-2 py-1 rounded border border-[#222]">
-                              {ep.episode_number}-qism
-                            </span>
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-white/80 uppercase tracking-widest bg-[#111] px-2 py-1 rounded border border-[#222]">
+                                {ep.episode_number}-qism
+                              </span>
+
+                              {/* Interaktiv Filler Tugmasi */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleFiller(ep.episode_number)}
+                                className={`px-2.5 py-1 rounded text-[10px] font-black uppercase transition-all border flex items-center gap-1.5 cursor-pointer ${
+                                  ep.is_filler
+                                    ? 'bg-red-600 border-red-500 text-white shadow-md shadow-red-600/30 ring-1 ring-red-400'
+                                    : 'bg-[#111] border-[#222] text-white/40 hover:text-white hover:border-white/20'
+                                }`}
+                                title="Filler (Manga syujetiga kirmaydigan qo'shimcha qism)"
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${ep.is_filler ? 'bg-white animate-pulse' : 'bg-white/30'}`} />
+                                {ep.is_filler ? 'FILLER [F]' : 'Oddiy'}
+                              </button>
+                            </div>
                             
-                            <div className="flex gap-1.5">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1216,16 +1765,16 @@ export default function Admin() {
                               >
                                 Telegram
                               </button>
-                            </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteEpisode(ep.episode_number)}
-                              className="text-white/30 hover:text-red-500 transition-colors p-1"
-                              title="Qismni o'chirish"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEpisode(ep.episode_number)}
+                                className="text-white/30 hover:text-red-500 transition-colors p-1 ml-1"
+                                title="Qismni o'chirish"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </div>
 
                           {/* URL input and upload button block */}
@@ -1237,7 +1786,7 @@ export default function Admin() {
                                 placeholder={isTelegramUrl ? "https://t.me/Animem_uz_bot?start=..." : "https://ia601904.us.archive.org/2/items/..."}
                                 value={ep.video_url || ''}
                                 onChange={(e) => handleLocalUrlChange(ep.episode_number, e.target.value)}
-                                className="flex-1 bg-black border border-[#222] rounded-sm px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-[#ff006a]/50 transition-colors"
+                                className="flex-1 bg-black border border-[#222] rounded-sm px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-[#ff006a]/50 transition-colors font-mono"
                               />
 
                               {/* Upload action hidden and button (Only for non-Telegram URLs) */}
@@ -1301,7 +1850,7 @@ export default function Admin() {
                             {/* Save URL Action Button */}
                             <button
                               type="button"
-                              onClick={() => handleSaveEpisode(ep.episode_number, ep.video_url)}
+                              onClick={() => handleSaveEpisode(ep.episode_number, ep.video_url, Boolean(ep.is_filler))}
                               className="w-full py-2.5 bg-[#111] hover:bg-[#ff006a] text-white/90 hover:text-white border border-[#222] hover:border-transparent text-xs font-extrabold rounded-sm uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
                             >
                               <Check size={14} className="text-[#ff006a] group-hover:text-white" />

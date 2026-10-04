@@ -153,6 +153,9 @@ async function ensureTables(env) {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    try {
+      await executeD1(env, "ALTER TABLE episodes ADD COLUMN is_filler INTEGER DEFAULT 0;");
+    } catch (e) {}
   } catch (e) {
     console.warn("Table ensure notice:", e.message);
   }
@@ -625,13 +628,62 @@ export default {
       return jsonResponse({ success: true });
     }
 
+    // Bulk Episode Upsert: /api/animes/:id/episodes/bulk
+    const animeEpBulkMatch = path.match(/^\/api\/animes\/([0-9]+)\/episodes\/bulk$/);
+    if (animeEpBulkMatch && method === "POST") {
+      const animeId = animeEpBulkMatch[1];
+      const body = await parseJsonBody(request);
+      const episodes = Array.isArray(body.episodes) ? body.episodes : [];
+      for (const ep of episodes) {
+        const epNum = Number(ep.episode_number);
+        if (isNaN(epNum)) continue;
+        const videoUrl = ep.video_url || "";
+        const isFiller = ep.is_filler ? 1 : 0;
+        const existing = await queryD1(env, "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ?;", [animeId, epNum]);
+        if (existing.length > 0) {
+          await executeD1(env, "UPDATE episodes SET video_url = ?, is_filler = ? WHERE anime_id = ? AND episode_number = ?;", [videoUrl, isFiller, animeId, epNum]);
+        } else {
+          await executeD1(env, "INSERT INTO episodes (anime_id, episode_number, video_url, is_filler) VALUES (?, ?, ?, ?);", [animeId, epNum, videoUrl, isFiller]);
+        }
+      }
+      return jsonResponse({ success: true, message: "Barcha qismlar muvaffaqiyatli saqlandi", count: episodes.length });
+    }
+
+    // Single Episode Upsert: /api/animes/:id/episodes
+    const animeEpPostMatch = path.match(/^\/api\/animes\/([0-9]+)\/episodes$/);
+    if (animeEpPostMatch && method === "POST") {
+      const animeId = animeEpPostMatch[1];
+      const body = await parseJsonBody(request);
+      const epNum = Number(body.episode_number || 1);
+      const videoUrl = body.video_url || "";
+      const isFiller = body.is_filler ? 1 : 0;
+
+      const existing = await queryD1(env, "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ?;", [animeId, epNum]);
+      if (existing.length > 0) {
+        await executeD1(env, "UPDATE episodes SET video_url = ?, is_filler = ? WHERE anime_id = ? AND episode_number = ?;", [videoUrl, isFiller, animeId, epNum]);
+        return jsonResponse({ success: true, message: "Qism yangilandi" });
+      } else {
+        const exec = await executeD1(env, "INSERT INTO episodes (anime_id, episode_number, video_url, is_filler) VALUES (?, ?, ?, ?);", [animeId, epNum, videoUrl, isFiller]);
+        return jsonResponse({ success: true, message: "Qism saqlandi", id: exec.meta?.last_row_id }, 201);
+      }
+    }
+
+    // Delete Episode: /api/animes/:id/episodes/:episodeNumber
+    const animeEpDeleteMatch = path.match(/^\/api\/animes\/([0-9]+)\/episodes\/([0-9]+)$/);
+    if (animeEpDeleteMatch && method === "DELETE") {
+      const animeId = animeEpDeleteMatch[1];
+      const epNum = animeEpDeleteMatch[2];
+      await executeD1(env, "DELETE FROM episodes WHERE anime_id = ? AND episode_number = ?;", [animeId, epNum]);
+      return jsonResponse({ success: true });
+    }
+
     if ((path === "/api/admin/episodes" || path === "/api/episodes") && method === "POST") {
       const body = await parseJsonBody(request);
       const exec = await executeD1(
         env,
-        `INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration)
-         VALUES (?, ?, ?, ?, ?, ?);`,
-        [body.anime_id, body.episode_number || 1, body.title || "", body.video_url || "", body.telegram_url || "", body.duration || 0]
+        `INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration, is_filler)
+         VALUES (?, ?, ?, ?, ?, ?, ?);`,
+        [body.anime_id, body.episode_number || 1, body.title || "", body.video_url || "", body.telegram_url || "", body.duration || 0, body.is_filler ? 1 : 0]
       );
       return jsonResponse({ success: true, id: exec.meta?.last_row_id }, 201);
     }
@@ -642,8 +694,8 @@ export default {
       const body = await parseJsonBody(request);
       await executeD1(
         env,
-        `UPDATE episodes SET episode_number = ?, title = ?, video_url = ?, telegram_url = ?, duration = ? WHERE id = ?;`,
-        [body.episode_number, body.title, body.video_url, body.telegram_url, body.duration, id]
+        `UPDATE episodes SET episode_number = ?, title = ?, video_url = ?, telegram_url = ?, duration = ?, is_filler = ? WHERE id = ?;`,
+        [body.episode_number, body.title, body.video_url, body.telegram_url, body.duration, body.is_filler ? 1 : 0, id]
       );
       return jsonResponse({ success: true });
     }

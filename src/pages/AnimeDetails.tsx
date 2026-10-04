@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Anime, Comment, translateGenre, toSlug } from '../types';
-import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users } from 'lucide-react';
+import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import VideoPlayer from '../components/VideoPlayer';
 import WatchTogetherRoom from '../components/WatchTogetherRoom';
@@ -642,16 +642,25 @@ export default function AnimeDetails() {
     : (Array.isArray(anime.janrlar) ? (anime.janrlar as any[]).map(g => String(g).trim()).filter(Boolean) : []);
   const parsedEpisodes = parseInt(String(anime.qismlar_soni ?? 1), 10);
   const episodesCount = Math.max(1, isNaN(parsedEpisodes) ? 1 : Math.min(parsedEpisodes, 5000));
-  const generatedEpisodes = Array.from({ length: episodesCount }, (_, i) => i + 1);
+  const maxEpisodeNum = Math.max(
+    episodesCount,
+    ...(Array.isArray(episodesList) ? episodesList.map(e => Number(e.episode_number) || 0) : [0])
+  );
+  const generatedEpisodes = Array.from({ length: maxEpisodeNum }, (_, i) => i + 1);
 
   // Merge generated and fetched episodes
   const combinedEpisodes = generatedEpisodes.map(epNum => {
-    const fetchedEp = Array.isArray(episodesList) ? episodesList.find(e => e.episode_number === epNum) : null;
+    const fetchedEp = Array.isArray(episodesList) ? episodesList.find(e => Number(e.episode_number) === epNum) : null;
     return {
       number: epNum,
-      video_url: fetchedEp ? fetchedEp.video_url : (epNum === 1 ? anime.video_url : null)
+      video_url: fetchedEp ? fetchedEp.video_url : (epNum === 1 ? anime.video_url : null),
+      is_filler: Boolean(fetchedEp?.is_filler)
     };
   });
+
+  const currentEpObj = combinedEpisodes.find(e => e.number === activeEpisode);
+  const isCurrentFiller = Boolean(currentEpObj?.is_filler);
+  const nextEpisodeObj = combinedEpisodes.find(e => e.number === activeEpisode + 1);
 
   const handleEpisodeClick = (ep: any) => {
     setActiveEpisode(ep.number);
@@ -940,8 +949,16 @@ export default function AnimeDetails() {
                  <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wide">
                    <PlayCircle className="w-4 h-4 text-[#ff006a]" /> Player
                  </h2>
-                 <div className="bg-[#18181b] border border-[#27272a] md:bg-[#222] md:border-0 px-3 py-1 rounded text-[10px] font-bold text-[#ff006a] uppercase">
-                   Ep {activeEpisode} tomosha qilinmoqda
+                 <div className="flex items-center gap-2">
+                   {isCurrentFiller && (
+                     <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow-sm ring-1 ring-red-500/50 flex items-center gap-1">
+                       <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                       Filler
+                     </span>
+                   )}
+                   <div className="bg-[#18181b] border border-[#27272a] md:bg-[#222] md:border-0 px-3 py-1 rounded text-[10px] font-bold text-[#ff006a] uppercase">
+                     Ep {activeEpisode} tomosha qilinmoqda
+                   </div>
                  </div>
                </div>
 
@@ -975,6 +992,44 @@ export default function AnimeDetails() {
                     />
                  )}
                </div>
+
+               {/* Prominent Filler Alert Banner if current episode is a filler */}
+               {isCurrentFiller && (
+                 <motion.div 
+                   initial={{ opacity: 0, y: -6 }}
+                   animate={{ opacity: 1, y: 0 }}
+                   className="mb-4 mx-4 sm:mx-0 p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-950/70 via-[#1e0a12] to-[#120509] border border-red-500/50 shadow-[0_4px_25px_rgba(239,68,68,0.22)] text-white relative overflow-hidden"
+                 >
+                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                     <div className="space-y-1.5 flex-1">
+                       <div className="flex items-center gap-2">
+                         <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow ring-1 ring-black/50">
+                           FILLER
+                         </span>
+                         <h4 className="text-sm sm:text-base font-extrabold text-white">
+                           Diqqat: {activeEpisode}-qism — Filler epizod!
+                         </h4>
+                       </div>
+                       <p className="text-xs sm:text-[13px] text-white/80 leading-relaxed">
+                         <strong className="text-red-400">Filler nima?</strong> Bu original manga syujetiga kirmaydigan, serialning asosiy voqealari rivojiga ta'sir ko'rsatmaydigan qo'shimcha qism. Agar faqat asosiy hikoyani tomosha qilmoqchi bo'lsangiz, vaqtingizni tejash uchun bu qismni o'tkazib yuborishingiz mumkin.
+                       </p>
+                     </div>
+
+                     {nextEpisodeObj && (
+                       <div className="shrink-0 flex items-center">
+                         <button
+                           type="button"
+                           onClick={() => handleEpisodeClick(nextEpisodeObj)}
+                           className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-gradient-to-r from-red-600 to-[#ff006a] hover:from-red-500 hover:to-[#e6005c] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-red-600/30 hover:shadow-red-600/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                         >
+                           <span>Keyingi qismga o'tish ({nextEpisodeObj.number}-qism)</span>
+                           <FastForward className="w-4 h-4" />
+                         </button>
+                       </div>
+                     )}
+                   </div>
+                 </motion.div>
+               )}
 
                {/* Watch Together Live Room or Quick Invite Banner */}
                <div id="watch-together-section" className="mb-4">
@@ -1097,10 +1152,22 @@ export default function AnimeDetails() {
                                 activeEpisode === ep.number 
                                    ? 'bg-[#1b0b16] border-[#ff006a] text-white shadow-[0_0_18px_rgba(255,0,106,0.42)]'
                                 : ep.video_url
-                                      ? 'bg-[#171720] hover:bg-[#281421] hover:border-[#ff006a]/50 border-white/10 text-white'
+                                      ? ep.is_filler
+                                        ? 'bg-[#1a0e14] hover:bg-[#281421] border-red-500/40 hover:border-red-500 text-white'
+                                        : 'bg-[#171720] hover:bg-[#281421] hover:border-[#ff006a]/50 border-white/10 text-white'
                                       : 'bg-[#09090b] text-white/10 border border-[#1a1a1a] cursor-not-allowed'
                              }`}
+                             title={ep.is_filler ? `${ep.number}-qism: Filler epizod (Manga syujetiga kirmaydi)` : `${ep.number}-qism`}
                           >
+                             {/* Filler Red Badge 'F' */}
+                             {ep.is_filler && (
+                               <span 
+                                 className="absolute top-1 left-1 px-1 py-0.5 min-w-[14px] text-[8px] font-black rounded bg-red-600 text-white leading-none shadow ring-1 ring-black/70 select-none text-center"
+                                 title="Filler epizod"
+                               >
+                                 F
+                               </span>
+                             )}
                              {/* Watched indicator dot */}
                              {watchedEpisodes[ep.number] && (
                                <span 
