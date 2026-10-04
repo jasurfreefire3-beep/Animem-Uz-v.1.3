@@ -86,11 +86,11 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
     const trimmed = raw.trim();
     if (trimmed.includes('/api/tgstream/')) {
       const tgPath = trimmed.substring(trimmed.indexOf('/api/tgstream/'));
-      return `https://s3.animem.uz.animem.uz${tgPath}`;
+      return `https://s3.animem.uz${tgPath}`;
     }
     if (trimmed.includes('/api/tghls/')) {
       const tgPath = trimmed.substring(trimmed.indexOf('/api/tghls/'));
-      return `https://s3.animem.uz.animem.uz${tgPath}`;
+      return `https://s3.animem.uz${tgPath}`;
     }
     return trimmed;
   };

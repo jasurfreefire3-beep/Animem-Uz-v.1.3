@@ -4,7 +4,7 @@
 const ACCOUNT_ID = "778abe99df133217050e4af575708af8";
 const DATABASE_ID = "11e1d448-17a4-4156-ba89-434fa4e6bb1e";
 const BACKEND_ORIGIN = "https://p01--animem-beckend--jddxxkp4tz2g.code.run";
-const STREAM_ORIGIN = "https://s3.animem.uz.animem.uz";
+const STREAM_ORIGIN = "https://s3.animem.uz";
 
 function toSlug(text) {
   if (!text) return "";
