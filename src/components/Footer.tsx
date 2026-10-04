@@ -182,28 +182,41 @@ export default function Footer() {
         </div>
 
         {/* Bottom Disclaimer & Copyright */}
-        <div className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left text-[11px] text-white/40">
-          <div>
-            {t.footerRights}
+        <div className="pt-6 border-t border-white/5 flex flex-col gap-4 text-xs text-white/50">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-center md:text-left">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-white/10 text-white font-bold text-xs border border-white/20">
+                16+
+              </span>
+              <span>
+                {t.footerRights}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs font-medium">
+              <Link to={getLocalizedPath('/maxfiylik-siyosati')} className="hover:text-white transition-colors">
+                {currentLanguage === 'ru' ? 'Конфиденциальность' : 'Maxfiylik'}
+              </Link>
+              <span>•</span>
+              <Link to={getLocalizedPath('/foydalanish-shartlari')} className="hover:text-white transition-colors">
+                {currentLanguage === 'ru' ? 'Пользовательское соглашение' : 'Foydalanish shartlari'}
+              </Link>
+              <span>•</span>
+              <Link to={getLocalizedPath('/mualliflik-huquqi')} className="hover:text-white transition-colors">
+                {currentLanguage === 'ru' ? 'Правообладателям (DMCA)' : 'DMCA'}
+              </Link>
+              <span>•</span>
+              <Link to={getLocalizedPath('/aloqa')} className="hover:text-white transition-colors">
+                {currentLanguage === 'ru' ? 'Контакты' : 'Aloqa'}
+              </Link>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <Link to={getLocalizedPath('/maxfiylik-siyosati')} className="hover:text-white transition-colors">
-              Privacy
-            </Link>
-            <span>•</span>
-            <Link to={getLocalizedPath('/foydalanish-shartlari')} className="hover:text-white transition-colors">
-              Terms
-            </Link>
-            <span>•</span>
-            <Link to={getLocalizedPath('/mualliflik-huquqi')} className="hover:text-white transition-colors">
-              DMCA
-            </Link>
-            <span>•</span>
-            <Link to={getLocalizedPath('/aloqa')} className="hover:text-white transition-colors">
-              Contacts
-            </Link>
-          </div>
+          <p className="text-[11px] text-white/30 text-center md:text-left leading-relaxed">
+            {currentLanguage === 'ru'
+              ? 'Все видеоматериалы на сайте получены из открытых общедоступных источников в сети Интернет и предназначены исключительно для ознакомления. Администрация не несет ответственности за содержание внешних ресурсов. Все права принадлежат их правообладателям.'
+              : 'Saytdagi barcha video materiallar ochiq internet manbalaridan olingan va faqatgina tanishish maqsadida taqdim etiladi. Sayt ma\'muriyati tashqi resurslar mazmuni uchun javobgar emas. Barcha huquqlar ularning qonuniy egalariga tegishli.'}
+          </p>
         </div>
       </div>
     </footer>

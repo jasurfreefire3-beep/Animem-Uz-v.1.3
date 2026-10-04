@@ -5,7 +5,7 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 const config = {
   ...firebaseConfig,
-  authDomain: 'animem.uz',
+  authDomain: 'gen-lang-client-0918187443.firebaseapp.com',
 };
 
 const app = initializeApp(config);

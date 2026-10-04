@@ -8,6 +8,7 @@ import ChatWidget from './components/ChatWidget';
 import SpinBetterAdModal from './components/SpinBetterAdModal';
 import NotificationPromptModal from './components/NotificationPromptModal';
 import InstallAppButton from './components/InstallAppButton';
+import CookieBanner from './components/CookieBanner';
 import { Send, X, Instagram } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Footer from './components/Footer';
@@ -320,6 +321,7 @@ export default function App() {
       <InstallAppButton />
       <SpinBetterAdModal />
       <NotificationPromptModal />
+      <CookieBanner />
     </div>
   );
 }
