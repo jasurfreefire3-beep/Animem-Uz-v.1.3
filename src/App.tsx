@@ -39,6 +39,7 @@ const ShaxsiyRoyxat = lazy(() => import('./pages/ShaxsiyRoyxat'));
 const Tarix = lazy(() => import('./pages/Tarix'));
 const Sozlamalar = lazy(() => import('./pages/Sozlamalar'));
 const Profil = lazy(() => import('./pages/Profil'));
+const Shop = lazy(() => import('./pages/Shop'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const SupportBot = lazy(() => import('./pages/SupportBot'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -278,6 +279,11 @@ export default function App() {
 
               <Route path="/profil" element={<Profil />} />
               <Route path="/:lang/profil" element={<Profil />} />
+
+              <Route path="/dokon" element={<Shop />} />
+              <Route path="/:lang/dokon" element={<Shop />} />
+              <Route path="/shop" element={<Shop />} />
+              <Route path="/:lang/shop" element={<Shop />} />
 
               <Route path="/user/:id" element={<Profil />} />
               <Route path="/:lang/user/:id" element={<Profil />} />

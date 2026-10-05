@@ -6,6 +6,7 @@ export interface User {
   email?: string;
   phone?: string;
   avatar_url?: string;
+  avatar_frame_url?: string;
   banner_url?: string;
   bio?: string;
   telegram?: string;
@@ -264,4 +265,34 @@ export interface Reel {
   created_at: string;
 }
 
+export interface ShopItem {
+  id: number | string;
+  title: string;
+  category: 'avatar' | 'frame' | 'banner';
+  image_url: string;
+  price: number;
+  is_active?: boolean | number;
+  created_at?: string;
+}
 
+export interface ShopPurchase {
+  id: number | string;
+  user_id: number | string;
+  item_id: number | string;
+  purchased_at?: string;
+  is_equipped?: boolean | number;
+  item?: ShopItem;
+}
+
+export interface ShopOrder {
+  id: string;
+  user_id: number | string;
+  item_id: number | string;
+  amount_uzs: number;
+  tezcheck_bill_id?: string;
+  status: 'pending' | 'paid' | 'cancelled' | 'failed';
+  created_at?: string;
+  paid_at?: string;
+  item_title?: string;
+  user_name?: string;
+}

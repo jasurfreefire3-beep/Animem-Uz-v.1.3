@@ -5,7 +5,7 @@ import {
   ShieldAlert, Plus, Link as LinkIcon, Image, Type, AlignLeft, 
   Calendar, Building, ListOrdered, Tag, Film, Tv, Video, 
   Trash2, Edit2, Search, X, Check, Eye, Bell, BookOpen, Users, Radio,
-  Sparkles, Layers, Zap, Save, RefreshCw, FileText
+  Sparkles, Layers, Zap, Save, RefreshCw, FileText, ShoppingBag
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Anime, GENRE_MAP, translateGenre } from '../types';
@@ -14,13 +14,14 @@ import AdminMangalar from '../components/AdminMangalar';
 import AdminDramalar from '../components/AdminDramalar';
 import AdminUsers from '../components/AdminUsers';
 import AdminGifs from '../components/AdminGifs';
+import AdminShop from '../components/AdminShop';
 import OnlineUsersTab from '../components/OnlineUsersTab';
 import ImageUploader from '../components/ImageUploader';
 
 export default function Admin() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'mangas' | 'dramas' | 'users' | 'gifs'>('manage_animes');
+  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'mangas' | 'dramas' | 'users' | 'gifs' | 'shop'>('manage_animes');
   
   // Anime Form States
   const [title, setTitle] = useState('');
@@ -881,6 +882,18 @@ export default function Admin() {
         >
           <Image size={16} />
           <span>GIF Stikerlar</span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('shop');
+            setMessage({ type: '', text: '' });
+          }}
+          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
+            activeTab === 'shop' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
+          }`}
+        >
+          <ShoppingBag size={16} />
+          <span>Do'kon</span>
         </button>
       </div>
 
@@ -1931,6 +1944,16 @@ export default function Admin() {
           animate={{ opacity: 1, y: 0 }}
         >
           <AdminGifs />
+        </motion.div>
+      )}
+
+      {/* Tab: Do'kon */}
+      {activeTab === 'shop' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <AdminShop />
         </motion.div>
       )}
     </div>

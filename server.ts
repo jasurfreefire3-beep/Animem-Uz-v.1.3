@@ -960,6 +960,79 @@ async function testDbConnection() {
 }
 testDbConnection();
 
+// --- Do'kon (Shop) Jadvallarini Bazasida Yaratish ---
+async function initShopTables() {
+  try {
+    await dbQuery(`
+      CREATE TABLE IF NOT EXISTS shop_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        image_url LONGTEXT NOT NULL,
+        price INT NOT NULL DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await dbQuery(`
+      CREATE TABLE IF NOT EXISTS shop_purchases (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        item_id INT NOT NULL,
+        is_equipped BOOLEAN DEFAULT FALSE,
+        purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await dbQuery(`
+      CREATE TABLE IF NOT EXISTS shop_orders (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id INT NOT NULL,
+        item_id INT NOT NULL,
+        amount_uzs INT NOT NULL,
+        tezcheck_bill_id VARCHAR(128) DEFAULT NULL,
+        status VARCHAR(32) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        paid_at TIMESTAMP NULL DEFAULT NULL
+      )
+    `);
+
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN avatar_frame_url LONGTEXT DEFAULT NULL`);
+    } catch (e) {}
+
+    // Seed sample anime items if shop_items is empty
+    const [existing]: any = await dbQuery(`SELECT COUNT(*) as count FROM shop_items`);
+    if (existing && existing[0] && Number(existing[0].count) === 0) {
+      console.log("Seeding initial anime shop items...");
+      const sampleItems = [
+        { title: "Sung Jinwoo (Shadow Monarch)", category: "avatar", image_url: "https://files.catbox.moe/54s3e2.jpg", price: 5000 },
+        { title: "Gojo Satoru (Limitless)", category: "avatar", image_url: "https://files.catbox.moe/44s7y5.jpg", price: 5000 },
+        { title: "Luffy Gear 5 (Sun God Nika)", category: "avatar", image_url: "https://files.catbox.moe/k3612d.jpg", price: 6000 },
+        { title: "Neon Cyberpunk Ramkasi", category: "frame", image_url: "https://files.catbox.moe/vptjgt.png", price: 10000 },
+        { title: "Alangali Qizil Olov Ramkasi", category: "frame", image_url: "https://files.catbox.moe/7h4sre.png", price: 12000 },
+        { title: "Binafsha Energiya Ramkasi", category: "frame", image_url: "https://files.catbox.moe/2s9aee.png", price: 10000 },
+        { title: "Solo Leveling Qorong'i Taxt", category: "banner", image_url: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1200", price: 15000 },
+        { title: "Shibuya Kechasi (Jujutsu Kaisen)", category: "banner", image_url: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=1200", price: 15000 },
+        { title: "Egghead Futuristik Dengiz", category: "banner", image_url: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1200", price: 15000 }
+      ];
+      for (const item of sampleItems) {
+        await dbQuery(
+          `INSERT INTO shop_items (title, category, image_url, price, is_active) VALUES (?, ?, ?, ?, true)`,
+          [item.title, item.category, item.image_url, item.price]
+        );
+      }
+    }
+    console.log("Verified and initialized Shop tables in Database.");
+  } catch (err) {
+    console.error("Failed to initialize Shop tables:", err);
+  }
+}
+setTimeout(() => {
+  initShopTables();
+}, 1000);
+
 // --- Watch Together (Do'stlar bilan birga ko'rish) Data Structures ---
 interface WatchParticipant {
   socketId: string;
@@ -3511,6 +3584,7 @@ app.get("/api/user/:id", async (req, res) => {
       name: userData.name,
       role: userData.role || 'user',
       avatar_url: userData.avatar_url || null,
+      avatar_frame_url: userData.avatar_frame_url || null,
       banner_url: userData.banner_url || null,
       bio: userData.bio || null,
       telegram: userData.telegram || null,
@@ -3565,7 +3639,7 @@ app.post("/api/user/avatar", authenticateToken, async (req: any, res) => {
     await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [avatar_url, userId]);
 
     // Get updated user details
-    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
+    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
     const updatedUser = rows[0];
 
     res.json({ message: "Profil rasmi muvaffaqiyatli yangilandi", user: updatedUser });
@@ -6530,6 +6604,517 @@ app.delete("/api/admin/donate/:id", authenticateToken, async (req: any, res: any
     res.json({ message: "Donat yozuvi o'chirildi" });
   } catch (err) {
     res.status(500).json({ error: "Xatolik" });
+  }
+});
+
+// =================================================================
+// --- DO'KON (SHOP) & TEZCHECK.UZ TO'LOV TIZIMI INTEGRATSIYASI ---
+// =================================================================
+let TEZCHECK_CASH_DESK_CODE = process.env.TEZCHECK_CASH_DESK_CODE || "cdk_qCkJey9k5E3cM9UtyQBsY1nQvq9K";
+let TEZCHECK_API_TOKEN = process.env.TEZCHECK_API_TOKEN || "";
+const TEZCHECK_API_BASE = "https://api.tezcheck.uz/api/merchant/v1";
+
+// Helper to create TezCheck bill
+async function createTezCheckBill({
+  orderId,
+  amountUzs,
+  title,
+  returnUrl
+}: {
+  orderId: string;
+  amountUzs: number;
+  title: string;
+  returnUrl: string;
+}) {
+  const amountMinor = Math.round(Number(amountUzs) * 100);
+  const bearerToken = TEZCHECK_API_TOKEN || TEZCHECK_CASH_DESK_CODE;
+  const deskCode = TEZCHECK_CASH_DESK_CODE;
+
+  const bodyData = {
+    amount_minor: amountMinor,
+    title: (title || "Animem Do'koni").slice(0, 190),
+    external_reference: orderId,
+    return_url: returnUrl
+  };
+
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${bearerToken}`,
+    "X-Cash-Desk-Code": deskCode,
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "Idempotency-Key": `order-${orderId}`
+  };
+
+  console.log(`[TezCheck] Calling ${TEZCHECK_API_BASE}/bills for order ${orderId} (${amountUzs} UZS)...`);
+  const response = await fetch(`${TEZCHECK_API_BASE}/bills`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(bodyData)
+  });
+
+  const resText = await response.text();
+  let resJson: any = null;
+  try {
+    resJson = JSON.parse(resText);
+  } catch (e) {
+    console.error("[TezCheck Error] Response text:", resText);
+    throw new Error(`TezCheck server xatosi (${response.status})`);
+  }
+
+  if (!response.ok) {
+    console.error("[TezCheck Error] Response JSON:", resJson);
+    const msg = resJson?.message || resJson?.error || JSON.stringify(resJson?.details || resJson);
+    throw new Error(`TezCheck xatolik: ${msg}`);
+  }
+
+  return resJson?.data;
+}
+
+// Helper to query TezCheck bill status
+async function getTezCheckBillStatus(billId: string) {
+  const bearerToken = TEZCHECK_API_TOKEN || TEZCHECK_CASH_DESK_CODE;
+  const deskCode = TEZCHECK_CASH_DESK_CODE;
+
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${bearerToken}`,
+    "X-Cash-Desk-Code": deskCode,
+    "Accept": "application/json"
+  };
+
+  const response = await fetch(`${TEZCHECK_API_BASE}/bills/${billId}`, {
+    method: "POST",
+    headers
+  });
+
+  const resText = await response.text();
+  let resJson: any = null;
+  try {
+    resJson = JSON.parse(resText);
+  } catch (e) {
+    throw new Error(`TezCheck status xatosi: ${resText}`);
+  }
+
+  return resJson?.data;
+}
+
+// 1. GET /api/shop/items: Public active items listing with optional category filter
+app.get("/api/shop/items", async (req: any, res: any) => {
+  try {
+    const { category } = req.query;
+    let sql = "SELECT * FROM shop_items WHERE is_active = true";
+    const params: any[] = [];
+    if (category && typeof category === "string" && category !== "all") {
+      sql += " AND category = ?";
+      params.push(category);
+    }
+    sql += " ORDER BY id DESC";
+    const [rows]: any = await dbQuery(sql, params);
+    res.json(rows || []);
+  } catch (err: any) {
+    console.error("Get shop items error:", err);
+    res.status(500).json({ error: "Do'kon tovarlarini olishda xatolik yuz berdi" });
+  }
+});
+
+// 2. GET /api/shop/my-inventory: Logged in user's purchased items and equipped state
+app.get("/api/shop/my-inventory", authenticateToken, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id;
+    const [purchases]: any = await dbQuery(
+      `SELECT sp.id, sp.user_id, sp.item_id, sp.is_equipped, sp.purchased_at,
+              si.title, si.category, si.image_url, si.price
+       FROM shop_purchases sp
+       JOIN shop_items si ON sp.item_id = si.id
+       WHERE sp.user_id = ?
+       ORDER BY sp.purchased_at DESC`,
+      [userId]
+    );
+    res.json(purchases || []);
+  } catch (err: any) {
+    console.error("Get inventory error:", err);
+    res.status(500).json({ error: "Inventarni olishda xatolik" });
+  }
+});
+
+// 3. POST /api/shop/checkout: Initiate purchase order with TezCheck.uz
+app.post("/api/shop/checkout", authenticateToken, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id;
+    const { item_id } = req.body;
+    if (!item_id) {
+      return res.status(400).json({ error: "Mahsulot tanlanmagan" });
+    }
+
+    const [items]: any = await dbQuery("SELECT * FROM shop_items WHERE id = ? AND is_active = true", [item_id]);
+    if (!items || items.length === 0) {
+      return res.status(404).json({ error: "Mahsulot topilmadi yoki nofaol" });
+    }
+    const item = items[0];
+
+    // Check if user already owns this item
+    const [alreadyOwned]: any = await dbQuery(
+      "SELECT id FROM shop_purchases WHERE user_id = ? AND item_id = ?",
+      [userId, item_id]
+    );
+    if (alreadyOwned && alreadyOwned.length > 0) {
+      return res.status(400).json({ error: "Siz bu mahsulotni allaqachon sotib olgansiz!" });
+    }
+
+    const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const amountUzs = item.price;
+
+    // Determine return URL
+    const host = req.headers.host || "animem.uz";
+    const protocol = req.headers["x-forwarded-proto"] || "https";
+    const returnUrl = `${protocol}://${host}/dokon?order_id=${orderId}`;
+
+    // Record order in database
+    await dbQuery(
+      "INSERT INTO shop_orders (id, user_id, item_id, amount_uzs, status) VALUES (?, ?, ?, ?, 'pending')",
+      [orderId, userId, item_id, amountUzs]
+    );
+
+    // Call TezCheck to create bill
+    try {
+      const billData = await createTezCheckBill({
+        orderId,
+        amountUzs,
+        title: item.title,
+        returnUrl
+      });
+
+      const paymentUrl = billData?.payment_url;
+      const billId = billData?.bill?.id;
+
+      if (billId) {
+        await dbQuery("UPDATE shop_orders SET tezcheck_bill_id = ? WHERE id = ?", [billId, orderId]);
+      }
+
+      if (!paymentUrl) {
+        throw new Error("TezCheck to'lov havolasini qaytarmadi");
+      }
+
+      res.json({
+        success: true,
+        order_id: orderId,
+        payment_url: paymentUrl,
+        item
+      });
+    } catch (tezErr: any) {
+      console.error("TezCheck bill creation error:", tezErr);
+      await dbQuery("UPDATE shop_orders SET status = 'failed' WHERE id = ?", [orderId]);
+      return res.status(500).json({ error: tezErr.message || "To'lov hisobini yaratishda xatolik yuz berdi" });
+    }
+  } catch (err: any) {
+    console.error("Shop checkout error:", err);
+    res.status(500).json({ error: err.message || "Xatolik yuz berdi" });
+  }
+});
+
+// 4. GET /api/shop/verify-order/:orderId: Verify order completion and grant item
+app.get("/api/shop/verify-order/:orderId", async (req: any, res: any) => {
+  try {
+    const { orderId } = req.params;
+    const [orders]: any = await dbQuery("SELECT * FROM shop_orders WHERE id = ?", [orderId]);
+    if (!orders || orders.length === 0) {
+      return res.status(404).json({ error: "Buyurtma topilmadi" });
+    }
+    const order = orders[0];
+
+    if (order.status === "paid") {
+      return res.json({ success: true, status: "paid", message: "To'lov muvaffaqiyatli yakunlangan!" });
+    }
+
+    // If pending and has tezcheck_bill_id, verify directly with TezCheck API
+    if (order.tezcheck_bill_id) {
+      try {
+        const billStatus = await getTezCheckBillStatus(order.tezcheck_bill_id);
+        const isPaid = billStatus?.bill?.paid === true || billStatus?.payment?.state === "succeeded";
+
+        if (isPaid) {
+          await dbQuery("UPDATE shop_orders SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ?", [orderId]);
+          // Add to user inventory
+          const [existingPurchase]: any = await dbQuery(
+            "SELECT id FROM shop_purchases WHERE user_id = ? AND item_id = ?",
+            [order.user_id, order.item_id]
+          );
+          if (!existingPurchase || existingPurchase.length === 0) {
+            await dbQuery("INSERT INTO shop_purchases (user_id, item_id) VALUES (?, ?)", [order.user_id, order.item_id]);
+          }
+          return res.json({
+            success: true,
+            status: "paid",
+            message: "To'lov muvaffaqiyatli qabul qilindi va mahsulot profilingizga qo'shildi!"
+          });
+        }
+      } catch (e: any) {
+        console.warn("Verifying with TezCheck API failed:", e.message);
+      }
+    }
+
+    res.json({ success: false, status: order.status, message: "To'lov hali tasdiqlanmadi" });
+  } catch (err: any) {
+    console.error("Verify order error:", err);
+    res.status(500).json({ error: "Buyurtmani tekshirishda xatolik" });
+  }
+});
+
+// 5. POST /api/webhooks/tezcheck: Instant webhook handler from TezCheck
+app.post("/api/webhooks/tezcheck", async (req: any, res: any) => {
+  try {
+    console.log("[TezCheck Webhook] Received payload:", JSON.stringify(req.body));
+    const event = req.body?.event;
+    const data = req.body?.data;
+    const bill = data?.bill;
+    const payment = data?.payment;
+
+    if (event === "payment.succeeded" || bill?.paid === true || payment?.state === "succeeded") {
+      const extRef = bill?.external_reference || payment?.external_reference;
+      const billId = bill?.id;
+
+      let [orders]: any = [];
+      if (extRef) {
+        [orders] = await dbQuery("SELECT * FROM shop_orders WHERE id = ?", [extRef]);
+      } else if (billId) {
+        [orders] = await dbQuery("SELECT * FROM shop_orders WHERE tezcheck_bill_id = ?", [billId]);
+      }
+
+      if (orders && orders[0]) {
+        const order = orders[0];
+        await dbQuery("UPDATE shop_orders SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ?", [order.id]);
+
+        // Add to inventory
+        const [exists]: any = await dbQuery(
+          "SELECT id FROM shop_purchases WHERE user_id = ? AND item_id = ?",
+          [order.user_id, order.item_id]
+        );
+        if (!exists || exists.length === 0) {
+          await dbQuery("INSERT INTO shop_purchases (user_id, item_id) VALUES (?, ?)", [order.user_id, order.item_id]);
+          console.log(`[TezCheck Webhook] Item ${order.item_id} added to user ${order.user_id}`);
+        }
+      }
+    }
+
+    res.status(200).json({ received: true });
+  } catch (err: any) {
+    console.error("[TezCheck Webhook Error]", err);
+    res.status(200).json({ received: false, error: err.message });
+  }
+});
+
+// 6. POST /api/shop/equip: Apply purchased avatar, frame, or banner onto user's profile
+app.post("/api/shop/equip", authenticateToken, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id;
+    const { item_id, equip } = req.body;
+    if (!item_id) {
+      return res.status(400).json({ error: "Mahsulot tanlanmagan" });
+    }
+
+    // Verify user owns this item
+    const [purchases]: any = await dbQuery(
+      `SELECT sp.id, sp.item_id, si.category, si.image_url 
+       FROM shop_purchases sp 
+       JOIN shop_items si ON sp.item_id = si.id 
+       WHERE sp.user_id = ? AND sp.item_id = ?`,
+      [userId, item_id]
+    );
+    if (!purchases || purchases.length === 0) {
+      return res.status(403).json({ error: "Siz bu mahsulotni sotib olmagansiz" });
+    }
+    const purchase = purchases[0];
+
+    if (equip) {
+      // Un-equip other items of the same category for this user
+      const [userSameCategoryPurchases]: any = await dbQuery(
+        `SELECT sp.id FROM shop_purchases sp 
+         JOIN shop_items si ON sp.item_id = si.id 
+         WHERE sp.user_id = ? AND si.category = ?`,
+        [userId, purchase.category]
+      );
+      for (const p of userSameCategoryPurchases) {
+        await dbQuery("UPDATE shop_purchases SET is_equipped = false WHERE id = ?", [p.id]);
+      }
+
+      // Mark this item as equipped
+      await dbQuery("UPDATE shop_purchases SET is_equipped = true WHERE id = ?", [purchase.id]);
+
+      // Apply to user profile
+      if (purchase.category === "frame") {
+        await dbQuery("UPDATE users SET avatar_frame_url = ? WHERE id = ?", [purchase.image_url, userId]);
+      } else if (purchase.category === "avatar") {
+        await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [purchase.image_url, userId]);
+      } else if (purchase.category === "banner") {
+        await dbQuery("UPDATE users SET banner_url = ? WHERE id = ?", [purchase.image_url, userId]);
+      }
+    } else {
+      // Un-equip
+      await dbQuery("UPDATE shop_purchases SET is_equipped = false WHERE id = ?", [purchase.id]);
+      if (purchase.category === "frame") {
+        await dbQuery("UPDATE users SET avatar_frame_url = NULL WHERE id = ?", [userId]);
+      }
+    }
+
+    // Return updated user object
+    const [uRows]: any = await dbQuery(
+      "SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url FROM users WHERE id = ?",
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      message: equip ? "Mahsulot muvaffaqiyatli o'rnatildi!" : "Mahsulot profildan olib tashlandi",
+      user: uRows?.[0]
+    });
+  } catch (err: any) {
+    console.error("Shop equip error:", err);
+    res.status(500).json({ error: "O'rnatishda xatolik yuz berdi" });
+  }
+});
+
+// --- ADMIN SHOP ENDPOINTS ---
+
+// Admin: Get all shop items
+app.get("/api/admin/shop/items", authenticateToken, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+    const [rows]: any = await dbQuery("SELECT * FROM shop_items ORDER BY id DESC");
+    res.json(rows || []);
+  } catch (err: any) {
+    res.status(500).json({ error: "Xatolik" });
+  }
+});
+
+// Admin: Add new shop item
+app.post("/api/admin/shop/items", authenticateToken, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+    const { title, category, image_url, price, is_active } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "Nomini kiriting" });
+    }
+    if (!category || !["avatar", "frame", "banner"].includes(category)) {
+      return res.status(400).json({ error: "Kategoriyani to'g'ri tanlang (avatar, frame, banner)" });
+    }
+    if (!image_url || !image_url.trim()) {
+      return res.status(400).json({ error: "Rasm yuklang yoki havolasini kiriting" });
+    }
+
+    const priceNum = Math.max(0, parseInt(price, 10) || 0);
+    const activeVal = is_active === false ? false : true;
+
+    const [result]: any = await dbQuery(
+      "INSERT INTO shop_items (title, category, image_url, price, is_active) VALUES (?, ?, ?, ?, ?)",
+      [title.trim(), category, image_url.trim(), priceNum, activeVal]
+    );
+
+    const [newItem]: any = await dbQuery("SELECT * FROM shop_items WHERE id = ?", [result?.insertId]);
+    res.json({ success: true, message: "Mahsulot muvaffaqiyatli qo'shildi", item: newItem?.[0] });
+  } catch (err: any) {
+    console.error("Admin add shop item error:", err);
+    res.status(500).json({ error: "Mahsulot qo'shishda xatolik" });
+  }
+});
+
+// Admin: Update shop item
+app.put("/api/admin/shop/items/:id", authenticateToken, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+    const { id } = req.params;
+    const { title, category, image_url, price, is_active } = req.body;
+
+    await dbQuery(
+      `UPDATE shop_items SET 
+        title = COALESCE(?, title),
+        category = COALESCE(?, category),
+        image_url = COALESCE(?, image_url),
+        price = COALESCE(?, price),
+        is_active = COALESCE(?, is_active)
+       WHERE id = ?`,
+      [
+        title ? title.trim() : null,
+        category || null,
+        image_url ? image_url.trim() : null,
+        price !== undefined ? Math.max(0, parseInt(price, 10) || 0) : null,
+        is_active !== undefined ? (is_active ? 1 : 0) : null,
+        id
+      ]
+    );
+
+    const [updated]: any = await dbQuery("SELECT * FROM shop_items WHERE id = ?", [id]);
+    res.json({ success: true, message: "Mahsulot yangilandi", item: updated?.[0] });
+  } catch (err: any) {
+    console.error("Admin update shop item error:", err);
+    res.status(500).json({ error: "Yangilashda xatolik" });
+  }
+});
+
+// Admin: Delete shop item
+app.delete("/api/admin/shop/items/:id", authenticateToken, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+    const { id } = req.params;
+    await dbQuery("DELETE FROM shop_items WHERE id = ?", [id]);
+    res.json({ success: true, message: "Mahsulot o'chirildi" });
+  } catch (err: any) {
+    console.error("Admin delete shop item error:", err);
+    res.status(500).json({ error: "O'chirishda xatolik" });
+  }
+});
+
+// Admin: Get recent shop orders
+app.get("/api/admin/shop/orders", authenticateToken, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+    const [rows]: any = await dbQuery(
+      `SELECT so.*, u.name as user_name, u.email as user_email, si.title as item_title, si.category as item_category, si.image_url as item_image
+       FROM shop_orders so
+       LEFT JOIN users u ON so.user_id = u.id
+       LEFT JOIN shop_items si ON so.item_id = si.id
+       ORDER BY so.created_at DESC
+       LIMIT 100`
+    );
+    res.json(rows || []);
+  } catch (err: any) {
+    console.error("Admin get shop orders error:", err);
+    res.status(500).json({ error: "Buyurtmalarni olishda xatolik" });
+  }
+});
+
+// Admin: Get TezCheck configuration settings
+app.get("/api/admin/shop/settings", authenticateToken, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+    res.json({
+      cash_desk_code: TEZCHECK_CASH_DESK_CODE,
+      has_api_token: Boolean(TEZCHECK_API_TOKEN),
+      api_token_preview: TEZCHECK_API_TOKEN ? `${TEZCHECK_API_TOKEN.slice(0, 8)}...` : ""
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "Xatolik" });
+  }
+});
+
+// Admin: Update TezCheck configuration settings
+app.post("/api/admin/shop/settings", authenticateToken, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+    const { cash_desk_code, api_token } = req.body;
+    if (cash_desk_code && typeof cash_desk_code === "string") {
+      TEZCHECK_CASH_DESK_CODE = cash_desk_code.trim();
+    }
+    if (api_token !== undefined && typeof api_token === "string") {
+      TEZCHECK_API_TOKEN = api_token.trim();
+    }
+    res.json({
+      success: true,
+      message: "TezCheck sozlamalari muvaffaqiyatli saqlandi!",
+      cash_desk_code: TEZCHECK_CASH_DESK_CODE,
+      has_api_token: Boolean(TEZCHECK_API_TOKEN)
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "Sozlamalarni saqlashda xatolik" });
   }
 });
 

@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Notification, Anime, toSlug } from '../types';
-import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe } from 'lucide-react';
+import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   getNotificationPermission, 
@@ -484,11 +484,21 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
               className="flex items-center space-x-2 p-1 rounded-sm hover:bg-[#111] transition-all cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-full border border-[#ff006a]/30 overflow-hidden flex items-center justify-center bg-[#1c1c1e] text-[#ff006a] uppercase font-bold text-xs">
-                {user.avatar_url ? (
-                  <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  user.name.charAt(0)
+              <div className="relative w-8 h-8 rounded-full border border-[#ff006a]/30 flex items-center justify-center bg-[#1c1c1e] text-[#ff006a] uppercase font-bold text-xs">
+                <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    user.name.charAt(0)
+                  )}
+                </div>
+                {user.avatar_frame_url && (
+                  <img 
+                    src={user.avatar_frame_url} 
+                    alt="Frame" 
+                    className="absolute -inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)] pointer-events-none object-contain z-10 scale-110 drop-shadow-[0_0_8px_rgba(255,0,106,0.6)]"
+                    referrerPolicy="no-referrer" 
+                  />
                 )}
               </div>
               <span className="text-xs font-bold hidden md:inline text-white/80">{user.name}</span>
@@ -514,6 +524,14 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                     >
                       <User size={13} />
                       <span>{t.myProfile}</span>
+                    </Link>
+                    <Link
+                      to={getLocalizedPath('/dokon')}
+                      onClick={() => setShowProfileDropdown(false)}
+                      className="flex items-center space-x-2 px-3 py-2 text-white/70 hover:text-[#ff006a] hover:bg-[#1a1a1c] rounded-sm transition-colors"
+                    >
+                      <ShoppingBag size={13} className="text-[#ff006a]" />
+                      <span className="font-semibold">Do'kon</span>
                     </Link>
                     <Link
                       to={getLocalizedPath('/shaxsiy-royxat')}
