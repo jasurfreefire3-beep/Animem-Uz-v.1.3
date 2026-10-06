@@ -456,31 +456,66 @@ export default function Shop() {
                   )}
                 </div>
 
-                {/* Preview Visual Stage - Compact & Square Avatars */}
-                <div className="relative w-full h-36 sm:h-40 bg-gradient-to-b from-[#18181c] to-[#0d0d10] flex items-center justify-center p-3 overflow-hidden">
+                {/* Preview Visual Stage - Asl Katta Ramkalar va Kvadrat Avatarlar */}
+                <div className="relative w-full h-44 sm:h-48 bg-gradient-to-b from-[#18181c] to-[#0d0d10] flex items-center justify-center p-4 overflow-hidden">
                   {/* Subtle ambient lighting */}
                   <div className="absolute inset-0 bg-radial-gradient from-white/5 to-transparent pointer-events-none" />
 
-                  {/* 1. Ramka (Frame) Preview */}
+                  {/* 1. Ramka (Frame) Preview - ASL KATTA O'LCHAMI */}
                   {item.category === 'frame' && (
-                    <UserAvatar 
-                      size="lg" 
-                      src={user?.avatar_url} 
-                      frameUrl={item.image_url} 
-                      name={user?.name || 'AN'} 
-                      className="transition-transform duration-300 group-hover:scale-110"
-                    />
+                    <div className="relative w-28 h-28 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+                      {/* Avatar base inside frame - To'rtburchak va ramkani to'ldirib turadi */}
+                      <div className="w-20 h-20 rounded-2xl bg-[#202026] overflow-hidden flex items-center justify-center border-2 border-white/10 shadow-lg">
+                        {user?.avatar_url ? (
+                          isVideoMedia(user.avatar_url) ? (
+                            <video src={user.avatar_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={user.avatar_url} alt="You" className="w-full h-full object-cover" />
+                          )
+                        ) : (
+                          <span className="text-2xl font-black text-[#ff006a] uppercase">AN</span>
+                        )}
+                      </div>
+                      {/* Animated/Glowing Frame overlay - ASL HOLI */}
+                      {isVideoMedia(item.image_url) ? (
+                        <video
+                          src={item.image_url}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
+                        />
+                      ) : (
+                        <img 
+                          src={item.image_url} 
+                          alt={item.title} 
+                          className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
+                        />
+                      )}
+                    </div>
                   )}
 
                   {/* 2. Avatarka (Avatar) Preview */}
                   {item.category === 'avatar' && (
-                    <UserAvatar 
-                      size="lg" 
-                      src={item.image_url} 
-                      frameUrl={user?.avatar_frame_url} 
-                      name={item.title} 
-                      className="transition-transform duration-300 group-hover:scale-110"
-                    />
+                    <div className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl transition-transform duration-300 group-hover:scale-105 flex items-center justify-center bg-[#1c1c1e]">
+                      {isVideoMedia(item.image_url) ? (
+                        <video 
+                          src={item.image_url} 
+                          autoPlay 
+                          loop 
+                          muted 
+                          playsInline 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <img 
+                          src={item.image_url} 
+                          alt={item.title} 
+                          className="w-full h-full object-cover" 
+                        />
+                      )}
+                    </div>
                   )}
 
                   {/* 3. Baner (Banner) Preview */}
@@ -598,21 +633,56 @@ export default function Shop() {
               </div>
 
               {/* Item preview in modal */}
-              <div className="relative w-full h-36 bg-[#0d0d10] border border-white/10 rounded-xl overflow-hidden flex items-center justify-center mb-5">
+              <div className="relative w-full h-44 bg-[#0d0d10] border border-white/10 rounded-xl overflow-hidden flex items-center justify-center mb-5">
                 {selectedItem.category === 'frame' ? (
-                  <UserAvatar 
-                    size="xl" 
-                    src={user?.avatar_url} 
-                    frameUrl={selectedItem.image_url} 
-                    name={user?.name || 'AN'} 
-                  />
+                  <div className="relative w-28 h-28 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-2xl bg-[#202026] overflow-hidden flex items-center justify-center border-2 border-white/10 shadow-lg">
+                      {user?.avatar_url ? (
+                        isVideoMedia(user.avatar_url) ? (
+                          <video src={user.avatar_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={user.avatar_url} alt="You" className="w-full h-full object-cover" />
+                        )
+                      ) : (
+                        <span className="text-2xl font-black text-[#ff006a] uppercase">AN</span>
+                      )}
+                    </div>
+                    {isVideoMedia(selectedItem.image_url) ? (
+                      <video 
+                        src={selectedItem.image_url} 
+                        autoPlay 
+                        loop 
+                        muted 
+                        playsInline 
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
+                      />
+                    ) : (
+                      <img 
+                        src={selectedItem.image_url} 
+                        alt={selectedItem.title} 
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
+                      />
+                    )}
+                  </div>
                 ) : selectedItem.category === 'avatar' ? (
-                  <UserAvatar 
-                    size="xl" 
-                    src={selectedItem.image_url} 
-                    frameUrl={user?.avatar_frame_url} 
-                    name={selectedItem.title} 
-                  />
+                  <div className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl flex items-center justify-center bg-[#1c1c1e]">
+                    {isVideoMedia(selectedItem.image_url) ? (
+                      <video 
+                        src={selectedItem.image_url} 
+                        autoPlay 
+                        loop 
+                        muted 
+                        playsInline 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <img 
+                        src={selectedItem.image_url} 
+                        alt={selectedItem.title} 
+                        className="w-full h-full object-cover" 
+                      />
+                    )}
+                  </div>
                 ) : (
                   <div className="relative w-full h-full p-2 flex items-center justify-center">
                     {isVideoMedia(selectedItem.image_url) ? (
@@ -622,13 +692,13 @@ export default function Shop() {
                         loop 
                         muted 
                         playsInline 
-                        className="max-h-28 w-auto rounded-lg object-cover" 
+                        className="max-h-32 w-auto rounded-lg object-cover" 
                       />
                     ) : (
                       <img 
                         src={selectedItem.image_url} 
                         alt={selectedItem.title} 
-                        className="max-h-28 object-contain rounded-lg"
+                        className="max-h-32 object-contain rounded-lg" 
                       />
                     )}
                   </div>

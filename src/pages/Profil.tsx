@@ -592,13 +592,13 @@ export default function Profil() {
                     loop
                     muted
                     playsInline
-                    className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-110 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
+                    className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
                   />
                 ) : (
                   <img 
                     src={profileUser.avatar_frame_url} 
                     alt="Frame" 
-                    className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-110 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
+                    className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
                   />
                 )
               )}
