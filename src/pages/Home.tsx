@@ -8,6 +8,7 @@ import AnimeCard from '../components/AnimeCard';
 import DramaCard from '../components/DramaCard';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import UserAvatar from '../components/UserAvatar';
 
 export default function Home() {
   const { user } = useAuth();
@@ -426,17 +427,12 @@ export default function Home() {
                        className="block group bg-[#000] p-3 rounded-sm border border-[#222] hover:border-[#ff006a]/30 transition-colors"
                      >
                        <div className="flex items-center gap-2 mb-2">
-                          {avatarSrc ? (
-                            <img loading="lazy" decoding="async"
-                              src={avatarSrc}
-                              alt={c.user_name}
-                              className="w-5 h-5 rounded-full object-cover border border-[#ff006a]/30 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-5 h-5 rounded bg-[#333] flex items-center justify-center text-[9px] font-bold text-white uppercase shrink-0">
-                              {(c.user_name || 'U').charAt(0)}
-                            </div>
-                          )}
+                          <UserAvatar
+                            size="xs"
+                            src={avatarSrc}
+                            frameUrl={c.user_avatar_frame || c.avatar_frame_url}
+                            name={c.user_name}
+                          />
                           <span className="text-white/50 text-[11px] font-medium">{c.user_name}</span>
                        </div>
                        <div>

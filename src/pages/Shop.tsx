@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { ShopItem, ShopPurchase } from '../types';
+import UserAvatar, { isVideoMedia } from '../components/UserAvatar';
 
 export default function Shop() {
   const { user, token, login } = useAuth();
@@ -151,6 +152,41 @@ export default function Shop() {
     }
   };
 
+  // Sinov tariqasida (bepul/test rejimida) xarid qilish
+  const handleTestPurchase = async () => {
+    if (!selectedItem || !token) return;
+    setCheckingOut(true);
+    setCheckoutError('');
+
+    try {
+      const res = await fetch('/api/shop/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ item_id: selectedItem.id, is_test: true })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Sinov xaridini amalga oshirib bo'lmadi");
+      }
+
+      setSelectedItem(null);
+      setVerifyResult({
+        show: true,
+        success: true,
+        message: data.message || "Mahsulot muvaffaqiyatli xarid qilindi va profilingizga qo'shildi!"
+      });
+      loadData();
+    } catch (err: any) {
+      setCheckoutError(err.message || "Sinov xaridida xatolik");
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
   // Equip / un-equip item
   const handleEquip = async (item: ShopItem, equip: boolean) => {
     if (!token || !user) return;
@@ -168,16 +204,20 @@ export default function Shop() {
 
       const data = await res.json();
       if (res.ok) {
-        // Update user auth context immediately
-        const updatedUser = { ...user };
-        if (item.category === 'frame') {
-          updatedUser.avatar_frame_url = equip ? item.image_url : undefined;
-        } else if (item.category === 'avatar') {
-          if (equip) updatedUser.avatar_url = item.image_url;
-        } else if (item.category === 'banner') {
-          if (equip) updatedUser.banner_url = item.image_url;
+        // Update user auth context immediately with DB updated data if present
+        if (data.user) {
+          login(token, data.user);
+        } else {
+          const updatedUser = { ...user };
+          if (item.category === 'frame') {
+            updatedUser.avatar_frame_url = equip ? item.image_url : undefined;
+          } else if (item.category === 'avatar') {
+            if (equip) updatedUser.avatar_url = item.image_url;
+          } else if (item.category === 'banner') {
+            updatedUser.banner_url = equip ? item.image_url : undefined;
+          }
+          login(token, updatedUser);
         }
-        login(token, updatedUser);
 
         // Update local purchase state
         setMyPurchases(prev => prev.map(p => {
@@ -255,22 +295,12 @@ export default function Shop() {
           {/* User profile quick glance */}
           {user && (
             <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-xl p-3 sm:p-4 backdrop-blur-md shrink-0">
-              <div className="relative w-14 h-14 rounded-full bg-[#1c1c1e] flex items-center justify-center border-2 border-white/20">
-                <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-xl font-black text-[#ff006a] uppercase">{user.name.charAt(0)}</span>
-                  )}
-                </div>
-                {user.avatar_frame_url && (
-                  <img 
-                    src={user.avatar_frame_url} 
-                    alt="Frame" 
-                    className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] pointer-events-none object-contain z-10 scale-110 drop-shadow-[0_0_8px_rgba(255,0,106,0.6)]" 
-                  />
-                )}
-              </div>
+              <UserAvatar 
+                size="lg" 
+                src={user.avatar_url} 
+                frameUrl={user.avatar_frame_url} 
+                name={user.name} 
+              />
               <div>
                 <p className="text-sm font-bold text-white leading-tight">{user.name}</p>
                 <p className="text-xs text-white/50 mt-0.5">
@@ -426,51 +456,53 @@ export default function Shop() {
                   )}
                 </div>
 
-                {/* Preview Visual Stage */}
-                <div className="relative w-full aspect-[4/3] bg-gradient-to-b from-[#18181c] to-[#0d0d10] flex items-center justify-center p-6 overflow-hidden">
+                {/* Preview Visual Stage - Compact & Square Avatars */}
+                <div className="relative w-full h-36 sm:h-40 bg-gradient-to-b from-[#18181c] to-[#0d0d10] flex items-center justify-center p-3 overflow-hidden">
                   {/* Subtle ambient lighting */}
                   <div className="absolute inset-0 bg-radial-gradient from-white/5 to-transparent pointer-events-none" />
 
                   {/* 1. Ramka (Frame) Preview */}
                   {item.category === 'frame' && (
-                    <div className="relative w-28 h-28 flex items-center justify-center">
-                      {/* Avatar base inside frame */}
-                      <div className="w-20 h-20 rounded-full bg-[#202026] overflow-hidden flex items-center justify-center border-2 border-white/10">
-                        {user?.avatar_url ? (
-                          <img src={user.avatar_url} alt="You" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-xl font-bold text-white/40">AN</span>
-                        )}
-                      </div>
-                      {/* Animated/Glowing Frame overlay */}
-                      <img 
-                        src={item.image_url} 
-                        alt={item.title} 
-                        className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-110 drop-shadow-[0_0_12px_rgba(255,0,106,0.6)] transition-transform duration-300 group-hover:scale-120"
-                      />
-                    </div>
+                    <UserAvatar 
+                      size="lg" 
+                      src={user?.avatar_url} 
+                      frameUrl={item.image_url} 
+                      name={user?.name || 'AN'} 
+                      className="transition-transform duration-300 group-hover:scale-110"
+                    />
                   )}
 
                   {/* 2. Avatarka (Avatar) Preview */}
                   {item.category === 'avatar' && (
-                    <div className="relative w-28 h-28 rounded-full overflow-hidden border-2 border-white/20 shadow-2xl transition-transform duration-300 group-hover:scale-105">
-                      <img 
-                        src={item.image_url} 
-                        alt={item.title} 
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                    <UserAvatar 
+                      size="lg" 
+                      src={item.image_url} 
+                      frameUrl={user?.avatar_frame_url} 
+                      name={item.title} 
+                      className="transition-transform duration-300 group-hover:scale-110"
+                    />
                   )}
 
                   {/* 3. Baner (Banner) Preview */}
                   {item.category === 'banner' && (
-                    <div className="relative w-full h-full max-h-32 rounded-lg overflow-hidden border border-white/20 shadow-xl transition-transform duration-300 group-hover:scale-105">
-                      <img 
-                        src={item.image_url} 
-                        alt={item.title} 
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-2">
+                    <div className="relative w-full h-28 max-w-[260px] rounded-lg overflow-hidden border border-white/20 shadow-xl transition-transform duration-300 group-hover:scale-105">
+                      {isVideoMedia(item.image_url) ? (
+                        <video 
+                          src={item.image_url} 
+                          autoPlay 
+                          loop 
+                          muted 
+                          playsInline 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <img 
+                          src={item.image_url} 
+                          alt={item.title} 
+                          className="w-full h-full object-cover" 
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-2 pointer-events-none">
                         <span className="text-[10px] text-white/70 font-medium">Profil foni namunasi</span>
                       </div>
                     </div>
@@ -566,28 +598,40 @@ export default function Shop() {
               </div>
 
               {/* Item preview in modal */}
-              <div className="relative w-full h-40 bg-[#0d0d10] border border-white/10 rounded-xl overflow-hidden flex items-center justify-center mb-5">
+              <div className="relative w-full h-36 bg-[#0d0d10] border border-white/10 rounded-xl overflow-hidden flex items-center justify-center mb-5">
                 {selectedItem.category === 'frame' ? (
-                  <div className="relative w-24 h-24 flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-full bg-[#202026] overflow-hidden flex items-center justify-center">
-                      {user?.avatar_url ? (
-                        <img src={user.avatar_url} alt="You" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="font-bold text-white/50">AN</span>
-                      )}
-                    </div>
-                    <img 
-                      src={selectedItem.image_url} 
-                      alt={selectedItem.title} 
-                      className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-110 drop-shadow-[0_0_12px_rgba(255,0,106,0.6)]" 
-                    />
-                  </div>
-                ) : (
-                  <img 
-                    src={selectedItem.image_url} 
-                    alt={selectedItem.title} 
-                    className="max-h-32 object-contain rounded-lg"
+                  <UserAvatar 
+                    size="xl" 
+                    src={user?.avatar_url} 
+                    frameUrl={selectedItem.image_url} 
+                    name={user?.name || 'AN'} 
                   />
+                ) : selectedItem.category === 'avatar' ? (
+                  <UserAvatar 
+                    size="xl" 
+                    src={selectedItem.image_url} 
+                    frameUrl={user?.avatar_frame_url} 
+                    name={selectedItem.title} 
+                  />
+                ) : (
+                  <div className="relative w-full h-full p-2 flex items-center justify-center">
+                    {isVideoMedia(selectedItem.image_url) ? (
+                      <video 
+                        src={selectedItem.image_url} 
+                        autoPlay 
+                        loop 
+                        muted 
+                        playsInline 
+                        className="max-h-28 w-auto rounded-lg object-cover" 
+                      />
+                    ) : (
+                      <img 
+                        src={selectedItem.image_url} 
+                        alt={selectedItem.title} 
+                        className="max-h-28 object-contain rounded-lg"
+                      />
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -610,9 +654,19 @@ export default function Shop() {
               </div>
 
               {checkoutError && (
-                <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
-                  <AlertCircle size={14} className="shrink-0" />
-                  <span>{checkoutError}</span>
+                <div className="mb-4 space-y-2">
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                    <AlertCircle size={14} className="shrink-0" />
+                    <span>{checkoutError}</span>
+                  </div>
+                  <button
+                    onClick={handleTestPurchase}
+                    disabled={checkingOut}
+                    className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Zap size={14} />
+                    <span>Sinov tariqasida xarid qilish (Hisobdan pulsiz olish)</span>
+                  </button>
                 </div>
               )}
 

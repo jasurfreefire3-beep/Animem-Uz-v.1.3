@@ -15,6 +15,7 @@ import {
   DiscordIcon, FacebookIcon, VKIcon 
 } from '../components/SocialIcons';
 import LoadingScreen from '../components/LoadingScreen';
+import { isVideoMedia } from '../components/UserAvatar';
 
 // Default banner if none provided
 const DEFAULT_BANNER = "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1200&auto=format&fit=crop&q=80";
@@ -217,6 +218,21 @@ export default function Profil() {
   // Client-side image compression
   const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
     return new Promise((resolve, reject) => {
+      // If GIF or video, keep original raw data URL to preserve animation frames!
+      if (
+        file.type === 'image/gif' || 
+        file.name.toLowerCase().endsWith('.gif') ||
+        file.type.startsWith('video/') ||
+        file.name.toLowerCase().endsWith('.webm') ||
+        file.name.toLowerCase().endsWith('.mp4')
+      ) {
+        const rawReader = new FileReader();
+        rawReader.onload = (e) => resolve(e.target?.result as string);
+        rawReader.onerror = (err) => reject(err);
+        rawReader.readAsDataURL(file);
+        return;
+      }
+
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
@@ -500,12 +516,23 @@ export default function Profil() {
         
         {/* Banner Container */}
         <div className="relative w-full h-48 sm:h-64 md:h-72 bg-[#1a1a1c] overflow-hidden">
-          <img loading="lazy" decoding="async" 
-            src={profileUser.banner_url || DEFAULT_BANNER} 
-            alt="User Banner" 
-            className="w-full h-full object-cover opacity-80"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent" />
+          {profileUser.banner_url && isVideoMedia(profileUser.banner_url) ? (
+            <video
+              src={profileUser.banner_url}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover opacity-80"
+            />
+          ) : (
+            <img loading="lazy" decoding="async" 
+              src={profileUser.banner_url || DEFAULT_BANNER} 
+              alt="User Banner" 
+              className="w-full h-full object-cover opacity-80"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent pointer-events-none" />
 
           {/* Banner Upload Button (For Owner) */}
           {isOwner && (
@@ -514,7 +541,7 @@ export default function Profil() {
               <span>{uploadingBanner ? "Yuklanmoqda..." : "Muqovani almashtirish"}</span>
               <input 
                 type="file" 
-                accept="image/*" 
+                accept="image/*,video/webm,video/mp4,.gif,.webm" 
                 className="hidden" 
                 onChange={handleBannerUpload}
                 disabled={uploadingBanner}
@@ -529,11 +556,22 @@ export default function Profil() {
           {/* Avatar & Basic Info */}
           <div className="flex flex-col md:flex-row items-center md:items-end gap-5 text-center md:text-left">
             
-            {/* Avatar Circle */}
-            <div className="relative shrink-0 group">
-              <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full border-4 border-[#111] bg-[#1c1c1e] overflow-hidden flex items-center justify-center text-4xl sm:text-5xl font-black text-[#ff006a] uppercase shadow-[0_0_30px_rgba(255,0,106,0.3)] relative">
+            {/* Avatar Square */}
+            <div className="relative shrink-0 group w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
+              <div className="w-full h-full rounded-2xl border-4 border-[#111] bg-[#1c1c1e] overflow-hidden flex items-center justify-center text-4xl sm:text-5xl font-black text-[#ff006a] uppercase shadow-[0_0_30px_rgba(255,0,106,0.3)] relative">
                 {profileUser.avatar_url ? (
-                  <img loading="lazy" decoding="async" src={profileUser.avatar_url} alt={profileUser.name} className="w-full h-full object-cover" />
+                  isVideoMedia(profileUser.avatar_url) ? (
+                    <video
+                      src={profileUser.avatar_url}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img loading="lazy" decoding="async" src={profileUser.avatar_url} alt={profileUser.name} className="w-full h-full object-cover" />
+                  )
                 ) : (
                   profileUser.name.charAt(0)
                 )}
@@ -547,20 +585,31 @@ export default function Profil() {
 
               {/* Avatar Frame overlay */}
               {profileUser.avatar_frame_url && (
-                <img 
-                  src={profileUser.avatar_frame_url} 
-                  alt="Frame" 
-                  className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-110 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
-                />
+                isVideoMedia(profileUser.avatar_frame_url) ? (
+                  <video
+                    src={profileUser.avatar_frame_url}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-110 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
+                  />
+                ) : (
+                  <img 
+                    src={profileUser.avatar_frame_url} 
+                    alt="Frame" 
+                    className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-110 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
+                  />
+                )
               )}
 
               {/* Avatar Upload Button */}
               {isOwner && (
-                <label className="absolute bottom-1 right-1 z-20 bg-[#ff006a] hover:bg-[#d40058] text-white p-2 rounded-full border-2 border-[#111] cursor-pointer shadow-lg transition-transform hover:scale-110 flex items-center justify-center">
+                <label className="absolute -bottom-1 -right-1 z-20 bg-[#ff006a] hover:bg-[#d40058] text-white p-2 rounded-full border-2 border-[#111] cursor-pointer shadow-lg transition-transform hover:scale-110 flex items-center justify-center">
                   <Camera size={14} />
                   <input 
                     type="file" 
-                    accept="image/*" 
+                    accept="image/*,video/webm,video/mp4,.gif,.webm" 
                     className="hidden" 
                     onChange={handleAvatarUpload}
                     disabled={uploadingAvatar}
@@ -699,23 +748,23 @@ export default function Profil() {
               {/* Banner & Avatar URLs */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-white/70 uppercase mb-1">Banner Rasm Havolasi (URL)</label>
+                  <label className="block text-xs font-bold text-white/70 uppercase mb-1">Banner Rasm Havolasi (URL yoki .webm)</label>
                   <input
-                    type="url"
+                    type="text"
                     value={editBannerUrl}
                     onChange={(e) => setEditBannerUrl(e.target.value)}
                     className="w-full bg-[#000] border border-[#222] rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a]"
-                    placeholder="https://.../banner.jpg"
+                    placeholder="https://.../banner.jpg yoki .webm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-white/70 uppercase mb-1">Avatar Rasm Havolasi (URL)</label>
+                  <label className="block text-xs font-bold text-white/70 uppercase mb-1">Avatar Havolasi (URL, GIF yoki .webm)</label>
                   <input
-                    type="url"
+                    type="text"
                     value={editAvatarUrl}
                     onChange={(e) => setEditAvatarUrl(e.target.value)}
                     className="w-full bg-[#000] border border-[#222] rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a]"
-                    placeholder="https://.../avatar.jpg"
+                    placeholder="https://.../avatar.gif yoki .webm"
                   />
                 </div>
               </div>

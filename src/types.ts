@@ -100,6 +100,8 @@ export interface CommentReply {
   user_id: string | number;
   user_name: string;
   user_avatar?: string;
+  user_avatar_frame?: string;
+  avatar_frame_url?: string;
   content: string;
   created_at: string;
 }
@@ -112,7 +114,9 @@ export interface Comment {
   user_id: string | number;
   user_name: string;
   user_avatar?: string;
+  user_avatar_frame?: string;
   avatar_url?: string;
+  avatar_frame_url?: string;
   content: string;
   likes?: number;
   dislikes?: number;
@@ -154,7 +158,9 @@ export interface Message {
   user_id: string | number;
   user_name: string;
   user_avatar?: string;
+  user_avatar_frame?: string;
   avatar_url?: string;
+  avatar_frame_url?: string;
   content: string;
   reply_to_id?: string | null;
   reply_to_name?: string | null;

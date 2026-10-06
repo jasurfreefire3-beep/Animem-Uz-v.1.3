@@ -8,6 +8,7 @@ import { Drama, DramaEpisode, Comment } from '../types';
 import { useAuth } from '../context/AuthContext';
 import DramaCard from '../components/DramaCard';
 import VideoPlayer from '../components/VideoPlayer';
+import UserAvatar from '../components/UserAvatar';
 
 export default function DramaView() {
   const { id } = useParams<{ id: string }>();
@@ -489,14 +490,13 @@ export default function DramaView() {
                 comments.map((comment) => (
                   <div key={comment.id} className="bg-[#0a0a0a] border border-[#222] rounded-sm p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-[#ff006a]/20 border border-[#ff006a]/40 text-[#ff006a] flex items-center justify-center text-xs font-bold overflow-hidden">
-                          {comment.user_avatar ? (
-                            <img src={comment.user_avatar} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            (comment.user_name || 'U')[0].toUpperCase()
-                          )}
-                        </div>
+                      <div className="flex items-center gap-3">
+                        <UserAvatar
+                          size="md"
+                          src={comment.user_avatar || (comment as any).avatar_url}
+                          frameUrl={(comment as any).user_avatar_frame || (comment as any).avatar_frame_url}
+                          name={comment.user_name}
+                        />
                         <div>
                           <h5 className="text-xs font-bold text-white">{comment.user_name || "Foydalanuvchi"}</h5>
                           <span className="text-[10px] text-white/30">
@@ -517,7 +517,7 @@ export default function DramaView() {
                       )}
                     </div>
 
-                    <p className="text-xs text-white/80 pl-9 leading-relaxed">
+                    <p className="text-xs text-white/80 pl-15 leading-relaxed">
                       {comment.content}
                     </p>
                   </div>

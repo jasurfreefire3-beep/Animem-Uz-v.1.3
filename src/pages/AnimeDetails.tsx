@@ -19,6 +19,7 @@ import {
 import GifPicker from '../components/GifPicker';
 import FormattedContent from '../components/FormattedContent';
 import LoadingScreen from '../components/LoadingScreen';
+import UserAvatar from '../components/UserAvatar';
 
 export default function AnimeDetails() {
   const params = useParams();
@@ -1361,17 +1362,12 @@ export default function AnimeDetails() {
                {user ? (
                   <div className="bg-[#1a1a1a] p-4 rounded-sm border border-[#222] mb-6">
                      <div className="flex items-center gap-2 mb-3">
-                        {user.avatar_url ? (
-                           <img loading="lazy" decoding="async" 
-                              src={user.avatar_url} 
-                              alt={user.name} 
-                              className="w-6 h-6 rounded-full object-cover border border-[#ff006a]/40 shrink-0" 
-                           />
-                        ) : (
-                           <div className="w-6 h-6 bg-[#333] rounded-sm flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                              {(user.name || user.username || user.email || 'U').charAt(0).toUpperCase()}
-                           </div>
-                        )}
+                        <UserAvatar 
+                           size="xs" 
+                           src={user.avatar_url} 
+                           frameUrl={user.avatar_frame_url} 
+                           name={user.name || user.username} 
+                        />
                         <span className="text-white/70 text-xs font-medium">{user.name || user.username || 'Foydalanuvchi'}</span>
                      </div>
                      <form onSubmit={handleCommentSubmit}>
@@ -1459,18 +1455,13 @@ export default function AnimeDetails() {
                            key={comment.id} 
                            className="bg-[#1a1a1a] p-4 rounded-sm border border-[#222] flex gap-3 relative group"
                         >
-                           <Link to={`/user/${comment.user_id}`} className="shrink-0">
-                              {avatarSrc ? (
-                                 <img loading="lazy" decoding="async" 
-                                    src={avatarSrc} 
-                                    alt={comment.user_name} 
-                                    className="shrink-0 w-11 h-11 rounded-full object-cover border-2 border-[#ff006a]/40 hover:border-[#ff006a] shadow-md transition-all" 
-                                 />
-                              ) : (
-                                 <div className="shrink-0 w-11 h-11 bg-gradient-to-br from-[#2a2a2e] to-[#151518] rounded-full border-2 border-[#ff006a]/30 flex items-center justify-center text-[#ff006a] text-sm font-extrabold shadow-md hover:text-white transition-colors">
-                                    {(comment.user_name || 'U').charAt(0).toUpperCase()}
-                                 </div>
-                              )}
+                           <Link to={`/user/${comment.user_id}`} className="shrink-0 mt-0.5">
+                              <UserAvatar 
+                                 size="md" 
+                                 src={avatarSrc} 
+                                 frameUrl={comment.user_avatar_frame || comment.avatar_frame_url} 
+                                 name={comment.user_name} 
+                              />
                            </Link>
                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1.5">
@@ -1535,13 +1526,12 @@ export default function AnimeDetails() {
                                  <div className="mt-4 pl-4 border-l-2 border-[#ff006a]/30 space-y-3">
                                     {replies.map((rep: any) => (
                                        <div key={rep.id} className="bg-[#141414] p-3 rounded-lg border border-[#222] flex gap-2.5 items-start">
-                                          {rep.user_avatar ? (
-                                             <img loading="lazy" decoding="async" src={rep.user_avatar} alt={rep.user_name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10" />
-                                          ) : (
-                                             <div className="w-8 h-8 rounded-full bg-[#222] text-[#ff006a] font-bold text-xs flex items-center justify-center shrink-0 border border-white/10">
-                                                {rep.user_name?.charAt(0).toUpperCase() || 'U'}
-                                             </div>
-                                          )}
+                                          <UserAvatar 
+                                             size="sm" 
+                                             src={rep.user_avatar || rep.avatar_url} 
+                                             frameUrl={rep.user_avatar_frame || rep.avatar_frame_url} 
+                                             name={rep.user_name} 
+                                          />
                                           <div className="flex-1 min-w-0">
                                              <div className="flex items-center gap-2 mb-1">
                                                 <span className="text-white/90 text-xs font-bold">{rep.user_name || 'Foydalanuvchi'}</span>

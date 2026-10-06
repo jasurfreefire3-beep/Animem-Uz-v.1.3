@@ -80,8 +80,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       } else {
         try {
+          const parsed = JSON.parse(storedUser);
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsed);
+
+          // Background sync with database to ensure frames, avatars, and inventory stay updated
+          if (parsed && parsed.id) {
+            fetch(`/api/user/${parsed.id}`, {
+              headers: { 'Authorization': `Bearer ${storedToken}` }
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data && data.user) {
+                  setUser(data.user);
+                  localStorage.setItem('user', JSON.stringify(data.user));
+                }
+              })
+              .catch(() => {});
+          }
         } catch (e) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');

@@ -1236,7 +1236,7 @@ io.on("connection", (socket) => {
 
   socket.on("sendMessage", async (data) => {
     try {
-      const { user_id, user_name, user_avatar, content, reply_to_id, reply_to_name, reply_to_content } = data || {};
+      const { user_id, user_name, user_avatar, user_avatar_frame, content, reply_to_id, reply_to_name, reply_to_content } = data || {};
       if (!content || !content.trim()) return;
 
       const broadcastMsg: any = {
@@ -1244,6 +1244,8 @@ io.on("connection", (socket) => {
         user_id,
         user_name: user_name || "Anonim",
         user_avatar: user_avatar || null,
+        user_avatar_frame: user_avatar_frame || null,
+        avatar_frame_url: user_avatar_frame || null,
         content,
         reply_to_id,
         reply_to_name,
@@ -1273,11 +1275,15 @@ io.on("connection", (socket) => {
             broadcastMsg.id = result.insertId;
           }
 
-          if (user_id && !broadcastMsg.user_avatar) {
+          if (user_id && (!broadcastMsg.user_avatar || !broadcastMsg.user_avatar_frame)) {
             try {
-              const [uRows]: any = await dbQuery("SELECT avatar_url FROM users WHERE id = ?", [user_id]);
-              if (uRows && uRows[0] && uRows[0].avatar_url) {
-                broadcastMsg.user_avatar = uRows[0].avatar_url;
+              const [uRows]: any = await dbQuery("SELECT avatar_url, avatar_frame_url FROM users WHERE id = ?", [user_id]);
+              if (uRows && uRows[0]) {
+                if (uRows[0].avatar_url) broadcastMsg.user_avatar = uRows[0].avatar_url;
+                if (uRows[0].avatar_frame_url) {
+                  broadcastMsg.user_avatar_frame = uRows[0].avatar_frame_url;
+                  broadcastMsg.avatar_frame_url = uRows[0].avatar_frame_url;
+                }
               }
             } catch (e) {}
           }
@@ -1307,7 +1313,7 @@ io.on("connection", (socket) => {
       try {
         const [rows]: any = await Promise.race([
           dbQuery(
-            `SELECT m.*, u.avatar_url AS user_avatar 
+            `SELECT m.*, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
              FROM messages m 
              LEFT JOIN users u ON m.user_id = u.id 
              ORDER BY m.id DESC LIMIT 50`
@@ -3833,7 +3839,7 @@ app.get("/api/comments/recent", async (req, res) => {
   }
   try {
     const [rows]: any = await dbQuery(`
-      SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, a.title AS anime_title 
+      SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url, a.title AS anime_title 
       FROM comments c 
       LEFT JOIN users u ON c.user_id = u.id 
       LEFT JOIN animes a ON c.anime_id = a.id 
@@ -4291,7 +4297,7 @@ app.get("/api/animes/:id/comments", async (req, res) => {
   const id = req.params.id;
   try {
     const [rows]: any = await dbQuery(
-      `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar 
+      `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
        FROM comments c 
        LEFT JOIN users u ON c.user_id = u.id 
        WHERE c.anime_id = ? 
@@ -4340,10 +4346,12 @@ app.post("/api/animes/:id/comments", authenticateToken, async (req: any, res) =>
     }
 
     let userAvatar = req.user.avatar_url || null;
+    let userAvatarFrame = req.user.avatar_frame_url || null;
     try {
-      const [uRows]: any = await dbQuery("SELECT avatar_url FROM users WHERE id = ?", [userId]);
-      if (uRows && uRows.length > 0 && uRows[0].avatar_url) {
-        userAvatar = uRows[0].avatar_url;
+      const [uRows]: any = await dbQuery("SELECT avatar_url, avatar_frame_url FROM users WHERE id = ?", [userId]);
+      if (uRows && uRows.length > 0) {
+        if (uRows[0].avatar_url) userAvatar = uRows[0].avatar_url;
+        if (uRows[0].avatar_frame_url) userAvatarFrame = uRows[0].avatar_frame_url;
       }
     } catch (e) {}
 
@@ -4353,6 +4361,8 @@ app.post("/api/animes/:id/comments", authenticateToken, async (req: any, res) =>
       user_id: userId,
       user_name: req.user.name,
       user_avatar: userAvatar,
+      user_avatar_frame: userAvatarFrame,
+      avatar_frame_url: userAvatarFrame,
       content,
       likes: 0,
       dislikes: 0,
@@ -4506,10 +4516,12 @@ app.post("/api/comments/:commentId/reply", authenticateToken, async (req: any, r
     let replies = safeJsonParse(comment.replies, []);
 
     let userAvatar = req.user.avatar_url || null;
+    let userAvatarFrame = req.user.avatar_frame_url || null;
     try {
-      const [uRows]: any = await dbQuery("SELECT avatar_url FROM users WHERE id = ?", [userId]);
-      if (uRows && uRows.length > 0 && uRows[0].avatar_url) {
-        userAvatar = uRows[0].avatar_url;
+      const [uRows]: any = await dbQuery("SELECT avatar_url, avatar_frame_url FROM users WHERE id = ?", [userId]);
+      if (uRows && uRows.length > 0) {
+        if (uRows[0].avatar_url) userAvatar = uRows[0].avatar_url;
+        if (uRows[0].avatar_frame_url) userAvatarFrame = uRows[0].avatar_frame_url;
       }
     } catch (e) {}
 
@@ -4518,6 +4530,8 @@ app.post("/api/comments/:commentId/reply", authenticateToken, async (req: any, r
       user_id: userId,
       user_name: req.user.name,
       user_avatar: userAvatar,
+      user_avatar_frame: userAvatarFrame,
+      avatar_frame_url: userAvatarFrame,
       content: content.trim(),
       created_at: new Date().toISOString()
     };
@@ -4552,7 +4566,7 @@ app.get("/api/mangas/:id/comments", async (req, res) => {
   const id = req.params.id;
   try {
     const [rows]: any = await dbQuery(
-      `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar 
+      `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
        FROM comments c 
        LEFT JOIN users u ON c.user_id = u.id 
        WHERE c.manga_id = ? 
@@ -4593,10 +4607,12 @@ app.post("/api/mangas/:id/comments", authenticateToken, async (req: any, res) =>
     );
 
     let userAvatar = req.user.avatar_url || null;
+    let userAvatarFrame = req.user.avatar_frame_url || null;
     try {
-      const [uRows]: any = await dbQuery("SELECT avatar_url FROM users WHERE id = ?", [userId]);
-      if (uRows && uRows.length > 0 && uRows[0].avatar_url) {
-        userAvatar = uRows[0].avatar_url;
+      const [uRows]: any = await dbQuery("SELECT avatar_url, avatar_frame_url FROM users WHERE id = ?", [userId]);
+      if (uRows && uRows.length > 0) {
+        if (uRows[0].avatar_url) userAvatar = uRows[0].avatar_url;
+        if (uRows[0].avatar_frame_url) userAvatarFrame = uRows[0].avatar_frame_url;
       }
     } catch (e) {}
 
@@ -4606,6 +4622,8 @@ app.post("/api/mangas/:id/comments", authenticateToken, async (req: any, res) =>
       user_id: userId,
       user_name: req.user.name,
       user_avatar: userAvatar,
+      user_avatar_frame: userAvatarFrame,
+      avatar_frame_url: userAvatarFrame,
       content,
       likes: 0,
       dislikes: 0,
@@ -6188,7 +6206,7 @@ app.get("/api/dramas/:id/comments", async (req, res) => {
   const id = req.params.id;
   try {
     const [rows]: any = await dbQuery(
-      `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar 
+      `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
        FROM comments c 
        LEFT JOIN users u ON c.user_id = u.id 
        WHERE c.drama_id = ? 
@@ -6229,10 +6247,12 @@ app.post("/api/dramas/:id/comments", authenticateToken, async (req: any, res) =>
     );
 
     let userAvatar = req.user.avatar_url || null;
+    let userAvatarFrame = req.user.avatar_frame_url || null;
     try {
-      const [uRows]: any = await dbQuery("SELECT avatar_url FROM users WHERE id = ?", [userId]);
-      if (uRows && uRows.length > 0 && uRows[0].avatar_url) {
-        userAvatar = uRows[0].avatar_url;
+      const [uRows]: any = await dbQuery("SELECT avatar_url, avatar_frame_url FROM users WHERE id = ?", [userId]);
+      if (uRows && uRows.length > 0) {
+        if (uRows[0].avatar_url) userAvatar = uRows[0].avatar_url;
+        if (uRows[0].avatar_frame_url) userAvatarFrame = uRows[0].avatar_frame_url;
       }
     } catch (e) {}
 
@@ -6242,6 +6262,8 @@ app.post("/api/dramas/:id/comments", authenticateToken, async (req: any, res) =>
       user_id: userId,
       user_name: req.user.name,
       user_avatar: userAvatar,
+      user_avatar_frame: userAvatarFrame,
+      avatar_frame_url: userAvatarFrame,
       content,
       likes: 0,
       dislikes: 0,
@@ -6663,8 +6685,25 @@ async function createTezCheckBill({
 
   if (!response.ok) {
     console.error("[TezCheck Error] Response JSON:", resJson);
-    const msg = resJson?.message || resJson?.error || JSON.stringify(resJson?.details || resJson);
-    throw new Error(`TezCheck xatolik: ${msg}`);
+    let errMsg = "Noma'lum xatolik";
+    if (typeof resJson?.error === "string") {
+      errMsg = resJson.error;
+    } else if (resJson?.error?.message) {
+      errMsg = resJson.error.message;
+    } else if (typeof resJson?.message === "string") {
+      errMsg = resJson.message;
+    } else if (resJson?.message?.message) {
+      errMsg = resJson.message.message;
+    } else if (resJson?.details) {
+      errMsg = typeof resJson.details === "string" ? resJson.details : JSON.stringify(resJson.details);
+    } else {
+      errMsg = JSON.stringify(resJson);
+    }
+
+    if (response.status === 401 || resJson?.error?.code === "auth.unauthenticated") {
+      errMsg = "TezCheck autentifikatsiyadan o'tmadi: Kassa kodi mavjud, ammo TezCheck API Maxfiy Tokeni kiritilmagan. Iltimos Admin Panel -> Do'kon -> TezCheck Sozlamalarida API kalitini saqlang.";
+    }
+    throw new Error(`TezCheck xatolik: ${errMsg}`);
   }
 
   return resJson?.data;
@@ -6740,7 +6779,7 @@ app.get("/api/shop/my-inventory", authenticateToken, async (req: any, res: any) 
 app.post("/api/shop/checkout", authenticateToken, async (req: any, res: any) => {
   try {
     const userId = req.user.id;
-    const { item_id } = req.body;
+    const { item_id, is_test } = req.body;
     if (!item_id) {
       return res.status(400).json({ error: "Mahsulot tanlanmagan" });
     }
@@ -6762,6 +6801,22 @@ app.post("/api/shop/checkout", authenticateToken, async (req: any, res: any) => 
 
     const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     const amountUzs = item.price;
+
+    // Test checkout bypass (e.g. for testing before API token is saved or admin test)
+    if (is_test || amountUzs === 0) {
+      await dbQuery(
+        "INSERT INTO shop_orders (id, user_id, item_id, amount_uzs, status, paid_at) VALUES (?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)",
+        [orderId, userId, item_id, amountUzs]
+      );
+      await dbQuery("INSERT INTO shop_purchases (user_id, item_id) VALUES (?, ?)", [userId, item_id]);
+      return res.json({
+        success: true,
+        order_id: orderId,
+        is_test: true,
+        message: "Xarid muvaffaqiyatli amalga oshirildi va profilingizga qo'shildi!",
+        item
+      });
+    }
 
     // Determine return URL
     const host = req.headers.host || "animem.uz";
@@ -6952,6 +7007,8 @@ app.post("/api/shop/equip", authenticateToken, async (req: any, res: any) => {
       await dbQuery("UPDATE shop_purchases SET is_equipped = false WHERE id = ?", [purchase.id]);
       if (purchase.category === "frame") {
         await dbQuery("UPDATE users SET avatar_frame_url = NULL WHERE id = ?", [userId]);
+      } else if (purchase.category === "banner") {
+        await dbQuery("UPDATE users SET banner_url = NULL WHERE id = ?", [userId]);
       }
     }
 
@@ -7133,7 +7190,7 @@ app.get("/api/chat/messages", async (req: any, res: any) => {
       (async () => {
         try {
           const [rows]: any = await dbQuery(
-            `SELECT m.*, u.avatar_url AS user_avatar 
+            `SELECT m.*, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
              FROM messages m 
              LEFT JOIN users u ON m.user_id = u.id 
              ORDER BY m.id DESC LIMIT 50`
@@ -7151,7 +7208,7 @@ app.get("/api/chat/messages", async (req: any, res: any) => {
     // If local store is empty, query DB
     try {
       const [rows]: any = await dbQuery(
-        `SELECT m.*, u.avatar_url AS user_avatar 
+        `SELECT m.*, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
          FROM messages m 
          LEFT JOIN users u ON m.user_id = u.id 
          ORDER BY m.id DESC LIMIT 50`

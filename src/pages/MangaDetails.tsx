@@ -6,6 +6,7 @@ import { BookOpen, Star, Eye, Layers, User, Calendar, ArrowLeft, Play, Clock, Sp
 import { Manga, MangaChapter } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import LoadingScreen from '../components/LoadingScreen';
+import UserAvatar from '../components/UserAvatar';
 
 interface MangaDetailResponse extends Manga {
   chapters: MangaChapter[];
@@ -464,13 +465,14 @@ export default function MangaDetails() {
                      key={comment.id} 
                      className="group bg-[#18181c] border border-[#262626] p-4 rounded-md flex gap-3"
                   >
-                     {avatarSrc ? (
-                        <img loading="lazy" decoding="async" src={avatarSrc} alt={comment.user_name} className="w-11 h-11 rounded-full object-cover border-2 border-[#ff006a]/40 hover:border-[#ff006a] shrink-0 shadow-md transition-all" />
-                     ) : (
-                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#2a2a2e] to-[#151518] text-[#ff006a] flex items-center justify-center font-extrabold text-sm shrink-0 border-2 border-[#ff006a]/30 shadow-md">
-                           {comment.user_name?.[0]?.toUpperCase() || 'U'}
-                        </div>
-                     )}
+                     <Link to={`/user/${comment.user_id}`} className="shrink-0 mt-0.5">
+                        <UserAvatar 
+                           size="md" 
+                           src={avatarSrc} 
+                           frameUrl={comment.user_avatar_frame || comment.avatar_frame_url} 
+                           name={comment.user_name} 
+                        />
+                     </Link>
                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1.5">
                            <span className="text-white/90 font-bold text-xs">{comment.user_name}</span>
@@ -532,13 +534,12 @@ export default function MangaDetails() {
                                  const repAvatar = rep.user_avatar;
                                  return (
                                     <div key={rep.id} className="bg-[#141418] p-3 rounded-sm border border-[#222] flex gap-2.5">
-                                       {repAvatar ? (
-                                          <img loading="lazy" decoding="async" src={repAvatar} alt={rep.user_name} className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0" />
-                                       ) : (
-                                          <div className="w-7 h-7 rounded-full bg-[#ff006a]/20 text-[#ff006a] flex items-center justify-center font-bold text-xs shrink-0">
-                                             {rep.user_name?.[0]?.toUpperCase() || 'U'}
-                                          </div>
-                                       )}
+                                       <UserAvatar 
+                                          size="sm" 
+                                          src={repAvatar || rep.avatar_url} 
+                                          frameUrl={rep.user_avatar_frame || rep.avatar_frame_url} 
+                                          name={rep.user_name} 
+                                       />
                                        <div className="flex-1 min-w-0">
                                           <div className="flex items-center gap-2 mb-1">
                                              <span className="text-white/90 text-xs font-bold">{rep.user_name}</span>

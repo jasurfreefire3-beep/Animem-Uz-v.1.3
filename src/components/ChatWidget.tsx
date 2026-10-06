@@ -9,6 +9,7 @@ import { Message } from '../types';
 import AudioMessage, { parseMessageContent } from './AudioMessage';
 import GifPicker from './GifPicker';
 import FormattedContent, { isGifContent } from './FormattedContent';
+import UserAvatar from './UserAvatar';
 
 const CHAT_BG_IMAGE = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRbK8qI1E3BjTK74xv_20a3cTlFO8toJzzRqbJmZHUE4Qrg4dAKPrWmyZw&s=10";
 
@@ -41,18 +42,12 @@ const MemoizedMessage = memo(({
       className="flex items-start gap-2.5 group my-1 cursor-pointer select-none"
     >
       <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 mt-0.5">
-        {avatarSrc ? (
-          <img loading="lazy" decoding="async"
-            referrerPolicy="no-referrer"
-            src={avatarSrc}
-            alt={msg.user_name}
-            className="w-9 h-9 rounded-full object-cover border-2 border-[#ff006a]/40 shrink-0 hover:border-[#ff006a] transition-all shadow-md"
-          />
-        ) : (
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2a2a2e] to-[#151518] border-2 border-[#ff006a]/40 flex items-center justify-center text-xs text-[#ff006a] font-extrabold uppercase shrink-0 shadow-md">
-            {msg.user_name.charAt(0)}
-          </div>
-        )}
+        <UserAvatar
+          size="md"
+          src={avatarSrc}
+          frameUrl={msg.user_avatar_frame || msg.avatar_frame_url}
+          name={msg.user_name}
+        />
       </Link>
 
       <div className="flex-1 min-w-0">
@@ -326,12 +321,15 @@ export default function ChatWidget() {
     if (!contentToSend || !user) return;
 
     const userAvatar = (user as any).avatar_url || (user as any).avatar || null;
+    const userAvatarFrame = (user as any).avatar_frame_url || null;
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const optimisticMsg: Message = {
       id: tempId,
       user_id: user.id,
       user_name: user.name,
       user_avatar: userAvatar,
+      user_avatar_frame: userAvatarFrame,
+      avatar_frame_url: userAvatarFrame,
       content: contentToSend,
       reply_to_id: replyingTo ? String(replyingTo.id) : null,
       reply_to_name: replyingTo ? replyingTo.user_name : null,
@@ -348,6 +346,8 @@ export default function ChatWidget() {
       user_id: user.id,
       user_name: user.name,
       user_avatar: userAvatar,
+      user_avatar_frame: userAvatarFrame,
+      avatar_frame_url: userAvatarFrame,
       content: contentToSend,
       reply_to_id: replyingTo ? String(replyingTo.id) : null,
       reply_to_name: replyingTo ? replyingTo.user_name : null,

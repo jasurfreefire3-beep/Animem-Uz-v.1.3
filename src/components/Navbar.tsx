@@ -11,6 +11,7 @@ import {
   checkAndNotifyNewContent
 } from '../services/notificationService';
 import { Language } from '../i18n/translations';
+import UserAvatar from './UserAvatar';
 
 const logoImg = "https://files.catbox.moe/45hoi6.png";
 
@@ -484,23 +485,12 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
               className="flex items-center space-x-2 p-1 rounded-sm hover:bg-[#111] transition-all cursor-pointer"
             >
-              <div className="relative w-8 h-8 rounded-full border border-[#ff006a]/30 flex items-center justify-center bg-[#1c1c1e] text-[#ff006a] uppercase font-bold text-xs">
-                <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    user.name.charAt(0)
-                  )}
-                </div>
-                {user.avatar_frame_url && (
-                  <img 
-                    src={user.avatar_frame_url} 
-                    alt="Frame" 
-                    className="absolute -inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)] pointer-events-none object-contain z-10 scale-110 drop-shadow-[0_0_8px_rgba(255,0,106,0.6)]"
-                    referrerPolicy="no-referrer" 
-                  />
-                )}
-              </div>
+              <UserAvatar
+                size="sm"
+                src={user.avatar_url}
+                frameUrl={user.avatar_frame_url}
+                name={user.name}
+              />
               <span className="text-xs font-bold hidden md:inline text-white/80">{user.name}</span>
             </button>
 

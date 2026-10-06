@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Link as LinkIcon, Image as ImageIcon, CheckCircle2, X, RefreshCw, Database } from 'lucide-react';
+import { isVideoMedia } from './UserAvatar';
 
 interface ImageUploaderProps {
   label: string;
@@ -43,13 +44,14 @@ export default function ImageUploader({
   };
 
   const uploadFileToCatbox = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setUploadError("Faqat rasm fayllarini yuklash mumkin (JPG, PNG, WebP, GIF)");
+    const isAllowed = file.type.startsWith('image/') || file.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|gif|webm|mp4)$/i.test(file.name);
+    if (!isAllowed) {
+      setUploadError("Faqat rasm va video fayllarini yuklash mumkin (JPG, PNG, WebP, GIF, WebM, MP4)");
       return;
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      setUploadError("Rasm hajmi 20MB dan oshmasligi kerak");
+      setUploadError("Fayl hajmi 20MB dan oshmasligi kerak");
       return;
     }
 
@@ -183,7 +185,7 @@ export default function ImageUploader({
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept="image/*"
+              accept="image/*,video/webm,video/mp4,.gif,.webm,.mp4"
               className="hidden"
             />
 
@@ -191,14 +193,25 @@ export default function ImageUploader({
               /* Image Preview Card */
               <div className="relative group bg-[#0a0a0d] border border-[#333] rounded overflow-hidden">
                 <div className={`relative flex items-center justify-center bg-black/40 overflow-hidden ${getAspectRatioClasses()}`}>
-                  <img
-                    src={value}
-                    alt="Yuklangan rasm"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://placehold.co/400x600/18181c/ff006a?text=Rasm+topilmadi';
-                    }}
-                  />
+                  {isVideoMedia(value) ? (
+                    <video
+                      src={value}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={value}
+                      alt="Yuklangan rasm"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://placehold.co/400x600/18181c/ff006a?text=Rasm+topilmadi';
+                      }}
+                    />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-3">
                     <div className="flex justify-end">
                       <button
@@ -293,7 +306,7 @@ export default function ImageUploader({
           <div className="space-y-2">
             <div className="relative">
               <input
-                type="url"
+                type="text"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
@@ -314,14 +327,25 @@ export default function ImageUploader({
             {value && (
               <div className="relative bg-[#0a0a0d] border border-[#333] rounded overflow-hidden max-w-sm">
                 <div className={`relative flex items-center justify-center bg-black/40 overflow-hidden ${getAspectRatioClasses()}`}>
-                  <img
-                    src={value}
-                    alt="Havola ko'rinishi"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://placehold.co/400x600/18181c/ff006a?text=URL+noto%27g%27ri';
-                    }}
-                  />
+                  {isVideoMedia(value) ? (
+                    <video
+                      src={value}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={value}
+                      alt="Havola ko'rinishi"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://placehold.co/400x600/18181c/ff006a?text=URL+noto%27g%27ri';
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             )}
