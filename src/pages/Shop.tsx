@@ -578,11 +578,11 @@ export default function Shop() {
                   {/* Subtle ambient lighting */}
                   <div className="absolute inset-0 bg-radial-gradient from-white/5 to-transparent pointer-events-none" />
 
-                  {/* 1. Ramka (Frame) Preview - ASL KATTA O'LCHAMI */}
+                  {/* 1. Ramka (Frame) Preview - To'rtburchak avatar ramkani to'ldiradi, ramka markazda simmetrik */}
                   {item.category === 'frame' && (
-                    <div className="relative w-28 h-28 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+                    <div className="relative w-28 h-28 aspect-square flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
                       {/* Avatar base inside frame - To'rtburchak va ramkani to'ldirib turadi */}
-                      <div className="w-20 h-20 rounded-2xl bg-[#202026] overflow-hidden flex items-center justify-center border-2 border-white/10 shadow-lg">
+                      <div className="w-24 h-24 aspect-square rounded-2xl bg-[#202026] overflow-hidden flex items-center justify-center border border-white/10 shadow-lg relative">
                         {user?.avatar_url ? (
                           isVideoMedia(user.avatar_url) ? (
                             <video src={user.avatar_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
@@ -593,7 +593,7 @@ export default function Shop() {
                           <span className="text-2xl font-black text-[#ff006a] uppercase">AN</span>
                         )}
                       </div>
-                      {/* Animated/Glowing Frame overlay - ASL HOLI */}
+                      {/* Animated/Glowing Frame overlay - markazda simmetrik */}
                       {isVideoMedia(item.image_url) ? (
                         <video
                           src={item.image_url}
@@ -601,13 +601,13 @@ export default function Shop() {
                           loop
                           muted
                           playsInline
-                          className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
+                          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
                         />
                       ) : (
                         <img 
                           src={item.image_url} 
                           alt={item.title} 
-                          className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
+                          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
                         />
                       )}
                     </div>
@@ -775,8 +775,8 @@ export default function Shop() {
               {/* Item preview in modal */}
               <div className="relative w-full h-44 bg-[#0d0d10] border border-white/10 rounded-xl overflow-hidden flex items-center justify-center mb-5">
                 {selectedItem.category === 'frame' ? (
-                  <div className="relative w-28 h-28 flex items-center justify-center">
-                    <div className="w-20 h-20 rounded-2xl bg-[#202026] overflow-hidden flex items-center justify-center border-2 border-white/10 shadow-lg">
+                  <div className="relative w-28 h-28 aspect-square flex items-center justify-center">
+                    <div className="w-24 h-24 aspect-square rounded-2xl bg-[#202026] overflow-hidden flex items-center justify-center border border-white/10 shadow-lg relative">
                       {user?.avatar_url ? (
                         isVideoMedia(user.avatar_url) ? (
                           <video src={user.avatar_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
@@ -794,13 +794,13 @@ export default function Shop() {
                         loop 
                         muted 
                         playsInline 
-                        className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
                       />
                     ) : (
                       <img 
                         src={selectedItem.image_url} 
                         alt={selectedItem.title} 
-                        className="absolute inset-0 w-full h-full object-contain pointer-events-none scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
                       />
                     )}
                   </div>

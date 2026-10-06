@@ -17,13 +17,13 @@ interface UserAvatarProps {
 }
 
 const sizeMap = {
-  xs: { box: 'w-7 h-7', text: 'text-[10px]', rounded: 'rounded-md', frameOffset: '-inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)]' },
-  sm: { box: 'w-9 h-9', text: 'text-xs', rounded: 'rounded-lg', frameOffset: '-inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)]' },
-  md: { box: 'w-12 h-12', text: 'text-sm', rounded: 'rounded-xl', frameOffset: '-inset-2.5 w-[calc(100%+20px)] h-[calc(100%+20px)]' },
-  lg: { box: 'w-16 h-16', text: 'text-base', rounded: 'rounded-xl', frameOffset: '-inset-3.5 w-[calc(100%+28px)] h-[calc(100%+28px)]' },
-  xl: { box: 'w-24 h-24', text: 'text-2xl', rounded: 'rounded-2xl', frameOffset: '-inset-4.5 w-[calc(100%+36px)] h-[calc(100%+36px)]' },
-  '2xl': { box: 'w-28 h-28 sm:w-36 sm:h-36', text: 'text-4xl sm:text-5xl', rounded: 'rounded-2xl', frameOffset: '-inset-4 sm:-inset-6 w-[calc(100%+32px)] sm:w-[calc(100%+48px)] h-[calc(100%+32px)] sm:h-[calc(100%+48px)]' },
-  custom: { box: '', text: 'text-sm', rounded: 'rounded-xl', frameOffset: '-inset-2.5 w-[calc(100%+20px)] h-[calc(100%+20px)]' }
+  xs: { box: 'w-7 h-7', text: 'text-[10px]', rounded: 'rounded-md' },
+  sm: { box: 'w-9 h-9', text: 'text-xs', rounded: 'rounded-lg' },
+  md: { box: 'w-12 h-12', text: 'text-sm', rounded: 'rounded-xl' },
+  lg: { box: 'w-16 h-16', text: 'text-base', rounded: 'rounded-xl' },
+  xl: { box: 'w-24 h-24', text: 'text-2xl', rounded: 'rounded-2xl' },
+  '2xl': { box: 'w-28 h-28 sm:w-36 sm:h-36', text: 'text-4xl sm:text-5xl', rounded: 'rounded-2xl' },
+  custom: { box: '', text: 'text-sm', rounded: 'rounded-xl' }
 };
 
 export default function UserAvatar({
@@ -41,10 +41,10 @@ export default function UserAvatar({
   const initial = (name || 'U').charAt(0).toUpperCase();
 
   return (
-    <div className={`relative shrink-0 flex items-center justify-center ${currentSize.box} ${className}`}>
+    <div className={`relative shrink-0 aspect-square flex items-center justify-center ${currentSize.box} ${className}`}>
       {/* Square avatar container fitting the frame completely */}
       <div 
-        className={`w-full h-full ${currentSize.rounded} overflow-hidden bg-[#18181c] border border-white/10 flex items-center justify-center shadow-md relative ${avatarClassName}`}
+        className={`w-full h-full aspect-square ${currentSize.rounded} overflow-hidden bg-[#18181c] border border-white/10 flex items-center justify-center shadow-md relative ${avatarClassName}`}
       >
         {src ? (
           isAvatarVideo ? (
@@ -77,7 +77,7 @@ export default function UserAvatar({
         )}
       </div>
 
-      {/* Frame overlay around square avatar */}
+      {/* Frame overlay around square avatar - perfectly concentric and centered on all 4 sides */}
       {frameUrl && (
         isFrameVideo ? (
           <video
@@ -86,7 +86,7 @@ export default function UserAvatar({
             loop
             muted
             playsInline
-            className={`absolute ${currentSize.frameOffset} pointer-events-none object-contain z-10 scale-115 sm:scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)] ${frameClassName}`}
+            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_12px_rgba(255,0,106,0.6)] ${frameClassName}`}
           />
         ) : (
           <img
@@ -95,7 +95,7 @@ export default function UserAvatar({
             referrerPolicy="no-referrer"
             src={frameUrl}
             alt="Frame"
-            className={`absolute ${currentSize.frameOffset} pointer-events-none object-contain z-10 scale-115 sm:scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)] ${frameClassName}`}
+            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_12px_rgba(255,0,106,0.6)] ${frameClassName}`}
           />
         )
       )}

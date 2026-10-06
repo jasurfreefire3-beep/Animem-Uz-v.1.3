@@ -557,8 +557,8 @@ export default function Profil() {
           <div className="flex flex-col md:flex-row items-center md:items-end gap-5 text-center md:text-left">
             
             {/* Avatar Square */}
-            <div className="relative shrink-0 group w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
-              <div className="w-full h-full rounded-2xl border-4 border-[#111] bg-[#1c1c1e] overflow-hidden flex items-center justify-center text-4xl sm:text-5xl font-black text-[#ff006a] uppercase shadow-[0_0_30px_rgba(255,0,106,0.3)] relative">
+            <div className="relative shrink-0 aspect-square group w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
+              <div className="w-full h-full aspect-square rounded-2xl border-2 sm:border-4 border-[#111] bg-[#1c1c1e] overflow-hidden flex items-center justify-center text-4xl sm:text-5xl font-black text-[#ff006a] uppercase shadow-[0_0_30px_rgba(255,0,106,0.3)] relative">
                 {profileUser.avatar_url ? (
                   isVideoMedia(profileUser.avatar_url) ? (
                     <video
@@ -583,7 +583,7 @@ export default function Profil() {
                 )}
               </div>
 
-              {/* Avatar Frame overlay */}
+              {/* Avatar Frame overlay - perfectly concentric and centered on all 4 sides */}
               {profileUser.avatar_frame_url && (
                 isVideoMedia(profileUser.avatar_frame_url) ? (
                   <video
@@ -592,13 +592,13 @@ export default function Profil() {
                     loop
                     muted
                     playsInline
-                    className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]"
                   />
                 ) : (
                   <img 
                     src={profileUser.avatar_frame_url} 
                     alt="Frame" 
-                    className="absolute -inset-3 sm:-inset-4 w-[calc(100%+24px)] sm:w-[calc(100%+32px)] h-[calc(100%+24px)] sm:h-[calc(100%+32px)] pointer-events-none object-contain z-10 scale-120 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_15px_rgba(255,0,106,0.6)]" 
                   />
                 )
               )}

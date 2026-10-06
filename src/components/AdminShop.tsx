@@ -5,6 +5,7 @@ import {
   DollarSign, Eye, EyeOff, ShieldCheck, Clock, User
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
+import { isVideoMedia } from './UserAvatar';
 import { ShopItem, ShopOrder } from '../types';
 
 export default function AdminShop() {
@@ -359,30 +360,63 @@ export default function AdminShop() {
                     {/* Preview Box */}
                     <div className="relative w-full h-36 bg-[#08080c] rounded-lg overflow-hidden flex items-center justify-center border border-white/5 mb-3">
                       {item.category === 'frame' ? (
-                        <div className="relative w-20 h-20 flex items-center justify-center">
+                        <div className="relative w-24 h-24 aspect-square flex items-center justify-center">
                           <img 
                             src="https://files.catbox.moe/54s3e2.jpg" 
                             alt="Mock Avatar" 
-                            className="w-16 h-16 rounded-full object-cover"
+                            className="w-20 h-20 aspect-square rounded-xl object-cover border border-white/10"
                           />
+                          {isVideoMedia(item.image_url) ? (
+                            <video
+                              src={item.image_url}
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_8px_rgba(0,240,255,0.6)]"
+                            />
+                          ) : (
+                            <img 
+                              src={item.image_url} 
+                              alt={item.title} 
+                              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_8px_rgba(0,240,255,0.6)]"
+                            />
+                          )}
+                        </div>
+                      ) : item.category === 'avatar' ? (
+                        isVideoMedia(item.image_url) ? (
+                          <video 
+                            src={item.image_url} 
+                            autoPlay 
+                            loop 
+                            muted 
+                            playsInline 
+                            className="w-20 h-20 aspect-square rounded-xl object-cover border-2 border-white/20" 
+                          />
+                        ) : (
                           <img 
                             src={item.image_url} 
                             alt={item.title} 
-                            className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-[0_0_8px_rgba(0,240,255,0.6)]"
+                            className="w-20 h-20 aspect-square rounded-xl object-cover border-2 border-white/20"
                           />
-                        </div>
-                      ) : item.category === 'avatar' ? (
-                        <img 
-                          src={item.image_url} 
-                          alt={item.title} 
-                          className="w-24 h-24 rounded-full object-cover border-2 border-white/20"
-                        />
+                        )
                       ) : (
-                        <img 
-                          src={item.image_url} 
-                          alt={item.title} 
-                          className="w-full h-full object-cover"
-                        />
+                        isVideoMedia(item.image_url) ? (
+                          <video 
+                            src={item.image_url} 
+                            autoPlay 
+                            loop 
+                            muted 
+                            playsInline 
+                            className="w-full h-full object-cover" 
+                          />
+                        ) : (
+                          <img 
+                            src={item.image_url} 
+                            alt={item.title} 
+                            className="w-full h-full object-cover"
+                          />
+                        )
                       )}
 
                       {/* Category Badge */}
