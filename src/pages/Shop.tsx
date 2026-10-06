@@ -32,6 +32,10 @@ export default function Shop() {
   // Equipping state
   const [equippingId, setEquippingId] = useState<number | string | null>(null);
 
+  // Admin privileges state
+  const isAdmin = user?.role === 'admin';
+  const [claimingAll, setClaimingAll] = useState(false);
+
   // Verification modal state (upon returning from TezCheck)
   const [verifyingOrder, setVerifyingOrder] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{
@@ -120,6 +124,76 @@ export default function Shop() {
     setCheckoutError('');
   };
 
+  // Admin uchun darhol 1-bosishda bepul xarid qilish (Admin imtiyozi: hamma narsa bepul)
+  const handleAdminClaim = async (item: ShopItem) => {
+    if (!user || !token) {
+      navigate(getLocalizedPath('/login'));
+      return;
+    }
+    setCheckingOut(true);
+    setCheckoutError('');
+
+    try {
+      const res = await fetch('/api/shop/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ item_id: item.id })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Mahsulotni olishda xatolik");
+      }
+
+      setSelectedItem(null);
+      setVerifyResult({
+        show: true,
+        success: true,
+        message: data.message || "Admin imtiyozi: Mahsulot inventaringizga bepul qo'shildi!"
+      });
+      loadData();
+    } catch (err: any) {
+      setCheckoutError(err.message || "Xatolik yuz berdi");
+      alert(err.message || "Xatolik yuz berdi");
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
+  // Admin uchun barcha faol tovarlarni 1 bosishda inventarga bepul olish
+  const handleClaimAll = async () => {
+    if (!user || !token || !isAdmin) return;
+    setClaimingAll(true);
+
+    try {
+      const res = await fetch('/api/admin/shop/claim-all', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Mahsulotlarni olishda xatolik");
+      }
+
+      setVerifyResult({
+        show: true,
+        success: true,
+        message: data.message || "Barcha mahsulotlar inventaringizga bepul qo'shildi!"
+      });
+      loadData();
+    } catch (err: any) {
+      alert(err.message || "Xatolik yuz berdi");
+    } finally {
+      setClaimingAll(false);
+    }
+  };
+
   const handleConfirmPurchase = async () => {
     if (!selectedItem || !token) return;
     setCheckingOut(true);
@@ -140,6 +214,18 @@ export default function Shop() {
         throw new Error(data.error || "To'lov hisobini shakllantirib bo'lmadi");
       }
 
+      // Agar bepul bo'lsa (admin yoki 0 so'm)
+      if (data.is_free || (!data.payment_url && data.success)) {
+        setSelectedItem(null);
+        setVerifyResult({
+          show: true,
+          success: true,
+          message: data.message || "Mahsulot muvaffaqiyatli inventaringizga qo'shildi!"
+        });
+        loadData();
+        return;
+      }
+
       if (data.payment_url) {
         // Redirect user to TezCheck payment page
         window.location.href = data.payment_url;
@@ -148,6 +234,7 @@ export default function Shop() {
       }
     } catch (err: any) {
       setCheckoutError(err.message || "To'lov jarayonida kutilmagan xatolik");
+    } finally {
       setCheckingOut(false);
     }
   };
@@ -329,6 +416,36 @@ export default function Shop() {
           </div>
         </div>
       </div>
+
+      {/* Admin Privilege Banner - faqat admin uchun barcha narsa tekin */}
+      {isAdmin && (
+        <div className="mb-8 p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/30 backdrop-blur-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-black flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30 font-black text-xl">
+              👑
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm sm:text-base font-black text-white">Admin Imtiyozi Faol</span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-white shadow-sm uppercase tracking-wide">
+                  Hamma narsa 100% Tekin
+                </span>
+              </div>
+              <p className="text-xs text-white/70 mt-1 max-w-2xl leading-relaxed">
+                Admin uchun do'kondagi barcha ramkalar, avatarkalar va banerlar mutlaqo bepul. Xohlagan buyumni 1 bosishda inventarga oling yoki quyidagi tugma orqali barchasini birdaniga inventarga qo'shing.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleClaimAll}
+            disabled={claimingAll}
+            className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black text-xs font-black shadow-lg shadow-amber-400/25 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50 active:scale-98"
+          >
+            {claimingAll ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            <span>Barchasini inventarga olish</span>
+          </button>
+        </div>
+      )}
 
       {/* Navigation / Filters Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-8">
@@ -550,12 +667,22 @@ export default function Shop() {
                     <h3 className="font-bold text-white text-sm line-clamp-1 group-hover:text-[#ff006a] transition-colors">
                       {item.title}
                     </h3>
-                    <div className="flex items-baseline gap-1 mt-1">
-                      <span className="text-base font-black text-white">
-                        {item.price.toLocaleString('uz-UZ')}
-                      </span>
-                      <span className="text-xs font-semibold text-white/50">so'm</span>
-                    </div>
+                    {isAdmin ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          TEKIN (ADMIN)
+                        </span>
+                        <span className="text-base font-black text-emerald-400">0 so'm</span>
+                        <span className="text-xs line-through text-white/40">{item.price.toLocaleString('uz-UZ')} so'm</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className="text-base font-black text-white">
+                          {item.price.toLocaleString('uz-UZ')}
+                        </span>
+                        <span className="text-xs font-semibold text-white/50">so'm</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Action Buttons */}
@@ -590,6 +717,19 @@ export default function Shop() {
                           </button>
                         )}
                       </div>
+                    ) : isAdmin ? (
+                      <button
+                        onClick={() => handleAdminClaim(item)}
+                        disabled={checkingOut}
+                        className="w-full py-2.5 px-3 rounded-lg text-xs font-black bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                      >
+                        {checkingOut ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Sparkles size={13} />
+                        )}
+                        Bepul olish (Admin)
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleStartCheckout(item)}
@@ -713,13 +853,24 @@ export default function Shop() {
                 </div>
                 <div className="flex justify-between text-white/60">
                   <span>To'lov usuli:</span>
-                  <span className="text-emerald-400 font-medium">TezCheck.uz (Uzum / Payme / Click)</span>
+                  {isAdmin ? (
+                    <span className="text-emerald-400 font-bold">Admin Imtiyozi (100% Bepul)</span>
+                  ) : (
+                    <span className="text-emerald-400 font-medium">TezCheck.uz (Uzum / Payme / Click)</span>
+                  )}
                 </div>
                 <div className="border-t border-white/5 pt-2 flex justify-between items-baseline">
                   <span className="text-sm font-bold text-white">Jami summa:</span>
-                  <span className="text-lg font-black text-[#ff006a]">
-                    {selectedItem.price.toLocaleString('uz-UZ')} so'm
-                  </span>
+                  {isAdmin ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs line-through text-white/40">{selectedItem.price.toLocaleString('uz-UZ')} so'm</span>
+                      <span className="text-lg font-black text-emerald-400">0 so'm (TEKIN)</span>
+                    </div>
+                  ) : (
+                    <span className="text-lg font-black text-[#ff006a]">
+                      {selectedItem.price.toLocaleString('uz-UZ')} so'm
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -750,14 +901,23 @@ export default function Shop() {
                   Bekor qilish
                 </button>
                 <button
-                  onClick={handleConfirmPurchase}
+                  onClick={isAdmin ? () => handleAdminClaim(selectedItem) : handleConfirmPurchase}
                   disabled={checkingOut}
-                  className="flex-1 py-3 px-4 rounded-xl text-xs font-bold text-white bg-[#ff006a] hover:bg-[#d40058] shadow-lg shadow-[#ff006a]/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                    isAdmin 
+                      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 shadow-emerald-500/25' 
+                      : 'bg-[#ff006a] hover:bg-[#d40058] shadow-[#ff006a]/25'
+                  }`}
                 >
                   {checkingOut ? (
                     <>
                       <Loader2 size={14} className="animate-spin" />
-                      <span>Tayyorlanmoqda...</span>
+                      <span>{isAdmin ? "Qo'shilmoqda..." : "Tayyorlanmoqda..."}</span>
+                    </>
+                  ) : isAdmin ? (
+                    <>
+                      <Sparkles size={14} />
+                      <span>Bepul olish (Admin)</span>
                     </>
                   ) : (
                     <>

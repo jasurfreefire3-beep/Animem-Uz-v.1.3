@@ -6469,8 +6469,8 @@ app.post("/api/donate/create-invoice", async (req, res) => {
       return res.status(400).json({ error: "Xato to'lov miqdori kiritildi (kamida 1,000 UZS)" });
     }
 
-    const apiKey = process.env.TEZCHECK_API_KEY || "8237d3501a36506d3271f7918fe9bee985f300ed";
-    const shopId = process.env.TEZCHECK_SHOP_ID || "118";
+    const apiKey = process.env.TEZCHECK_API_KEY || "ee77747df48bae33ee5bee58047c3ab093a84a76";
+    const shopId = process.env.TEZCHECK_SHOP_ID || "124";
 
     let payUrl = "";
     let orderId = `86${Math.floor(1000 + Math.random() * 9000)}`;
@@ -6547,7 +6547,7 @@ app.post("/api/donate/check-status", async (req, res) => {
       return res.status(400).json({ error: "order_id ko'rsatilmadi" });
     }
 
-    const apiKey = process.env.TEZCHECK_API_KEY || "8237d3501a36506d3271f7918fe9bee985f300ed";
+    const apiKey = process.env.TEZCHECK_API_KEY || "ee77747df48bae33ee5bee58047c3ab093a84a76";
     let status = "pending";
     let paymentData: any = null;
 
@@ -6632,9 +6632,9 @@ app.delete("/api/admin/donate/:id", authenticateToken, async (req: any, res: any
 // =================================================================
 // --- DO'KON (SHOP) & TEZCHECK.UZ TO'LOV TIZIMI INTEGRATSIYASI ---
 // =================================================================
-let TEZCHECK_CASH_DESK_CODE = process.env.TEZCHECK_CASH_DESK_CODE || "cdk_qCkJey9k5E3cM9UtyQBsY1nQvq9K";
-let TEZCHECK_API_TOKEN = process.env.TEZCHECK_API_TOKEN || "";
-const TEZCHECK_API_BASE = "https://api.tezcheck.uz/api/merchant/v1";
+let TEZCHECK_SHOP_ID = process.env.TEZCHECK_SHOP_ID || "124";
+let TEZCHECK_API_KEY = process.env.TEZCHECK_API_KEY || "ee77747df48bae33ee5bee58047c3ab093a84a76";
+const TEZCHECK_API_BASE = "https://tezchek.uz/api";
 
 // Helper to create TezCheck bill
 async function createTezCheckBill({
@@ -6648,30 +6648,19 @@ async function createTezCheckBill({
   title: string;
   returnUrl: string;
 }) {
-  const amountMinor = Math.round(Number(amountUzs) * 100);
-  const bearerToken = TEZCHECK_API_TOKEN || TEZCHECK_CASH_DESK_CODE;
-  const deskCode = TEZCHECK_CASH_DESK_CODE;
+  const amount = Math.max(1000, Math.round(Number(amountUzs)));
+  console.log(`[TezCheck] Calling ${TEZCHECK_API_BASE}/create_invoice for order ${orderId} (${amount} UZS)...`);
 
-  const bodyData = {
-    amount_minor: amountMinor,
-    title: (title || "Animem Do'koni").slice(0, 190),
-    external_reference: orderId,
-    return_url: returnUrl
-  };
-
-  const headers: Record<string, string> = {
-    "Authorization": `Bearer ${bearerToken}`,
-    "X-Cash-Desk-Code": deskCode,
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-    "Idempotency-Key": `order-${orderId}`
-  };
-
-  console.log(`[TezCheck] Calling ${TEZCHECK_API_BASE}/bills for order ${orderId} (${amountUzs} UZS)...`);
-  const response = await fetch(`${TEZCHECK_API_BASE}/bills`, {
+  const response = await fetch(`${TEZCHECK_API_BASE}/create_invoice`, {
     method: "POST",
-    headers,
-    body: JSON.stringify(bodyData)
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    body: JSON.stringify({
+      api_key: TEZCHECK_API_KEY,
+      amount: amount
+    })
   });
 
   const resText = await response.text();
@@ -6683,46 +6672,41 @@ async function createTezCheckBill({
     throw new Error(`TezCheck server xatosi (${response.status})`);
   }
 
-  if (!response.ok) {
+  if (!resJson || resJson.ok !== true) {
     console.error("[TezCheck Error] Response JSON:", resJson);
     let errMsg = "Noma'lum xatolik";
-    if (typeof resJson?.error === "string") {
-      errMsg = resJson.error;
-    } else if (resJson?.error?.message) {
+    if (resJson?.error?.message) {
       errMsg = resJson.error.message;
+    } else if (resJson?.error_message) {
+      errMsg = resJson.error_message;
+    } else if (typeof resJson?.error === "string") {
+      errMsg = resJson.error;
     } else if (typeof resJson?.message === "string") {
       errMsg = resJson.message;
-    } else if (resJson?.message?.message) {
-      errMsg = resJson.message.message;
-    } else if (resJson?.details) {
-      errMsg = typeof resJson.details === "string" ? resJson.details : JSON.stringify(resJson.details);
     } else {
       errMsg = JSON.stringify(resJson);
-    }
-
-    if (response.status === 401 || resJson?.error?.code === "auth.unauthenticated") {
-      errMsg = "TezCheck autentifikatsiyadan o'tmadi: Kassa kodi mavjud, ammo TezCheck API Maxfiy Tokeni kiritilmagan. Iltimos Admin Panel -> Do'kon -> TezCheck Sozlamalarida API kalitini saqlang.";
     }
     throw new Error(`TezCheck xatolik: ${errMsg}`);
   }
 
-  return resJson?.data;
+  return {
+    order_id: resJson.order_id,
+    payment_url: resJson.pay_url
+  };
 }
 
 // Helper to query TezCheck bill status
-async function getTezCheckBillStatus(billId: string) {
-  const bearerToken = TEZCHECK_API_TOKEN || TEZCHECK_CASH_DESK_CODE;
-  const deskCode = TEZCHECK_CASH_DESK_CODE;
-
-  const headers: Record<string, string> = {
-    "Authorization": `Bearer ${bearerToken}`,
-    "X-Cash-Desk-Code": deskCode,
-    "Accept": "application/json"
-  };
-
-  const response = await fetch(`${TEZCHECK_API_BASE}/bills/${billId}`, {
+async function getTezCheckBillStatus(billId: string | number) {
+  const response = await fetch(`${TEZCHECK_API_BASE}/status_invoice`, {
     method: "POST",
-    headers
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    body: JSON.stringify({
+      api_key: TEZCHECK_API_KEY,
+      order_id: String(billId)
+    })
   });
 
   const resText = await response.text();
@@ -6733,7 +6717,7 @@ async function getTezCheckBillStatus(billId: string) {
     throw new Error(`TezCheck status xatosi: ${resText}`);
   }
 
-  return resJson?.data;
+  return resJson;
 }
 
 // 1. GET /api/shop/items: Public active items listing with optional category filter
@@ -6779,6 +6763,7 @@ app.get("/api/shop/my-inventory", authenticateToken, async (req: any, res: any) 
 app.post("/api/shop/checkout", authenticateToken, async (req: any, res: any) => {
   try {
     const userId = req.user.id;
+    const isAdmin = req.user.role === 'admin';
     const { item_id, is_test } = req.body;
     if (!item_id) {
       return res.status(400).json({ error: "Mahsulot tanlanmagan" });
@@ -6802,18 +6787,21 @@ app.post("/api/shop/checkout", authenticateToken, async (req: any, res: any) => 
     const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     const amountUzs = item.price;
 
-    // Test checkout bypass (e.g. for testing before API token is saved or admin test)
-    if (is_test || amountUzs === 0) {
+    // ADMIN PRIVILEGE OR TEST PURCHASE OR 0 UZS ITEM:
+    // Faqat admin uchun hamma narsa bepul (0 so'm)
+    if (isAdmin || is_test || amountUzs === 0) {
       await dbQuery(
         "INSERT INTO shop_orders (id, user_id, item_id, amount_uzs, status, paid_at) VALUES (?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)",
-        [orderId, userId, item_id, amountUzs]
+        [orderId, userId, item_id, 0]
       );
       await dbQuery("INSERT INTO shop_purchases (user_id, item_id) VALUES (?, ?)", [userId, item_id]);
       return res.json({
         success: true,
         order_id: orderId,
-        is_test: true,
-        message: "Xarid muvaffaqiyatli amalga oshirildi va profilingizga qo'shildi!",
+        is_free: true,
+        message: isAdmin
+          ? "Admin imtiyozi: Mahsulot sizga bepul taqdim etildi va inventaringizga qo'shildi!"
+          : "Xarid muvaffaqiyatli amalga oshirildi va profilingizga qo'shildi!",
         item
       });
     }
@@ -6829,17 +6817,17 @@ app.post("/api/shop/checkout", authenticateToken, async (req: any, res: any) => 
       [orderId, userId, item_id, amountUzs]
     );
 
-    // Call TezCheck to create bill
+    // Call TezCheck to create invoice
     try {
-      const billData = await createTezCheckBill({
+      const invoiceData = await createTezCheckBill({
         orderId,
         amountUzs,
         title: item.title,
         returnUrl
       });
 
-      const paymentUrl = billData?.payment_url;
-      const billId = billData?.bill?.id;
+      const paymentUrl = invoiceData?.payment_url;
+      const billId = String(invoiceData?.order_id || "");
 
       if (billId) {
         await dbQuery("UPDATE shop_orders SET tezcheck_bill_id = ? WHERE id = ?", [billId, orderId]);
@@ -6884,7 +6872,8 @@ app.get("/api/shop/verify-order/:orderId", async (req: any, res: any) => {
     if (order.tezcheck_bill_id) {
       try {
         const billStatus = await getTezCheckBillStatus(order.tezcheck_bill_id);
-        const isPaid = billStatus?.bill?.paid === true || billStatus?.payment?.state === "succeeded";
+        const statusVal = billStatus?.payment?.status || billStatus?.status;
+        const isPaid = billStatus?.ok === true && (statusVal === "paid" || statusVal === "succeeded");
 
         if (isPaid) {
           await dbQuery("UPDATE shop_orders SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ?", [orderId]);
@@ -6901,6 +6890,9 @@ app.get("/api/shop/verify-order/:orderId", async (req: any, res: any) => {
             status: "paid",
             message: "To'lov muvaffaqiyatli qabul qilindi va mahsulot profilingizga qo'shildi!"
           });
+        } else if (statusVal === "canceled") {
+          await dbQuery("UPDATE shop_orders SET status = 'canceled' WHERE id = ?", [orderId]);
+          return res.json({ success: false, status: "canceled", message: "To'lov bekor qilingan" });
         }
       } catch (e: any) {
         console.warn("Verifying with TezCheck API failed:", e.message);
@@ -6918,20 +6910,19 @@ app.get("/api/shop/verify-order/:orderId", async (req: any, res: any) => {
 app.post("/api/webhooks/tezcheck", async (req: any, res: any) => {
   try {
     console.log("[TezCheck Webhook] Received payload:", JSON.stringify(req.body));
-    const event = req.body?.event;
-    const data = req.body?.data;
-    const bill = data?.bill;
-    const payment = data?.payment;
+    const billId = String(req.body?.id || req.body?.order_id || req.body?.payment?.id || req.body?.data?.order_id || req.body?.data?.bill?.id || "");
+    const extRef = req.body?.external_reference || req.body?.data?.bill?.external_reference || req.body?.data?.payment?.external_reference;
+    const statusVal = req.body?.status || req.body?.payment?.status || (req.body?.event === "payment.succeeded" ? "paid" : "");
 
-    if (event === "payment.succeeded" || bill?.paid === true || payment?.state === "succeeded") {
-      const extRef = bill?.external_reference || payment?.external_reference;
-      const billId = bill?.id;
+    const isPaid = statusVal === "paid" || statusVal === "succeeded" || req.body?.event === "payment.succeeded" || req.body?.data?.bill?.paid === true;
 
+    if (isPaid && (billId || extRef)) {
       let [orders]: any = [];
       if (extRef) {
         [orders] = await dbQuery("SELECT * FROM shop_orders WHERE id = ?", [extRef]);
-      } else if (billId) {
-        [orders] = await dbQuery("SELECT * FROM shop_orders WHERE tezcheck_bill_id = ?", [billId]);
+      }
+      if ((!orders || orders.length === 0) && billId) {
+        [orders] = await dbQuery("SELECT * FROM shop_orders WHERE tezcheck_bill_id = ? OR id = ?", [billId, billId]);
       }
 
       if (orders && orders[0]) {
@@ -7139,14 +7130,44 @@ app.get("/api/admin/shop/orders", authenticateToken, async (req: any, res: any) 
   }
 });
 
+// Admin: Claim all items to admin's inventory for free (Admin uchun barcha tovarlar bepul)
+app.post("/api/admin/shop/claim-all", authenticateToken, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+    const userId = req.user.id;
+    const [items]: any = await dbQuery("SELECT id FROM shop_items WHERE is_active = true");
+    let addedCount = 0;
+    for (const it of items) {
+      const [owned]: any = await dbQuery(
+        "SELECT id FROM shop_purchases WHERE user_id = ? AND item_id = ?",
+        [userId, it.id]
+      );
+      if (!owned || owned.length === 0) {
+        await dbQuery("INSERT INTO shop_purchases (user_id, item_id) VALUES (?, ?)", [userId, it.id]);
+        addedCount++;
+      }
+    }
+    res.json({
+      success: true,
+      message: addedCount > 0 
+        ? `${addedCount} ta yangi mahsulot inventaringizga bepul qo'shildi!` 
+        : "Barcha faol mahsulotlar allaqachon inventaringizda mavjud!",
+      added: addedCount
+    });
+  } catch (err: any) {
+    console.error("Admin claim-all error:", err);
+    res.status(500).json({ error: "Mahsulotlarni inventarga qo'shishda xatolik" });
+  }
+});
+
 // Admin: Get TezCheck configuration settings
 app.get("/api/admin/shop/settings", authenticateToken, async (req: any, res: any) => {
   try {
     if (req.user.role !== "admin") return res.sendStatus(403);
     res.json({
-      cash_desk_code: TEZCHECK_CASH_DESK_CODE,
-      has_api_token: Boolean(TEZCHECK_API_TOKEN),
-      api_token_preview: TEZCHECK_API_TOKEN ? `${TEZCHECK_API_TOKEN.slice(0, 8)}...` : ""
+      shop_id: TEZCHECK_SHOP_ID,
+      api_key_preview: TEZCHECK_API_KEY ? `${TEZCHECK_API_KEY.slice(0, 6)}...${TEZCHECK_API_KEY.slice(-6)}` : "",
+      has_api_key: Boolean(TEZCHECK_API_KEY)
     });
   } catch (err: any) {
     res.status(500).json({ error: "Xatolik" });
@@ -7157,18 +7178,18 @@ app.get("/api/admin/shop/settings", authenticateToken, async (req: any, res: any
 app.post("/api/admin/shop/settings", authenticateToken, async (req: any, res: any) => {
   try {
     if (req.user.role !== "admin") return res.sendStatus(403);
-    const { cash_desk_code, api_token } = req.body;
-    if (cash_desk_code && typeof cash_desk_code === "string") {
-      TEZCHECK_CASH_DESK_CODE = cash_desk_code.trim();
+    const { shop_id, api_key } = req.body;
+    if (shop_id && typeof shop_id === "string") {
+      TEZCHECK_SHOP_ID = shop_id.trim();
     }
-    if (api_token !== undefined && typeof api_token === "string") {
-      TEZCHECK_API_TOKEN = api_token.trim();
+    if (api_key && typeof api_key === "string" && api_key.trim()) {
+      TEZCHECK_API_KEY = api_key.trim();
     }
     res.json({
       success: true,
       message: "TezCheck sozlamalari muvaffaqiyatli saqlandi!",
-      cash_desk_code: TEZCHECK_CASH_DESK_CODE,
-      has_api_token: Boolean(TEZCHECK_API_TOKEN)
+      shop_id: TEZCHECK_SHOP_ID,
+      has_api_key: Boolean(TEZCHECK_API_KEY)
     });
   } catch (err: any) {
     res.status(500).json({ error: "Sozlamalarni saqlashda xatolik" });

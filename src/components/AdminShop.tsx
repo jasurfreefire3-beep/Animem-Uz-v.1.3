@@ -29,11 +29,33 @@ export default function AdminShop() {
 
   // TezCheck settings state
   const [tezSettings, setTezSettings] = useState({
-    cash_desk_code: 'cdk_qCkJey9k5E3cM9UtyQBsY1nQvq9K',
-    api_token: '',
-    has_api_token: false
+    shop_id: '124',
+    api_key: '',
+    has_api_key: false
   });
   const [savingSettings, setSavingSettings] = useState(false);
+  const [claimingAll, setClaimingAll] = useState(false);
+
+  const handleClaimAllForMe = async () => {
+    setClaimingAll(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/shop/claim-all', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Barcha mahsulotlar inventaringizga bepul qo'shildi!");
+      } else {
+        alert(data.error || "Xatolik");
+      }
+    } catch (e: any) {
+      alert("Xatolik: " + e.message);
+    } finally {
+      setClaimingAll(false);
+    }
+  };
 
   const fetchItems = async () => {
     try {
@@ -75,8 +97,8 @@ export default function AdminShop() {
         const data = await res.json();
         setTezSettings(prev => ({
           ...prev,
-          cash_desk_code: data.cash_desk_code || 'cdk_qCkJey9k5E3cM9UtyQBsY1nQvq9K',
-          has_api_token: data.has_api_token
+          shop_id: data.shop_id || '124',
+          has_api_key: data.has_api_key
         }));
       }
     } catch (err) {
@@ -208,8 +230,8 @@ export default function AdminShop() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          cash_desk_code: tezSettings.cash_desk_code,
-          api_token: tezSettings.api_token
+          shop_id: tezSettings.shop_id,
+          api_key: tezSettings.api_key
         })
       });
       const data = await res.json();
@@ -300,13 +322,23 @@ export default function AdminShop() {
               </button>
             </div>
 
-            <button
-              onClick={openAddModal}
-              className="flex items-center gap-2 bg-[#ff006a] hover:bg-[#e6005c] text-white font-bold text-xs px-4 py-2 rounded-lg transition-all shadow-lg shadow-[#ff006a]/20 cursor-pointer"
-            >
-              <Plus size={15} />
-              <span>Yangi Tovar Qo'shish</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleClaimAllForMe}
+                disabled={claimingAll}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs px-3.5 py-2 rounded-lg transition-all shadow-lg shadow-amber-500/20 cursor-pointer disabled:opacity-50"
+              >
+                {claimingAll ? <RefreshCw size={14} className="animate-spin" /> : <span>👑</span>}
+                <span>Barchasini inventarimga olish</span>
+              </button>
+              <button
+                onClick={openAddModal}
+                className="flex items-center gap-2 bg-[#ff006a] hover:bg-[#e6005c] text-white font-bold text-xs px-4 py-2 rounded-lg transition-all shadow-lg shadow-[#ff006a]/20 cursor-pointer"
+              >
+                <Plus size={15} />
+                <span>Yangi Tovar Qo'shish</span>
+              </button>
+            </div>
           </div>
 
           {/* Items Grid */}
@@ -484,42 +516,45 @@ export default function AdminShop() {
               <Key size={18} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">TezCheck.uz Integratsiya Sozlamalari</h3>
-              <p className="text-xs text-white/40">Kassa kodi va API maxfiy kalitini sozlash</p>
+              <h3 className="text-base font-bold text-white">TezCheck.uz Public API Sozlamalari</h3>
+              <p className="text-xs text-white/40">Shop ID va Maxfiy API kalitini xavfsiz boshqarish</p>
             </div>
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-white/70 uppercase mb-1.5">
-                Kassa Kodi (X-Cash-Desk-Code)
+                Kassa ID (Shop ID)
               </label>
               <input
                 type="text"
-                value={tezSettings.cash_desk_code}
-                onChange={e => setTezSettings({ ...tezSettings, cash_desk_code: e.target.value })}
-                placeholder="cdk_..."
+                value={tezSettings.shop_id}
+                onChange={e => setTezSettings({ ...tezSettings, shop_id: e.target.value })}
+                placeholder="124"
                 className="w-full bg-[#08080c] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white font-mono focus:border-[#ff006a] outline-none"
                 required
               />
               <p className="text-[11px] text-white/40 mt-1">
-                TezCheck kabinetingizdagi kassa kodi (masalan: <code className="text-white/60">cdk_qCkJey9k5E3cM9UtyQBsY1nQvq9K</code>).
+                TezCheck tizimidagi do'kon ID raqami (masalan: <code className="text-white/60">124</code>).
               </p>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-white/70 uppercase mb-1.5">
-                Maxfiy API Token (Authorization: Bearer)
+              <label className="block text-xs font-bold text-white/70 uppercase mb-1.5 flex items-center justify-between">
+                <span>Maxfiy API Kalit (API Key)</span>
+                {tezSettings.has_api_key && (
+                  <span className="text-emerald-400 text-[10px] lowercase font-normal">Faol kalit o'rnatilgan</span>
+                )}
               </label>
               <input
                 type="password"
-                value={tezSettings.api_token}
-                onChange={e => setTezSettings({ ...tezSettings, api_token: e.target.value })}
-                placeholder="aps_... (agar mavjud bo'lsa)"
+                value={tezSettings.api_key}
+                onChange={e => setTezSettings({ ...tezSettings, api_key: e.target.value })}
+                placeholder={tezSettings.has_api_key ? "Yangi kalit kiritish uchun yozing..." : "ee77747df48bae33ee5bee58047c3ab093a84a76"}
                 className="w-full bg-[#08080c] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white font-mono focus:border-[#ff006a] outline-none"
               />
               <p className="text-[11px] text-white/40 mt-1">
-                Agar hisobingizda alohida API token (odatda <code className="text-white/60">aps_...</code>) berilgan bo'lsa kiriting. Kiritilmasa, avtomatik ravishda Kassa kodi qo'llaniladi.
+                TezCheck Public API (<a href="https://tezchek.uz/public-api-system" target="_blank" rel="noreferrer" className="text-[#00f0ff] underline">hujjatlar</a>) bo'yicha maxfiy kalit. Server orqali xavfsiz saqlanadi.
               </p>
             </div>
 
