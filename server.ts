@@ -167,7 +167,7 @@ initPgDb();
 // =================================================================
 const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "778abe99df133217050e4af575708af8";
 const CF_DATABASE_ID = process.env.CLOUDFLARE_DATABASE_ID || "11e1d448-17a4-4156-ba89-434fa4e6bb1e";
-const DEFAULT_CF_TOKEN = "cfoat_7SsW35KndQAG3XZ9im7ZrveKFE0ueEGjKnkRrLS-xnI.EvLLN_tJx8YDJcq2fDpsM-3xMLw4OKLR6cmEdF9NuPU";
+const DEFAULT_CF_TOKEN = "cfoat_Jl4TqvyvpcNg5WGqEDP-Wbz2gCIxRS4BZNjb9B45LI4.bSiS3URb8mMEaiO9iumaILfFMKmwTWKfc_iBKeLHOAQ";
 
 function getCloudflareToken(): string {
   if (process.env.CLOUDFLARE_D1_TOKEN) return process.env.CLOUDFLARE_D1_TOKEN;
@@ -227,7 +227,36 @@ async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> 
   }
 }
 
-// Resilient query wrapper: 100% Cloudflare D1
+const LOCAL_STORE_PATH = path.join(process.cwd(), "local_store.json");
+
+function queryLocalStore(sql: string, params: any[] = []): any[] {
+  try {
+    if (!fs.existsSync(LOCAL_STORE_PATH)) return [];
+    const store = JSON.parse(fs.readFileSync(LOCAL_STORE_PATH, "utf-8"));
+    const lower = sql.toLowerCase();
+    
+    let table = "";
+    const match = lower.match(/from\s+([a-zA-Z0-9_]+)/);
+    if (match) table = match[1];
+    if (!table || !store[table]) return [];
+    
+    let data = store[table];
+    if (!Array.isArray(data)) return [];
+
+    if (lower.includes("where id =") && params.length > 0) {
+      data = data.filter((item: any) => String(item.id) === String(params[0]));
+    } else if (lower.includes("where anime_id =") && params.length > 0) {
+      data = data.filter((item: any) => String(item.anime_id) === String(params[0]));
+    } else if (lower.includes("where is_active =") || lower.includes("where is_active=1")) {
+      data = data.filter((item: any) => item.is_active == 1 || item.is_active === true);
+    }
+    return data;
+  } catch (e) {
+    return [];
+  }
+}
+
+// Resilient query wrapper: Cloudflare D1 with local_store fallback
 async function dbQuery<T = any>(sql: string, params?: any[], retries = 3): Promise<T> {
   try {
     return await d1ExecuteQuery<T>(sql, params);
@@ -236,11 +265,15 @@ async function dbQuery<T = any>(sql: string, params?: any[], retries = 3): Promi
       await new Promise((resolve) => setTimeout(resolve, 200));
       return dbQuery<T>(sql, params, retries - 1);
     }
+    const isSelect = /^\s*(SELECT|PRAGMA|WITH|SHOW|DESCRIBE|EXPLAIN)/i.test(sql.trim());
+    if (isSelect) {
+      console.warn("[DB D1 Fallback] Query failed (" + (err?.message || err) + "), using local_store fallback");
+      const fallbackRows = queryLocalStore(sql, params);
+      return [fallbackRows, []] as unknown as T;
+    }
     throw err;
   }
 }
-
-const LOCAL_STORE_PATH = path.join(process.cwd(), "local_store.json");
 
 // In-Memory Global Server Cache (Instant sub-millisecond response)
 interface CacheEntry<T> {
@@ -448,19 +481,19 @@ async function initShopTables() {
   try {
     await dbQuery(`
       CREATE TABLE IF NOT EXISTS shop_items (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         title VARCHAR(255) NOT NULL,
         category VARCHAR(50) NOT NULL,
         image_url LONGTEXT NOT NULL,
         price INT NOT NULL DEFAULT 0,
-        is_active BOOLEAN DEFAULT TRUE,
+        is_active INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     await dbQuery(`
       CREATE TABLE IF NOT EXISTS shop_purchases (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INT NOT NULL,
         item_id INT NOT NULL,
         is_equipped BOOLEAN DEFAULT FALSE,
@@ -502,7 +535,7 @@ async function initShopTables() {
       ];
       for (const item of sampleItems) {
         await dbQuery(
-          `INSERT INTO shop_items (title, category, image_url, price, is_active) VALUES (?, ?, ?, ?, true)`,
+          `INSERT INTO shop_items (title, category, image_url, price, is_active) VALUES (?, ?, ?, ?, 1)`,
           [item.title, item.category, item.image_url, item.price]
         );
       }
@@ -6207,7 +6240,7 @@ async function getTezCheckBillStatus(billId: string | number) {
 app.get("/api/shop/items", async (req: any, res: any) => {
   try {
     const { category } = req.query;
-    let sql = "SELECT * FROM shop_items WHERE is_active = true";
+    let sql = "SELECT * FROM shop_items WHERE is_active = 1";
     const params: any[] = [];
     if (category && typeof category === "string" && category !== "all") {
       sql += " AND category = ?";
@@ -6252,7 +6285,7 @@ app.post("/api/shop/checkout", authenticateToken, async (req: any, res: any) => 
       return res.status(400).json({ error: "Mahsulot tanlanmagan" });
     }
 
-    const [items]: any = await dbQuery("SELECT * FROM shop_items WHERE id = ? AND is_active = true", [item_id]);
+    const [items]: any = await dbQuery("SELECT * FROM shop_items WHERE id = ? AND is_active = 1", [item_id]);
     if (!items || items.length === 0) {
       return res.status(404).json({ error: "Mahsulot topilmadi yoki nofaol" });
     }
@@ -6618,7 +6651,7 @@ app.post("/api/admin/shop/claim-all", authenticateToken, async (req: any, res: a
   try {
     if (req.user.role !== "admin") return res.sendStatus(403);
     const userId = req.user.id;
-    const [items]: any = await dbQuery("SELECT id FROM shop_items WHERE is_active = true");
+    const [items]: any = await dbQuery("SELECT id FROM shop_items WHERE is_active = 1");
     let addedCount = 0;
     for (const it of items) {
       const [owned]: any = await dbQuery(

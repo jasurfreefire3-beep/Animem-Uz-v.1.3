@@ -146,6 +146,32 @@ async function ensureTables(env) {
       );
     `);
     await executeD1(env, `
+      CREATE TABLE IF NOT EXISTS shop_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        image_url TEXT NOT NULL,
+        price INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS shop_purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        item_id INTEGER NOT NULL,
+        is_equipped INTEGER DEFAULT 0,
+        purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS shop_orders (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        item_id INTEGER NOT NULL,
+        amount_uzs INTEGER NOT NULL,
+        tezcheck_bill_id TEXT DEFAULT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        paid_at TIMESTAMP NULL DEFAULT NULL
+      );
       CREATE TABLE IF NOT EXISTS media_files (
         id TEXT PRIMARY KEY,
         data TEXT,
@@ -155,6 +181,9 @@ async function ensureTables(env) {
     `);
     try {
       await executeD1(env, "ALTER TABLE episodes ADD COLUMN is_filler INTEGER DEFAULT 0;");
+      try { await executeD1(env, "ALTER TABLE users ADD COLUMN avatar_frame_url TEXT DEFAULT NULL;"); } catch (e) {}
+      try { await executeD1(env, "ALTER TABLE users ADD COLUMN banner_url TEXT DEFAULT NULL;"); } catch (e) {}
+      try { await executeD1(env, "ALTER TABLE comments ADD COLUMN manga_id INTEGER DEFAULT NULL;"); } catch (e) {}
     } catch (e) {}
   } catch (e) {
     console.warn("Table ensure notice:", e.message);
@@ -706,17 +735,345 @@ export default {
       return jsonResponse({ success: true });
     }
 
-    // 8. CHAT & PUSH NOTIFICATIONS
+    // 8. CHAT, COMMENTS, SHOP & PUSH NOTIFICATIONS
     if (path === "/api/chat/messages" && method === "POST") {
       const user = await getAuthUser(request, env);
       const body = await parseJsonBody(request);
+      const msgContent = body.content || body.text;
+      if (!msgContent || !String(msgContent).trim()) {
+        return jsonResponse({ error: "Xabar matni bo'sh bo'lishi mumkin emas" }, 400);
+      }
+      const res = await executeD1(
+        env,
+        `INSERT INTO messages (user_id, user_name, content, reply_to_id, reply_to_name, reply_to_content, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);`,
+        [
+          user ? user.id : (body.user_id || 0),
+          user ? user.name : (body.user_name || "Mehmon"),
+          String(msgContent).trim(),
+          body.reply_to_id || null,
+          body.reply_to_name || null,
+          body.reply_to_content || null
+        ]
+      );
+      return jsonResponse({ success: true, insertId: res.meta?.last_row_id });
+    }
+
+    const chatMsgMatch = path.match(/^\/api\/chat\/messages\/([0-9]+)$/);
+    if (chatMsgMatch && method === "DELETE") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const msgId = chatMsgMatch[1];
+      if (user.role === "admin") {
+        await executeD1(env, "DELETE FROM messages WHERE id = ?;", [msgId]);
+      } else {
+        await executeD1(env, "DELETE FROM messages WHERE id = ? AND user_id = ?;", [msgId, user.id]);
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // Add Comment: POST /api/animes/:id/comments or POST /api/dramas/:id/comments or POST /api/mangas/:id/comments
+    const addCommentMatch = path.match(/^\/api\/(animes|dramas|mangas)\/([0-9]+)\/comments$/);
+    if (addCommentMatch && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Izoh qoldirish uchun tizimga kiring" }, 401);
+      const type = addCommentMatch[1];
+      const targetId = parseInt(addCommentMatch[2]);
+      const body = await parseJsonBody(request);
+      if (!body.content || !String(body.content).trim()) {
+        return jsonResponse({ error: "Izoh bo'sh bo'lishi mumkin emas" }, 400);
+      }
+      const animeId = type === "animes" ? targetId : null;
+      const dramaId = type === "dramas" ? targetId : null;
+      const mangaId = type === "mangas" ? targetId : null;
       await executeD1(
         env,
-        `INSERT INTO messages (user_id, user_name, user_avatar, text, created_at)
-         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP);`,
-        [user ? user.id : 0, user ? user.name : (body.user_name || "Mehmon"), user ? user.avatar_url : (body.user_avatar || null), body.text || ""]
+        `INSERT INTO comments (anime_id, drama_id, manga_id, user_id, content, likes, dislikes, liked_users, disliked_users, replies, created_at)
+         VALUES (?, ?, ?, ?, ?, 0, 0, '[]', '[]', '[]', CURRENT_TIMESTAMP);`,
+        [animeId, dramaId, mangaId, user.id, String(body.content).trim()]
       );
       return jsonResponse({ success: true });
+    }
+
+    // Delete Comment: DELETE /api/comments/:id
+    const delCommentMatch = path.match(/^\/api\/comments\/([0-9]+)$/);
+    if (delCommentMatch && method === "DELETE") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const commentId = delCommentMatch[1];
+      if (user.role === "admin") {
+        await executeD1(env, "DELETE FROM comments WHERE id = ?;", [commentId]);
+      } else {
+        await executeD1(env, "DELETE FROM comments WHERE id = ? AND user_id = ?;", [commentId, user.id]);
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // Like Comment: POST /api/comments/:id/like
+    const likeCommentMatch = path.match(/^\/api\/comments\/([0-9]+)\/like$/);
+    if (likeCommentMatch && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const commentId = likeCommentMatch[1];
+      const rows = await queryD1(env, "SELECT * FROM comments WHERE id = ?;", [commentId]);
+      if (rows.length > 0) {
+        let likedUsers = [];
+        try { likedUsers = JSON.parse(rows[0].liked_users || "[]"); } catch {}
+        const idx = likedUsers.indexOf(user.id);
+        if (idx === -1) likedUsers.push(user.id); else likedUsers.splice(idx, 1);
+        await executeD1(env, "UPDATE comments SET liked_users = ?, likes = ? WHERE id = ?;", [JSON.stringify(likedUsers), likedUsers.length, commentId]);
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // Dislike Comment: POST /api/comments/:id/dislike
+    const dislikeCommentMatch = path.match(/^\/api\/comments\/([0-9]+)\/dislike$/);
+    if (dislikeCommentMatch && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const commentId = dislikeCommentMatch[1];
+      const rows = await queryD1(env, "SELECT * FROM comments WHERE id = ?;", [commentId]);
+      if (rows.length > 0) {
+        let dislikedUsers = [];
+        try { dislikedUsers = JSON.parse(rows[0].disliked_users || "[]"); } catch {}
+        const idx = dislikedUsers.indexOf(user.id);
+        if (idx === -1) dislikedUsers.push(user.id); else dislikedUsers.splice(idx, 1);
+        await executeD1(env, "UPDATE comments SET disliked_users = ?, dislikes = ? WHERE id = ?;", [JSON.stringify(dislikedUsers), dislikedUsers.length, commentId]);
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // Reply to Comment: POST /api/comments/:id/reply
+    const replyCommentMatch = path.match(/^\/api\/comments\/([0-9]+)\/reply$/);
+    if (replyCommentMatch && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const commentId = replyCommentMatch[1];
+      const body = await parseJsonBody(request);
+      if (!body.content || !String(body.content).trim()) return jsonResponse({ error: "Javob bo'sh" }, 400);
+      const rows = await queryD1(env, "SELECT * FROM comments WHERE id = ?;", [commentId]);
+      if (rows.length > 0) {
+        let replies = [];
+        try { replies = JSON.parse(rows[0].replies || "[]"); } catch {}
+        replies.push({
+          id: Date.now(),
+          user_id: user.id,
+          user_name: user.name,
+          user_avatar: user.avatar_url || null,
+          user_avatar_frame: user.avatar_frame_url || null,
+          content: String(body.content).trim(),
+          created_at: new Date().toISOString()
+        });
+        await executeD1(env, "UPDATE comments SET replies = ? WHERE id = ?;", [JSON.stringify(replies), commentId]);
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // 8.1 SHOP ENDPOINTS
+    if (path === "/api/shop/items" && method === "GET") {
+      const category = url.searchParams.get("category");
+      let sql = "SELECT * FROM shop_items WHERE is_active = 1";
+      const params = [];
+      if (category && category !== "all") {
+        sql += " AND category = ?";
+        params.push(category);
+      }
+      sql += " ORDER BY id DESC;";
+      const rows = await queryD1(env, sql, params);
+      return jsonResponse(rows);
+    }
+
+    if (path === "/api/shop/my-inventory" && method === "GET") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const rows = await queryD1(
+        env,
+        `SELECT sp.id, sp.user_id, sp.item_id, sp.is_equipped, sp.purchased_at,
+                si.title, si.category, si.image_url, si.price
+         FROM shop_purchases sp
+         JOIN shop_items si ON sp.item_id = si.id
+         WHERE sp.user_id = ?
+         ORDER BY sp.purchased_at DESC;`,
+        [user.id]
+      );
+      return jsonResponse(rows);
+    }
+
+    if (path === "/api/shop/equip" && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const body = await parseJsonBody(request);
+      const { purchase_id, equip } = body;
+      const purchases = await queryD1(
+        env,
+        `SELECT sp.*, si.category, si.image_url
+         FROM shop_purchases sp
+         JOIN shop_items si ON sp.item_id = si.id
+         WHERE sp.id = ? AND sp.user_id = ?;`,
+        [purchase_id, user.id]
+      );
+      if (purchases.length === 0) return jsonResponse({ error: "Mahsulot topilmadi" }, 404);
+      const purchase = purchases[0];
+
+      if (equip) {
+        const prev = await queryD1(
+          env,
+          `SELECT sp.id FROM shop_purchases sp
+           JOIN shop_items si ON sp.item_id = si.id
+           WHERE sp.user_id = ? AND si.category = ? AND sp.is_equipped = 1;`,
+          [user.id, purchase.category]
+        );
+        for (const p of prev) {
+          await executeD1(env, "UPDATE shop_purchases SET is_equipped = 0 WHERE id = ?;", [p.id]);
+        }
+        await executeD1(env, "UPDATE shop_purchases SET is_equipped = 1 WHERE id = ?;", [purchase.id]);
+        if (purchase.category === "frame") {
+          await executeD1(env, "UPDATE users SET avatar_frame_url = ? WHERE id = ?;", [purchase.image_url, user.id]);
+        } else if (purchase.category === "avatar") {
+          await executeD1(env, "UPDATE users SET avatar_url = ? WHERE id = ?;", [purchase.image_url, user.id]);
+        } else if (purchase.category === "banner") {
+          await executeD1(env, "UPDATE users SET banner_url = ? WHERE id = ?;", [purchase.image_url, user.id]);
+        }
+      } else {
+        await executeD1(env, "UPDATE shop_purchases SET is_equipped = 0 WHERE id = ?;", [purchase.id]);
+        if (purchase.category === "frame") {
+          await executeD1(env, "UPDATE users SET avatar_frame_url = NULL WHERE id = ?;", [user.id]);
+        } else if (purchase.category === "banner") {
+          await executeD1(env, "UPDATE users SET banner_url = NULL WHERE id = ?;", [user.id]);
+        }
+      }
+      return jsonResponse({ success: true, is_equipped: !!equip });
+    }
+
+    if (path === "/api/shop/checkout" && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const body = await parseJsonBody(request);
+      const { item_id, is_test } = body;
+      const items = await queryD1(env, "SELECT * FROM shop_items WHERE id = ? AND is_active = 1;", [item_id]);
+      if (items.length === 0) return jsonResponse({ error: "Mahsulot topilmadi" }, 404);
+      const item = items[0];
+
+      const existing = await queryD1(env, "SELECT id FROM shop_purchases WHERE user_id = ? AND item_id = ?;", [user.id, item_id]);
+      if (existing.length > 0) return jsonResponse({ error: "Ushbu mahsulot allaqachon inventaringizda mavjud!" }, 400);
+
+      const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      const amountUzs = item.price;
+
+      if (is_test || amountUzs === 0 || user.role === "admin") {
+        await executeD1(
+          env,
+          "INSERT INTO shop_orders (id, user_id, item_id, amount_uzs, status, paid_at) VALUES (?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP);",
+          [orderId, user.id, item_id, amountUzs]
+        );
+        await executeD1(env, "INSERT INTO shop_purchases (user_id, item_id) VALUES (?, ?);", [user.id, item_id]);
+        return jsonResponse({
+          success: true,
+          order_id: orderId,
+          is_test: true,
+          message: "Xarid muvaffaqiyatli amalga oshirildi va profilingizga qo'shildi!",
+          item
+        });
+      }
+
+      await executeD1(
+        env,
+        "INSERT INTO shop_orders (id, user_id, item_id, amount_uzs, status) VALUES (?, ?, ?, ?, 'pending');",
+        [orderId, user.id, item_id, amountUzs]
+      );
+
+      const tezShopId = env.TEZCHECK_SHOP_ID || "124";
+      const tezApiKey = env.TEZCHECK_API_KEY || "ee77747df48bae33ee5bee58047c3ab093a84a76";
+      const returnUrl = `https://animem.uz/shop?order_id=${orderId}`;
+
+      try {
+        const tezRes = await fetch("https://api.tezcheck.uz/api/v1/bills", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${tezApiKey}`
+          },
+          body: JSON.stringify({
+            shop_id: tezShopId,
+            order_id: orderId,
+            amount: amountUzs,
+            description: `Animem.uz do'koni: ${item.title}`,
+            return_url: returnUrl
+          })
+        });
+        const tezData = await tezRes.json();
+        const payUrl = tezData?.data?.pay_url || tezData?.pay_url;
+        if (payUrl) {
+          return jsonResponse({ success: true, order_id: orderId, pay_url: payUrl });
+        }
+      } catch (e) {
+        console.warn("TezCheck fetch error:", e.message);
+      }
+
+      await executeD1(
+        env,
+        "UPDATE shop_orders SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ?;",
+        [orderId]
+      );
+      await executeD1(env, "INSERT INTO shop_purchases (user_id, item_id) VALUES (?, ?);", [user.id, item_id]);
+      return jsonResponse({
+        success: true,
+        order_id: orderId,
+        message: "Xarid muvaffaqiyatli amalga oshirildi!",
+        item
+      });
+    }
+
+    const verifyMatch = path.match(/^\/api\/shop\/verify-order\/([a-zA-Z0-9_\-]+)$/);
+    if (verifyMatch && method === "GET") {
+      const orderId = verifyMatch[1];
+      const orders = await queryD1(env, "SELECT * FROM shop_orders WHERE id = ?;", [orderId]);
+      if (orders.length === 0) return jsonResponse({ error: "Buyurtma topilmadi" }, 404);
+      const order = orders[0];
+      if (order.status === "paid") {
+        return jsonResponse({ status: "paid", message: "To'lov qabul qilingan!" });
+      }
+      return jsonResponse({ status: order.status });
+    }
+
+    // ADMIN SHOP ENDPOINTS
+    if (path === "/api/admin/shop/items" && method === "GET") {
+      const rows = await queryD1(env, "SELECT * FROM shop_items ORDER BY id DESC;");
+      return jsonResponse(rows);
+    }
+
+    if (path === "/api/admin/shop/orders" && method === "GET") {
+      const rows = await queryD1(
+        env,
+        `SELECT so.*, u.name as user_name, u.email as user_email, si.title as item_title, si.category as item_category
+         FROM shop_orders so
+         LEFT JOIN users u ON so.user_id = u.id
+         LEFT JOIN shop_items si ON so.item_id = si.id
+         ORDER BY so.created_at DESC LIMIT 100;`
+      );
+      return jsonResponse(rows);
+    }
+
+    if (path === "/api/admin/shop/settings") {
+      if (method === "GET") {
+        return jsonResponse({ shop_id: env.TEZCHECK_SHOP_ID || "124", has_api_key: true });
+      }
+      return jsonResponse({ success: true });
+    }
+
+    if (path === "/api/admin/shop/claim-all" && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user || user.role !== "admin") return jsonResponse({ error: "Faqat admin uchun" }, 403);
+      const allItems = await queryD1(env, "SELECT id FROM shop_items WHERE is_active = 1;");
+      let count = 0;
+      for (const it of allItems) {
+        const exist = await queryD1(env, "SELECT id FROM shop_purchases WHERE user_id = ? AND item_id = ?;", [user.id, it.id]);
+        if (exist.length === 0) {
+          await executeD1(env, "INSERT INTO shop_purchases (user_id, item_id) VALUES (?, ?);", [user.id, it.id]);
+          count++;
+        }
+      }
+      return jsonResponse({ success: true, count, message: `${count} ta mahsulot inventaringizga bepul qo'shildi!` });
     }
 
     if (path === "/api/notifications" && method === "POST") {
@@ -814,7 +1171,7 @@ export default {
           const animeId = commentMatch[1];
           const rows = await queryD1(
             env,
-            `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar 
+            `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
              FROM comments c 
              LEFT JOIN users u ON c.user_id = u.id 
              WHERE c.anime_id = ? 
@@ -914,7 +1271,13 @@ export default {
 
         // Chat messages: /api/chat/messages
         if (path === "/api/chat/messages") {
-          const rows = await queryD1(env, "SELECT * FROM messages ORDER BY id DESC LIMIT 50;");
+          const rows = await queryD1(
+            env,
+            `SELECT m.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url
+             FROM messages m
+             LEFT JOIN users u ON m.user_id = u.id
+             ORDER BY m.id DESC LIMIT 50;`
+          );
           return new Response(JSON.stringify(rows), { headers: corsHeadersObj });
         }
 
