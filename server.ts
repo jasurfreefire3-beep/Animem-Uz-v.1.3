@@ -9,7 +9,6 @@ import https from "https";
 import dns from "dns";
 import nodemailer from "nodemailer";
 import { Server } from "socket.io";
-import mysql from "mysql2/promise";
 import { Pool as PgPool } from "pg";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -164,47 +163,25 @@ async function initPgDb() {
 initPgDb();
 
 // =================================================================
-// DATABASE CONFIGURATION (Cloudflare D1 Primary, MySQL Fallback)
+// DATABASE CONFIGURATION: CLOUDFLARE D1 (PRIMARY & ONLY DATABASE)
 // =================================================================
-const USE_D1 = process.env.USE_D1 !== "false";
 const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "778abe99df133217050e4af575708af8";
 const CF_DATABASE_ID = process.env.CLOUDFLARE_DATABASE_ID || "11e1d448-17a4-4156-ba89-434fa4e6bb1e";
-let CF_API_TOKEN = process.env.CLOUDFLARE_D1_TOKEN || process.env.CLOUDFLARE_API_TOKEN || "";
+const DEFAULT_CF_TOKEN = "cfoat_7SsW35KndQAG3XZ9im7ZrveKFE0ueEGjKnkRrLS-xnI.EvLLN_tJx8YDJcq2fDpsM-3xMLw4OKLR6cmEdF9NuPU";
 
-// Auto-read local wrangler token if running locally and env token not set
-if (!CF_API_TOKEN) {
+function getCloudflareToken(): string {
+  if (process.env.CLOUDFLARE_D1_TOKEN) return process.env.CLOUDFLARE_D1_TOKEN;
+  if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN;
   try {
     const tomlPath = "/home/kali/.config/.wrangler/config/default.toml";
     if (fs.existsSync(tomlPath)) {
       const toml = fs.readFileSync(tomlPath, "utf-8");
-      for (const line of toml.split("\n")) {
-        if (line.startsWith("oauth_token")) {
-          CF_API_TOKEN = line.split("=")[1].trim().replace(/"/g, "");
-          break;
-        }
-      }
+      const match = toml.match(/oauth_token\s*=\s*"([^"]+)"/);
+      if (match && match[1]) return match[1];
     }
   } catch (e) {}
+  return DEFAULT_CF_TOKEN;
 }
-
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || "db.fr-pari1.bengt.wasmernet.com",
-  port: Number(process.env.DB_PORT) || 10272,
-  user: process.env.DB_USER || "user_b1d5fdb1",
-  password: process.env.DB_PASSWORD || "pw_7GNRdocASAIUzobl5Ezatle9fwRC3oYq",
-  database: process.env.DB_NAME || "dataanime",
-  waitForConnections: true,
-  connectionLimit: 8,
-  queueLimit: 0,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 10000,
-  idleTimeout: 30000,
-  connectTimeout: 20000,
-});
-
-(pool as any).on("error", (err: any) => {
-  console.error("[DB Pool Error]", err?.message || err);
-});
 
 async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> {
   const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`;
@@ -212,13 +189,15 @@ async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> 
   const cleanParams = (params || []).map((p) => {
     if (typeof p === "boolean") return p ? 1 : 0;
     if (p instanceof Date) return p.toISOString().slice(0, 19).replace("T", " ");
+    if (p === undefined) return null;
     return p;
   });
 
+  const token = getCloudflareToken();
   const res = await fetch(url, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${CF_API_TOKEN}`,
+      "Authorization": `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ sql: cleanSql, params: cleanParams }),
@@ -248,35 +227,13 @@ async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> 
   }
 }
 
-// Resilient query wrapper with automatic fallback between D1 and MySQL
+// Resilient query wrapper: 100% Cloudflare D1
 async function dbQuery<T = any>(sql: string, params?: any[], retries = 3): Promise<T> {
-  if (USE_D1 && CF_API_TOKEN) {
-    try {
-      return await d1ExecuteQuery<T>(sql, params);
-    } catch (d1Err: any) {
-      console.warn(`[D1 Query Warning] ${d1Err.message}, falling back to MySQL pool...`);
-    }
-  }
-
   try {
-    const res = await pool.query(sql, params);
-    return res as unknown as T;
+    return await d1ExecuteQuery<T>(sql, params);
   } catch (err: any) {
-    const isConnErr =
-      err?.code === "PROTOCOL_CONNECTION_LOST" ||
-      err?.code === "ECONNRESET" ||
-      err?.code === "EPIPE" ||
-      err?.code === "PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR" ||
-      err?.code === "ETIMEDOUT" ||
-      (err?.message && (
-        err.message.includes("Connection lost") ||
-        err.message.includes("closed the connection") ||
-        err.message.includes("is closed")
-      ));
-
-    if (isConnErr && retries > 0) {
-      console.warn(`[DB] Connection lost (${err.message}), retrying query in 300ms... (${retries} attempts remaining)`);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+    if (retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
       return dbQuery<T>(sql, params, retries - 1);
     }
     throw err;
@@ -475,487 +432,13 @@ const authenticateToken = (req: any, res: any, next: any) => {
   });
 };
 
-// Check and ensure database connection on start
+// Check and ensure database connection on start (100% Cloudflare D1)
 async function testDbConnection() {
-  if (USE_D1 && CF_API_TOKEN) {
-    try {
-      const [rows]: any = await d1ExecuteQuery("SELECT COUNT(*) as cnt FROM animes;");
-      console.log(`[D1] Connected to Cloudflare D1 successfully! Found ${rows[0]?.cnt || 0} animes.`);
-      return;
-    } catch (err: any) {
-      console.warn(`[D1 Connection Test Failed, falling back to MySQL] ${err.message}`);
-    }
-  }
-
-  let connection: any = null;
   try {
-    connection = await pool.getConnection();
-    console.log("Connected to MySQL database successfully!");
-    
-    // Create notifications table if not exists
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        message TEXT NOT NULL,
-        image LONGTEXT DEFAULT NULL,
-        url VARCHAR(500) DEFAULT '/',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    try {
-      await connection.query(`ALTER TABLE notifications ADD COLUMN image LONGTEXT DEFAULT NULL`);
-    } catch (e) {}
-    try {
-      await connection.query(`ALTER TABLE notifications ADD COLUMN url VARCHAR(500) DEFAULT '/'`);
-    } catch (e) {}
-    console.log("Verified notifications table in MySQL.");
-
-    // Create push_subscriptions table for background device push notifications
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS push_subscriptions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        endpoint TEXT NOT NULL,
-        p256dh VARCHAR(255) NOT NULL,
-        auth VARCHAR(255) NOT NULL,
-        user_id INT DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB
-    `);
-    console.log("Verified push_subscriptions table in MySQL.");
-
-    // Check if avatar_url column exists in users
-    const [columns]: any = await connection.query(`
-      SELECT COLUMN_NAME 
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'users' 
-        AND COLUMN_NAME = 'avatar_url' 
-        AND TABLE_SCHEMA = DATABASE()
-    `);
-
-    if (columns.length === 0) {
-      await connection.query(`
-        ALTER TABLE users ADD COLUMN avatar_url MEDIUMTEXT DEFAULT NULL
-      `);
-      console.log("Added avatar_url column to users table.");
-    }
-
-    // Check if telegram_id column exists in users
-    const [tgColumns]: any = await connection.query(`
-      SELECT COLUMN_NAME 
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'users' 
-        AND COLUMN_NAME = 'telegram_id' 
-        AND TABLE_SCHEMA = DATABASE()
-    `);
-
-    if (tgColumns.length === 0) {
-      await connection.query(`
-        ALTER TABLE users ADD COLUMN telegram_id VARCHAR(255) DEFAULT NULL
-      `);
-      console.log("Added telegram_id column to users table.");
-    }
-
-    // Check if phone column exists in users
-    const [phoneColumns]: any = await connection.query(`
-      SELECT COLUMN_NAME 
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'users' 
-        AND COLUMN_NAME = 'phone' 
-        AND TABLE_SCHEMA = DATABASE()
-    `);
-
-    if (phoneColumns.length === 0) {
-      await connection.query(`
-        ALTER TABLE users ADD COLUMN phone VARCHAR(255) DEFAULT NULL
-      `);
-      console.log("Added phone column to users table.");
-    }
-
-    // Check if yandex_id column exists in users
-    const [yandexColumns]: any = await connection.query(`
-      SELECT COLUMN_NAME 
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'users' 
-        AND COLUMN_NAME = 'yandex_id' 
-        AND TABLE_SCHEMA = DATABASE()
-    `);
-
-    if (yandexColumns.length === 0) {
-      await connection.query(`
-        ALTER TABLE users ADD COLUMN yandex_id VARCHAR(255) DEFAULT NULL
-      `);
-      console.log("Added yandex_id column to users table.");
-    }
-
-    // Check if discord_id column exists in users
-    const [discordColumns]: any = await connection.query(`
-      SELECT COLUMN_NAME
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_NAME = 'users'
-        AND COLUMN_NAME = 'discord_id'
-        AND TABLE_SCHEMA = DATABASE()
-    `);
-
-    if (discordColumns.length === 0) {
-      await connection.query(`
-        ALTER TABLE users ADD COLUMN discord_id VARCHAR(255) DEFAULT NULL
-      `);
-      console.log("Added discord_id column to users table.");
-    }
-
-    // Check if facebook_id column exists in users
-    const [facebookColumns]: any = await connection.query(`
-      SELECT COLUMN_NAME
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_NAME = 'users'
-        AND COLUMN_NAME = 'facebook_id'
-        AND TABLE_SCHEMA = DATABASE()
-    `);
-
-    if (facebookColumns.length === 0) {
-      await connection.query(`
-        ALTER TABLE users ADD COLUMN facebook_id VARCHAR(255) DEFAULT NULL
-      `);
-      console.log("Added facebook_id column to users table.");
-    }
-
-    // Check if created_at column exists in users
-    const [createdAtCols]: any = await connection.query(`
-      SELECT COLUMN_NAME 
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'users' 
-        AND COLUMN_NAME = 'created_at' 
-        AND TABLE_SCHEMA = DATABASE()
-    `);
-
-    if (createdAtCols.length === 0) {
-      await connection.query(`
-        ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      `);
-      console.log("Added created_at column to users table.");
-    }
-
-    // Ensure profile & social columns exist in users table
-    const profileColumns = [
-      { name: "auth_provider", type: "VARCHAR(50) DEFAULT NULL" },
-      { name: "bio", type: "TEXT DEFAULT NULL" },
-      { name: "banner_url", type: "MEDIUMTEXT DEFAULT NULL" },
-      { name: "telegram", type: "VARCHAR(255) DEFAULT NULL" },
-      { name: "instagram", type: "VARCHAR(255) DEFAULT NULL" },
-      { name: "tiktok", type: "VARCHAR(255) DEFAULT NULL" },
-      { name: "youtube", type: "VARCHAR(255) DEFAULT NULL" },
-      { name: "discord", type: "VARCHAR(255) DEFAULT NULL" },
-      { name: "facebook", type: "VARCHAR(255) DEFAULT NULL" },
-      { name: "vk", type: "VARCHAR(255) DEFAULT NULL" },
-      { name: "favorites", type: "LONGTEXT DEFAULT NULL" },
-      { name: "watch_time_minutes", type: "INT DEFAULT 0" },
-      { name: "watch_history", type: "LONGTEXT DEFAULT NULL" },
-      { name: "last_seen", type: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
-    ];
-
-    for (const col of profileColumns) {
-      try {
-        const [cCols]: any = await connection.query(`
-          SELECT COLUMN_NAME 
-          FROM INFORMATION_SCHEMA.COLUMNS 
-          WHERE TABLE_NAME = 'users' 
-            AND COLUMN_NAME = ? 
-            AND TABLE_SCHEMA = DATABASE()
-        `, [col.name]);
-        if (cCols.length === 0) {
-          await connection.query(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
-          console.log(`Added ${col.name} column to users table.`);
-        }
-      } catch (e) {
-        console.warn(`Migration check for ${col.name} failed:`, e);
-      }
-    }
-
-    // Fix existing telegram bot users who have telegram_id but auth_provider is NULL
-    try {
-      await connection.query(`
-        UPDATE users 
-        SET auth_provider = 'telegram_bot' 
-        WHERE telegram_id IS NOT NULL 
-          AND (auth_provider IS NULL OR auth_provider = '' OR auth_provider = 'telegram')
-      `);
-      console.log("Synchronized existing telegram users auth_provider to telegram_bot");
-    } catch (e) {
-      console.warn("Fix telegram users auth_provider failed:", e);
-    }
-
-    // Create mangas table if not exists in MySQL
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS mangas (
-        id BIGINT PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        description TEXT,
-        cover_url TEXT,
-        banner_url TEXT,
-        author VARCHAR(255),
-        artist VARCHAR(255),
-        janrlar VARCHAR(255),
-        holati VARCHAR(100),
-        released_year INT DEFAULT 2024,
-        rating FLOAT DEFAULT 9.5,
-        korishlar INT DEFAULT 0,
-        chapters_count INT DEFAULT 0,
-        created_at VARCHAR(255)
-      )
-    `);
-
-    // Create manga_chapters table if not exists in MySQL
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS manga_chapters (
-        id BIGINT PRIMARY KEY,
-        manga_id BIGINT NOT NULL,
-        chapter_number INT NOT NULL,
-        title VARCHAR(255),
-        pages LONGTEXT,
-        views INT DEFAULT 0,
-        created_at VARCHAR(255)
-      )
-    `);
-
-    // Ensure tags column in animes & mangas
-    try {
-      const [aCols]: any = await connection.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'animes' AND COLUMN_NAME = 'tags' AND TABLE_SCHEMA = DATABASE()`);
-      if (aCols.length === 0) {
-        await connection.query(`ALTER TABLE animes ADD COLUMN tags VARCHAR(255) DEFAULT NULL`);
-      }
-    } catch(e) {}
-
-    try {
-      const [adultCols]: any = await connection.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'animes' AND COLUMN_NAME = 'is_adult' AND TABLE_SCHEMA = DATABASE()`);
-      if (adultCols.length === 0) {
-        await connection.query(`ALTER TABLE animes ADD COLUMN is_adult TINYINT(1) DEFAULT 0`);
-      }
-    } catch(e) {}
-
-    try {
-      const [tgCols]: any = await connection.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'animes' AND COLUMN_NAME = 'telegram_url' AND TABLE_SCHEMA = DATABASE()`);
-      if (tgCols.length === 0) {
-        await connection.query(`ALTER TABLE animes ADD COLUMN telegram_url VARCHAR(500) DEFAULT NULL`);
-      }
-    } catch(e) {}
-
-    try {
-      const [mCols]: any = await connection.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'mangas' AND COLUMN_NAME = 'tags' AND TABLE_SCHEMA = DATABASE()`);
-      if (mCols.length === 0) {
-        await connection.query(`ALTER TABLE mangas ADD COLUMN tags VARCHAR(255) DEFAULT NULL`);
-      }
-    } catch(e) {}
-
-    try {
-      const [tCols]: any = await connection.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'mangas' AND COLUMN_NAME = 'type' AND TABLE_SCHEMA = DATABASE()`);
-      if (tCols.length === 0) {
-        await connection.query(`ALTER TABLE mangas ADD COLUMN type VARCHAR(100) DEFAULT 'Manga'`);
-      }
-      await connection.query(`UPDATE mangas SET type = 'Manhwa' WHERE title LIKE '%Solo Leveling%'`);
-    } catch(e) {}
-
-    // Ensure comments table
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS comments (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        anime_id BIGINT DEFAULT NULL,
-        manga_id BIGINT DEFAULT NULL,
-        drama_id BIGINT DEFAULT NULL,
-        user_id INT NOT NULL,
-        content TEXT NOT NULL,
-        likes INT DEFAULT 0,
-        dislikes INT DEFAULT 0,
-        liked_users TEXT DEFAULT NULL,
-        disliked_users TEXT DEFAULT NULL,
-        replies LONGTEXT DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    try {
-      const [cCols]: any = await connection.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'comments' AND TABLE_SCHEMA = DATABASE()`);
-      const colNames = (cCols || []).map((c: any) => c.COLUMN_NAME);
-      if (!colNames.includes('drama_id')) {
-        await connection.query(`ALTER TABLE comments ADD COLUMN drama_id BIGINT DEFAULT NULL`);
-      }
-      if (!colNames.includes('liked_users')) {
-        await connection.query(`ALTER TABLE comments ADD COLUMN liked_users TEXT DEFAULT NULL`);
-      }
-      if (!colNames.includes('disliked_users')) {
-        await connection.query(`ALTER TABLE comments ADD COLUMN disliked_users TEXT DEFAULT NULL`);
-      }
-      if (!colNames.includes('replies')) {
-        await connection.query(`ALTER TABLE comments ADD COLUMN replies LONGTEXT DEFAULT NULL`);
-      }
-      if (!colNames.includes('likes')) {
-        await connection.query(`ALTER TABLE comments ADD COLUMN likes INT DEFAULT 0`);
-      }
-      if (!colNames.includes('dislikes')) {
-        await connection.query(`ALTER TABLE comments ADD COLUMN dislikes INT DEFAULT 0`);
-      }
-    } catch(e) {}
-
-    // Create dramas table if not exists in MySQL
-    try {
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS dramas (
-          id BIGINT PRIMARY KEY,
-          title VARCHAR(255) NOT NULL,
-          description TEXT,
-          poster_url LONGTEXT,
-          banner_url LONGTEXT,
-          janrlar VARCHAR(255),
-          yil INT DEFAULT 2024,
-          likes INT DEFAULT 0,
-          liked_users LONGTEXT DEFAULT NULL,
-          korishlar INT DEFAULT 0,
-          video_url LONGTEXT,
-          telegram_url VARCHAR(500),
-          created_at VARCHAR(255)
-        )
-      `);
-      console.log("Verified dramas table in MySQL.");
-    } catch (e) {
-      console.warn("dramas table creation warning:", e);
-    }
-
-    // Create drama_episodes table if not exists in MySQL
-    try {
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS drama_episodes (
-          id BIGINT PRIMARY KEY,
-          drama_id BIGINT NOT NULL,
-          qism INT NOT NULL,
-          title VARCHAR(255),
-          video_url LONGTEXT NOT NULL,
-          created_at VARCHAR(255)
-        )
-      `);
-      console.log("Verified drama_episodes table in MySQL.");
-    } catch (e) {
-      console.warn("drama_episodes table creation warning:", e);
-    }
-
-    // Ensure is_filler column on episodes table
-    try {
-      await connection.query("ALTER TABLE episodes ADD COLUMN is_filler TINYINT(1) DEFAULT 0");
-    } catch (e) {}
-
-    // Ensure messages table for chat
-    try {
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS messages (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT DEFAULT NULL,
-          user_name VARCHAR(255) DEFAULT 'Anonim',
-          content LONGTEXT NOT NULL,
-          reply_to_id VARCHAR(255) DEFAULT NULL,
-          reply_to_name VARCHAR(255) DEFAULT NULL,
-          reply_to_content LONGTEXT DEFAULT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await connection.query(`ALTER TABLE messages MODIFY COLUMN content LONGTEXT`);
-      await connection.query(`ALTER TABLE messages MODIFY COLUMN reply_to_content LONGTEXT`);
-    } catch (e) {
-      console.warn("Messages table verification in MySQL notice:", e);
-    }
-
-    // Ensure media_files table in MySQL (Stores images in DB directly without saving to disk)
-    try {
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS media_files (
-          id VARCHAR(64) PRIMARY KEY,
-          filename VARCHAR(255) DEFAULT '',
-          mime_type VARCHAR(100) DEFAULT 'image/jpeg',
-          data LONGTEXT NOT NULL,
-          size INT DEFAULT 0,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB
-      `);
-      console.log("Verified media_files table in MySQL.");
-    } catch (e) {
-      console.warn("media_files table creation warning:", e);
-    }
-
-    // Ensure gifs table in MySQL
-    try {
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS gifs (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          title VARCHAR(255) DEFAULT '',
-          url LONGTEXT NOT NULL,
-          media_id VARCHAR(64) DEFAULT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB
-      `);
-      console.log("Verified gifs table in MySQL.");
-
-      // Check if seeded
-      const [existingGifs]: any = await connection.query(`SELECT COUNT(*) as count FROM gifs`);
-      if (existingGifs && existingGifs[0] && existingGifs[0].count === 0) {
-        console.log("Seeding default GIFs into MySQL database...");
-        const defaultGifs = [
-          "https://api.animem.uz/i/47253226-8c0c-4bd7-8a13-63fc8ab21048",
-          "https://api.animem.uz/i/024daac2-c373-46d9-a1d3-17b772cf9d8d",
-          "https://api.animem.uz/i/7f001189-caff-4761-b773-1ef852ba3405",
-          "https://api.animem.uz/i/e14ebcc6-3198-4769-988e-b532d768c2c0",
-          "https://api.animem.uz/i/a6740e1b-8128-4a35-9b59-991702aa7953",
-          "https://api.animem.uz/i/20275072-6bcb-4bbf-9c31-b963c535ca52",
-          "https://api.animem.uz/i/7f56e16a-336f-40e7-a088-3e7d379b6e7e",
-          "https://api.animem.uz/i/e013bbda-731b-4243-b1a5-82b9184e6ba8",
-          "https://api.animem.uz/i/0ed4d485-ed9a-42c4-96cf-0ea9e2520ff8",
-          "https://api.animem.uz/i/4dcca4bb-4a81-40ee-b12d-1584b122bc20",
-          "https://api.animem.uz/i/ee473d3e-95c5-4654-ab79-0f7f80bf72ac",
-          "https://api.animem.uz/i/94bf66ce-7403-4a2f-8db6-267f15cd3d73",
-          "https://api.animem.uz/i/d5740534-37b6-42f2-92d1-0d6012f7b424",
-          "https://api.animem.uz/i/d6702c5f-a45e-4259-b3ac-6ac028671136",
-          "https://api.animem.uz/i/863cae92-7e12-46d6-96c5-cf6da96afa43",
-          "https://api.animem.uz/i/11e32365-a5d1-44b8-9eaf-809040de5fc3",
-          "https://api.animem.uz/i/7c9b7e12-2d75-418a-b867-2a83169b9143",
-          "https://api.animem.uz/i/b0000dc1-622a-4136-b20d-c7464b2dfee3",
-          "https://api.animem.uz/i/f29d2f0f-4eed-43e3-8a18-c68acf9703f2",
-          "https://api.animem.uz/i/ebb32df7-d609-46fa-a739-57b686bea1a4",
-          "https://api.animem.uz/i/6ad422b0-29ff-4c44-b3bd-30e6015701ae",
-          "https://api.animem.uz/i/d5077661-9cde-4524-ae21-be259f1e8b8a",
-          "https://api.animem.uz/i/423b7231-db98-41e6-ae1e-af0ded6ca0ef",
-          "https://api.animem.uz/i/cfae88fb-ade5-495c-a441-5b800075382b",
-          "https://api.animem.uz/i/6b895206-f186-4db0-9a82-89ad97769806",
-          "https://api.animem.uz/i/088aba4e-b0ef-443b-b7a6-bf6b8609e2b4",
-          "https://api.animem.uz/i/208c0d15-d9cb-4507-ac51-814423a11d59",
-          "https://api.animem.uz/i/632296a9-9ef1-453a-ac08-9db0aebdfc8c"
-        ];
-        for (let i = 0; i < defaultGifs.length; i++) {
-          await connection.query(`INSERT INTO gifs (title, url) VALUES (?, ?)`, [
-            `Anime GIF #${i + 1}`,
-            defaultGifs[i]
-          ]);
-        }
-      }
-    } catch (e) {
-      console.warn("gifs table creation warning:", e);
-    }
-
-    // Ensure animes and mangas image columns support large text / data
-    try {
-      await connection.query(`ALTER TABLE animes MODIFY COLUMN image_url LONGTEXT`);
-      await connection.query(`ALTER TABLE animes MODIFY COLUMN banner_url LONGTEXT`);
-    } catch (e) {}
-
-    try {
-      await connection.query(`ALTER TABLE mangas MODIFY COLUMN cover_url LONGTEXT`);
-      await connection.query(`ALTER TABLE mangas MODIFY COLUMN banner_url LONGTEXT`);
-    } catch (e) {}
-
-    console.log("Verified mangas, manga_chapters, comments, media_files, and messages tables and columns in MySQL.");
-  } catch (err) {
-    console.error("Database connection/migration failed on startup:", err);
-  } finally {
-    if (connection) {
-      try {
-        connection.release();
-      } catch (_) {}
-    }
+    const [rows]: any = await d1ExecuteQuery("SELECT COUNT(*) as cnt FROM animes;");
+    console.log(`✅ [Cloudflare D1] Connected successfully! Found ${rows[0]?.cnt || 0} animes.`);
+  } catch (err: any) {
+    console.error(`❌ [Cloudflare D1 Connection Error]`, err?.message || err);
   }
 }
 testDbConnection();
