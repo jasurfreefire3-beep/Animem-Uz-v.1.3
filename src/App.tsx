@@ -280,10 +280,10 @@ export default function App() {
               <Route path="/profil" element={<Profil />} />
               <Route path="/:lang/profil" element={<Profil />} />
 
-              <Route path="/dokon" element={<Shop />} />
-              <Route path="/:lang/dokon" element={<Shop />} />
-              <Route path="/shop" element={<Shop />} />
-              <Route path="/:lang/shop" element={<Shop />} />
+              <Route path="/dokon" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/dokon" element={<Navigate to="/" replace />} />
+              <Route path="/shop" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/shop" element={<Navigate to="/" replace />} />
 
               <Route path="/user/:id" element={<Profil />} />
               <Route path="/:lang/user/:id" element={<Profil />} />

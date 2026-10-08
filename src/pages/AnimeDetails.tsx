@@ -1440,7 +1440,10 @@ export default function AnimeDetails() {
 
                <div className="space-y-4">
                   {comments.map((comment, idx) => {
-                     const avatarSrc = comment.user_avatar || comment.avatar_url;
+                     const isMyComment = user && (user.id === comment.user_id);
+                     const commentAuthor = comment.user_name || comment.name || comment.user?.name || (isMyComment ? (user?.name || 'Men') : 'Foydalanuvchi');
+                     const avatarSrc = comment.user_avatar || comment.avatar_url || comment.user?.avatar_url || (isMyComment ? user?.avatar_url : null);
+                     const frameSrc = comment.user_avatar_frame || comment.avatar_frame_url || comment.user?.avatar_frame_url || (isMyComment ? user?.avatar_frame_url : null);
                      const likedUsers = Array.isArray(comment.liked_users) ? comment.liked_users : [];
                      const dislikedUsers = Array.isArray(comment.disliked_users) ? comment.disliked_users : [];
                      const isLiked = user ? (likedUsers as any[]).includes(user.id) : false;
@@ -1459,8 +1462,8 @@ export default function AnimeDetails() {
                               <UserAvatar 
                                  size="md" 
                                  src={avatarSrc} 
-                                 frameUrl={comment.user_avatar_frame || comment.avatar_frame_url} 
-                                 name={comment.user_name} 
+                                 frameUrl={frameSrc} 
+                                 name={commentAuthor} 
                               />
                            </Link>
                            <div className="flex-1 min-w-0">
@@ -1524,17 +1527,22 @@ export default function AnimeDetails() {
                               {/* Replies list */}
                               {replies.length > 0 && (
                                  <div className="mt-4 pl-4 border-l-2 border-[#ff006a]/30 space-y-3">
-                                    {replies.map((rep: any) => (
+                                    {replies.map((rep: any) => {
+                                       const isMyReply = user && (user.id === rep.user_id);
+                                       const replyAuthor = rep.user_name || rep.name || rep.user?.name || (isMyReply ? (user?.name || 'Men') : 'Foydalanuvchi');
+                                       const replyAvatar = rep.user_avatar || rep.avatar_url || rep.user?.avatar_url || (isMyReply ? user?.avatar_url : null);
+                                       const replyFrame = rep.user_avatar_frame || rep.avatar_frame_url || rep.user?.avatar_frame_url || (isMyReply ? user?.avatar_frame_url : null);
+                                       return (
                                        <div key={rep.id} className="bg-[#141414] p-3 rounded-lg border border-[#222] flex gap-2.5 items-start">
                                           <UserAvatar 
                                              size="sm" 
-                                             src={rep.user_avatar || rep.avatar_url} 
-                                             frameUrl={rep.user_avatar_frame || rep.avatar_frame_url} 
-                                             name={rep.user_name} 
+                                             src={replyAvatar} 
+                                             frameUrl={replyFrame} 
+                                             name={replyAuthor} 
                                           />
                                           <div className="flex-1 min-w-0">
                                              <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-white/90 text-xs font-bold">{rep.user_name || 'Foydalanuvchi'}</span>
+                                                <span className="text-white/90 text-xs font-bold">{replyAuthor}</span>
                                                 <span className="text-white/35 text-[9px] ml-auto">{new Date(rep.created_at).toLocaleDateString()}</span>
                                              </div>
                                              <div className="text-white/70 text-xs leading-relaxed">
@@ -1542,7 +1550,7 @@ export default function AnimeDetails() {
                                              </div>
                                           </div>
                                        </div>
-                                    ))}
+                                    );})}
                                  </div>
                               )}
 

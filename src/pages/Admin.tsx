@@ -883,18 +883,6 @@ export default function Admin() {
           <Image size={16} />
           <span>GIF Stikerlar</span>
         </button>
-        <button
-          onClick={() => {
-            setActiveTab('shop');
-            setMessage({ type: '', text: '' });
-          }}
-          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
-            activeTab === 'shop' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
-          }`}
-        >
-          <ShoppingBag size={16} />
-          <span>Do'kon</span>
-        </button>
       </div>
 
       {/* Status Messages */}

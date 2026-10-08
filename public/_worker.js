@@ -1180,9 +1180,9 @@ export default {
                     u.avatar_frame_url AS avatar_frame_url 
              FROM comments c 
              LEFT JOIN users u ON (c.user_id = u.id AND c.user_id > 0) 
-             WHERE c.anime_id = ? 
+             WHERE (c.anime_id = ? OR CAST(c.anime_id AS TEXT) = CAST(? AS TEXT)) 
              ORDER BY c.id DESC LIMIT 100;`,
-            [animeId]
+            [animeId, animeId]
           );
           const parsed = rows.map((r) => {
             let liked_users = [];
@@ -1293,7 +1293,7 @@ export default {
              LEFT JOIN users u ON (m.user_id = u.id AND m.user_id > 0)
              ORDER BY m.id DESC LIMIT 50;`
           );
-          return new Response(JSON.stringify(rows), { headers: corsHeadersObj });
+          return new Response(JSON.stringify([...rows].reverse()), { headers: corsHeadersObj });
         }
 
         // Wallpapers & Gifs

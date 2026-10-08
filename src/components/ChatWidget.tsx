@@ -27,7 +27,9 @@ const MemoizedMessage = memo(({
 }: any) => {
   const isMe = msg.user_id === user?.id;
   const canDelete = user && (user.role === 'admin' || user.id === msg.user_id);
-  const avatarSrc = msg.user_avatar || msg.avatar_url;
+  const avatarSrc = msg.user_avatar || msg.avatar_url || msg.user?.avatar_url || (isMe ? user?.avatar_url : null);
+  const displayName = msg.user_name || msg.name || msg.user?.name || (isMe ? (user?.name || 'Men') : 'Foydalanuvchi');
+  const frameSrc = msg.user_avatar_frame || msg.avatar_frame_url || msg.user?.avatar_frame_url || (isMe ? user?.avatar_frame_url : null);
   const isActive = activeMsgId === msg.id;
   const parsedContent = parseMessageContent(msg.content);
   const parsedReply = msg.reply_to_content ? parseMessageContent(msg.reply_to_content) : null;
@@ -45,8 +47,8 @@ const MemoizedMessage = memo(({
         <UserAvatar
           size="md"
           src={avatarSrc}
-          frameUrl={msg.user_avatar_frame || msg.avatar_frame_url}
-          name={msg.user_name}
+          frameUrl={frameSrc}
+          name={displayName}
         />
       </Link>
 

@@ -172,11 +172,11 @@ const CF_CLIENT_ID = "54d11594-84e4-41aa-b438-e81b8fa78ee7";
 let currentCfToken =
   process.env.CLOUDFLARE_D1_TOKEN ||
   process.env.CLOUDFLARE_API_TOKEN ||
-  "cfoat_UZ4mpYQKvUNDcIDjoTyyFA_UCFwtwVHexuIm5z9jR3Q.hGWo-KNMKEpVqNdoqq59GvoS4FXPsKyuKtofhVA4EP0";
+  "cfoat_aBCtU5nBRKSN6MwHAuP7MeW3dYs9TaF7_tbuwoi5elA.7H4ER-cdzBTc0fcpMhsmR1Ou1iE_5x_hYh7PwDUVTfs";
 
 let currentRefreshToken =
   process.env.CLOUDFLARE_REFRESH_TOKEN ||
-  "cfort_fqk2Y4Mv8bRc6XIESfHujMn3Z1aTfterEFyQf8xGNv0.tCBAYffB8Gui0ahH1XVSfU4CSQfeq6Rw2wiVJc54T9Q";
+  "cfort_FGE9jucfEap4APJXq9mrtieMd6o41-7_yGkqoCzCo3s.U8gS4vdjqP-fUrOML-1mt06JZ3ZsKRg4atd72mWBC-0";
 
 function getCloudflareToken(): string {
   try {
@@ -3529,10 +3529,15 @@ app.get("/api/comments/recent", async (req, res) => {
   }
   try {
     const [rows]: any = await dbQuery(`
-      SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url, a.title AS anime_title 
+      SELECT c.*, 
+             COALESCE(u.name, 'Foydalanuvchi') AS user_name, 
+             u.avatar_url AS user_avatar, 
+             u.avatar_frame_url AS user_avatar_frame, 
+             u.avatar_frame_url AS avatar_frame_url, 
+             a.title AS anime_title 
       FROM comments c 
-      LEFT JOIN users u ON c.user_id = u.id 
-      LEFT JOIN animes a ON c.anime_id = a.id 
+      LEFT JOIN users u ON (c.user_id = u.id AND c.user_id > 0) 
+      LEFT JOIN animes a ON (c.anime_id = a.id OR CAST(c.anime_id AS TEXT) = CAST(a.id AS TEXT)) 
       ORDER BY c.id DESC 
       LIMIT 10
     `);
@@ -3544,8 +3549,22 @@ app.get("/api/comments/recent", async (req, res) => {
     console.warn("Recent comments fetch falling back to local store:", (err as any)?.message);
   }
   const store = loadLocalStore();
-  setCache("api_recent_comments", store.comments || []);
-  res.json(store.comments || []);
+  const userMap = new Map((store.users || []).map((u: any) => [String(u.id), u]));
+  const animeMap = new Map((store.animes || []).map((a: any) => [String(a.id), a]));
+  const recentComms = (store.comments || []).slice(-10).reverse().map((c: any) => {
+    const u = userMap.get(String(c.user_id));
+    const a = animeMap.get(String(c.anime_id));
+    return {
+      ...c,
+      user_name: c.user_name || u?.name || 'Foydalanuvchi',
+      user_avatar: c.user_avatar || u?.avatar_url || null,
+      user_avatar_frame: c.user_avatar_frame || u?.avatar_frame_url || null,
+      avatar_frame_url: c.avatar_frame_url || u?.avatar_frame_url || null,
+      anime_title: c.anime_title || a?.title || ''
+    };
+  });
+  setCache("api_recent_comments", recentComms);
+  res.json(recentComms);
 });
 
 // Helper functions for file-backed rating database (data.json)
@@ -3987,12 +4006,16 @@ app.get("/api/animes/:id/comments", async (req, res) => {
   const id = req.params.id;
   try {
     const [rows]: any = await dbQuery(
-      `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
+      `SELECT c.*, 
+              COALESCE(u.name, 'Foydalanuvchi') AS user_name, 
+              u.avatar_url AS user_avatar, 
+              u.avatar_frame_url AS user_avatar_frame, 
+              u.avatar_frame_url AS avatar_frame_url 
        FROM comments c 
-       LEFT JOIN users u ON c.user_id = u.id 
-       WHERE c.anime_id = ? 
+       LEFT JOIN users u ON (c.user_id = u.id AND c.user_id > 0) 
+       WHERE (c.anime_id = ? OR CAST(c.anime_id AS TEXT) = CAST(? AS TEXT)) 
        ORDER BY c.id DESC`,
-      [id]
+      [id, id]
     );
     if (Array.isArray(rows)) {
       const parsed = rows.map((r: any) => ({
@@ -4007,7 +4030,22 @@ app.get("/api/animes/:id/comments", async (req, res) => {
     console.warn("Comments fetch falling back to local store:", (err as any)?.message);
   }
   const store = loadLocalStore();
-  const comms = (store.comments || []).filter((c: any) => String(c.anime_id) === String(id));
+  const userMap = new Map((store.users || []).map((u: any) => [String(u.id), u]));
+  const comms = (store.comments || [])
+    .filter((c: any) => String(c.anime_id) === String(id))
+    .map((c: any) => {
+      const u = userMap.get(String(c.user_id));
+      return {
+        ...c,
+        user_name: c.user_name || u?.name || 'Foydalanuvchi',
+        user_avatar: c.user_avatar || u?.avatar_url || null,
+        user_avatar_frame: c.user_avatar_frame || u?.avatar_frame_url || null,
+        avatar_frame_url: c.avatar_frame_url || u?.avatar_frame_url || null,
+        liked_users: safeJsonParse(c.liked_users, []),
+        disliked_users: safeJsonParse(c.disliked_users, []),
+        replies: safeJsonParse(c.replies, [])
+      };
+    });
   res.json(comms);
 });
 
@@ -6914,7 +6952,17 @@ app.get("/api/chat/messages", async (req: any, res: any) => {
     }
 
     const store = loadLocalStore();
-    const localMsgs = (store.messages || []).slice(-50);
+    const userMap = new Map((store.users || []).map((u: any) => [String(u.id), u]));
+    const localMsgs = (store.messages || []).slice(-50).map((m: any) => {
+      const u = userMap.get(String(m.user_id));
+      return {
+        ...m,
+        user_name: m.user_name || u?.name || 'Foydalanuvchi',
+        user_avatar: m.user_avatar || u?.avatar_url || null,
+        user_avatar_frame: m.user_avatar_frame || u?.avatar_frame_url || null,
+        avatar_frame_url: m.avatar_frame_url || u?.avatar_frame_url || null
+      };
+    });
     return res.json(localMsgs);
   } catch (err) {
     console.error("GET /api/chat/messages error:", err);

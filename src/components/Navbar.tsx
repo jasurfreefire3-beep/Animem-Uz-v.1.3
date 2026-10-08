@@ -516,14 +516,6 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                       <span>{t.myProfile}</span>
                     </Link>
                     <Link
-                      to={getLocalizedPath('/dokon')}
-                      onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2 px-3 py-2 text-white/70 hover:text-[#ff006a] hover:bg-[#1a1a1c] rounded-sm transition-colors"
-                    >
-                      <ShoppingBag size={13} className="text-[#ff006a]" />
-                      <span className="font-semibold">Do'kon</span>
-                    </Link>
-                    <Link
                       to={getLocalizedPath('/shaxsiy-royxat')}
                       onClick={() => setShowProfileDropdown(false)}
                       className="flex items-center space-x-2 px-3 py-2 text-white/70 hover:text-white hover:bg-[#1a1a1c] rounded-sm transition-colors"
