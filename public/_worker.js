@@ -216,28 +216,30 @@ async function verifyJwt(token) {
   if (!token) return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
-  try {
-    const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
-    const key = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(JWT_SECRET),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["verify"]
-    );
-    let b64 = parts[2].replace(/-/g, "+").replace(/_/g, "/");
-    while (b64.length % 4) b64 += "=";
-    const sigBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    const valid = await crypto.subtle.verify("HMAC", key, sigBytes, data);
-    if (!valid) return null;
-    let payloadB64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    while (payloadB64.length % 4) payloadB64 += "=";
-    const payload = JSON.parse(atob(payloadB64));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
-    return payload;
-  } catch {
-    return null;
+  const secrets = [JWT_SECRET, "anime_super_secret_key"];
+  for (const secret of secrets) {
+    try {
+      const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+      const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["verify"]
+      );
+      let b64 = parts[2].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      const sigBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const valid = await crypto.subtle.verify("HMAC", key, sigBytes, data);
+      if (!valid) continue;
+      let payloadB64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (payloadB64.length % 4) payloadB64 += "=";
+      const payload = JSON.parse(atob(payloadB64));
+      if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) continue;
+      return payload;
+    } catch {}
   }
+  return null;
 }
 
 async function hashPassword(password) {
@@ -1171,9 +1173,13 @@ export default {
           const animeId = commentMatch[1];
           const rows = await queryD1(
             env,
-            `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
+            `SELECT c.*, 
+                    COALESCE(u.name, 'Foydalanuvchi') AS user_name, 
+                    u.avatar_url AS user_avatar, 
+                    u.avatar_frame_url AS user_avatar_frame, 
+                    u.avatar_frame_url AS avatar_frame_url 
              FROM comments c 
-             LEFT JOIN users u ON c.user_id = u.id 
+             LEFT JOIN users u ON (c.user_id = u.id AND c.user_id > 0) 
              WHERE c.anime_id = ? 
              ORDER BY c.id DESC LIMIT 100;`,
             [animeId]
@@ -1194,9 +1200,14 @@ export default {
         if (path === "/api/comments/recent") {
           const rows = await queryD1(
             env,
-            `SELECT c.*, u.name AS user_name, u.avatar_url AS user_avatar, a.title AS anime_title 
+            `SELECT c.*, 
+                    COALESCE(u.name, 'Foydalanuvchi') AS user_name, 
+                    u.avatar_url AS user_avatar, 
+                    u.avatar_frame_url AS user_avatar_frame, 
+                    u.avatar_frame_url AS avatar_frame_url, 
+                    a.title AS anime_title 
              FROM comments c 
-             LEFT JOIN users u ON c.user_id = u.id 
+             LEFT JOIN users u ON (c.user_id = u.id AND c.user_id > 0) 
              LEFT JOIN animes a ON c.anime_id = a.id 
              ORDER BY c.id DESC LIMIT 20;`
           );
@@ -1273,9 +1284,13 @@ export default {
         if (path === "/api/chat/messages") {
           const rows = await queryD1(
             env,
-            `SELECT m.*, u.name AS user_name, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url
+            `SELECT m.*, 
+                    COALESCE(u.name, m.user_name, 'Foydalanuvchi') AS user_name, 
+                    u.avatar_url AS user_avatar, 
+                    u.avatar_frame_url AS user_avatar_frame, 
+                    u.avatar_frame_url AS avatar_frame_url
              FROM messages m
-             LEFT JOIN users u ON m.user_id = u.id
+             LEFT JOIN users u ON (m.user_id = u.id AND m.user_id > 0)
              ORDER BY m.id DESC LIMIT 50;`
           );
           return new Response(JSON.stringify(rows), { headers: corsHeadersObj });

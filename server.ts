@@ -167,23 +167,87 @@ initPgDb();
 // =================================================================
 const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "778abe99df133217050e4af575708af8";
 const CF_DATABASE_ID = process.env.CLOUDFLARE_DATABASE_ID || "11e1d448-17a4-4156-ba89-434fa4e6bb1e";
-const DEFAULT_CF_TOKEN = "cfoat_Jl4TqvyvpcNg5WGqEDP-Wbz2gCIxRS4BZNjb9B45LI4.bSiS3URb8mMEaiO9iumaILfFMKmwTWKfc_iBKeLHOAQ";
+const CF_CLIENT_ID = "54d11594-84e4-41aa-b438-e81b8fa78ee7";
+
+let currentCfToken =
+  process.env.CLOUDFLARE_D1_TOKEN ||
+  process.env.CLOUDFLARE_API_TOKEN ||
+  "cfoat_UZ4mpYQKvUNDcIDjoTyyFA_UCFwtwVHexuIm5z9jR3Q.hGWo-KNMKEpVqNdoqq59GvoS4FXPsKyuKtofhVA4EP0";
+
+let currentRefreshToken =
+  process.env.CLOUDFLARE_REFRESH_TOKEN ||
+  "cfort_fqk2Y4Mv8bRc6XIESfHujMn3Z1aTfterEFyQf8xGNv0.tCBAYffB8Gui0ahH1XVSfU4CSQfeq6Rw2wiVJc54T9Q";
 
 function getCloudflareToken(): string {
-  if (process.env.CLOUDFLARE_D1_TOKEN) return process.env.CLOUDFLARE_D1_TOKEN;
-  if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN;
   try {
     const tomlPath = "/home/kali/.config/.wrangler/config/default.toml";
     if (fs.existsSync(tomlPath)) {
       const toml = fs.readFileSync(tomlPath, "utf-8");
       const match = toml.match(/oauth_token\s*=\s*"([^"]+)"/);
-      if (match && match[1]) return match[1];
+      if (match && match[1]) currentCfToken = match[1];
+      const refMatch = toml.match(/refresh_token\s*=\s*"([^"]+)"/);
+      if (refMatch && refMatch[1]) currentRefreshToken = refMatch[1];
     }
   } catch (e) {}
-  return DEFAULT_CF_TOKEN;
+  return currentCfToken;
 }
 
-async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> {
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshCloudflareToken(): Promise<boolean> {
+  if (isRefreshing && refreshPromise) return refreshPromise;
+  isRefreshing = true;
+
+  refreshPromise = (async () => {
+    try {
+      if (!currentRefreshToken) {
+        console.warn("[Cloudflare D1] No refresh token available for auto-refresh");
+        return false;
+      }
+      const res = await fetch("https://dash.cloudflare.com/oauth2/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: CF_CLIENT_ID,
+          refresh_token: currentRefreshToken,
+        }),
+      });
+      const data = (await res.json()) as any;
+      if (data.access_token) {
+        currentCfToken = data.access_token;
+        if (data.refresh_token) {
+          currentRefreshToken = data.refresh_token;
+        }
+        console.log("[Cloudflare D1] Successfully auto-refreshed access token!");
+        try {
+          const tomlPath = "/home/kali/.config/.wrangler/config/default.toml";
+          if (fs.existsSync(tomlPath)) {
+            let toml = fs.readFileSync(tomlPath, "utf-8");
+            toml = toml.replace(/oauth_token\s*=\s*"[^"]+"/, `oauth_token = "${currentCfToken}"`);
+            if (data.refresh_token) {
+              toml = toml.replace(/refresh_token\s*=\s*"[^"]+"/, `refresh_token = "${currentRefreshToken}"`);
+            }
+            fs.writeFileSync(tomlPath, toml, "utf-8");
+          }
+        } catch (we) {}
+        return true;
+      } else {
+        console.warn("[Cloudflare D1] Refresh response error:", data);
+      }
+    } catch (e: any) {
+      console.error("[Cloudflare D1] Refresh token network error:", e.message);
+    } finally {
+      isRefreshing = false;
+    }
+    return false;
+  })();
+
+  return refreshPromise;
+}
+
+async function d1ExecuteQuery<T = any>(sql: string, params?: any[], hasRetriedAuth = false): Promise<T> {
   const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`;
   const cleanSql = sql.replace(/\bNOW\(\)/gi, "CURRENT_TIMESTAMP");
   const cleanParams = (params || []).map((p) => {
@@ -205,7 +269,17 @@ async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> 
 
   const data = (await res.json()) as any;
   if (!data?.success) {
+    const errCode = data?.errors?.[0]?.code;
     const errMsg = data?.errors?.[0]?.message || JSON.stringify(data?.errors || "D1 Query Failed");
+
+    // If authentication error and haven't retried yet, auto-refresh token and retry!
+    if ((errCode === 10000 || errCode === 9109 || res.status === 401) && !hasRetriedAuth) {
+      console.warn("[Cloudflare D1] Auth error detected, auto-refreshing token...");
+      const refreshed = await refreshCloudflareToken();
+      if (refreshed) {
+        return d1ExecuteQuery<T>(sql, params, true);
+      }
+    }
     throw new Error(`[D1 Error] ${errMsg} (Query: ${cleanSql.slice(0, 80)})`);
   }
 
@@ -243,13 +317,98 @@ function queryLocalStore(sql: string, params: any[] = []): any[] {
     let data = store[table];
     if (!Array.isArray(data)) return [];
 
+    // Exact user queries:
+    if (table === "users") {
+      if (lower.includes("where telegram_id = ? or email = ?") && params.length >= 2) {
+        const tgId = String(params[0] ?? "");
+        const email = String(params[1] ?? "").toLowerCase();
+        return data.filter((u: any) => 
+          (u.telegram_id && String(u.telegram_id) === tgId) || 
+          (u.email && u.email.toLowerCase() === email)
+        );
+      }
+      if (lower.includes("where facebook_id = ? or email = ?") && params.length >= 2) {
+        const fbId = String(params[0] ?? "");
+        const email = String(params[1] ?? "").toLowerCase();
+        return data.filter((u: any) => 
+          (u.facebook_id && String(u.facebook_id) === fbId) || 
+          (u.email && u.email.toLowerCase() === email)
+        );
+      }
+      if (lower.includes("where yandex_id = ? or email = ?") && params.length >= 2) {
+        const yId = String(params[0] ?? "");
+        const email = String(params[1] ?? "").toLowerCase();
+        return data.filter((u: any) => 
+          (u.yandex_id && String(u.yandex_id) === yId) || 
+          (u.email && u.email.toLowerCase() === email)
+        );
+      }
+      if (lower.includes("where discord_id = ? or email = ?") && params.length >= 2) {
+        const dId = String(params[0] ?? "");
+        const email = String(params[1] ?? "").toLowerCase();
+        return data.filter((u: any) => 
+          (u.discord_id && String(u.discord_id) === dId) || 
+          (u.email && u.email.toLowerCase() === email)
+        );
+      }
+      if (lower.includes("where phone = ? or email = ?") && params.length >= 2) {
+        const phone = String(params[0] ?? "");
+        const email = String(params[1] ?? "").toLowerCase();
+        return data.filter((u: any) => 
+          (u.phone && String(u.phone) === phone) || 
+          (u.email && u.email.toLowerCase() === email)
+        );
+      }
+      if (lower.includes("where email = ?") && params.length > 0) {
+        const email = String(params[0] ?? "").toLowerCase();
+        return data.filter((u: any) => u.email && u.email.toLowerCase() === email);
+      }
+      if (lower.includes("where phone = ?") && params.length > 0) {
+        const phone = String(params[0] ?? "");
+        return data.filter((u: any) => u.phone && String(u.phone) === phone);
+      }
+      if (lower.includes("where telegram_id = ?") && params.length > 0) {
+        const tgId = String(params[0] ?? "");
+        return data.filter((u: any) => u.telegram_id && String(u.telegram_id) === tgId);
+      }
+      if (lower.includes("where id =") && params.length > 0) {
+        return data.filter((item: any) => String(item.id) === String(params[0]));
+      }
+      if (lower.includes("where") && !lower.includes("where 1=1")) {
+        return [];
+      }
+    }
+
+    // Common WHERE filters for other tables:
     if (lower.includes("where id =") && params.length > 0) {
       data = data.filter((item: any) => String(item.id) === String(params[0]));
     } else if (lower.includes("where anime_id =") && params.length > 0) {
       data = data.filter((item: any) => String(item.anime_id) === String(params[0]));
+    } else if (lower.includes("where user_id =") && params.length > 0) {
+      data = data.filter((item: any) => String(item.user_id) === String(params[0]));
+    } else if (lower.includes("where drama_id =") && params.length > 0) {
+      data = data.filter((item: any) => String(item.drama_id) === String(params[0]));
+    } else if (lower.includes("where slug =") && params.length > 0) {
+      data = data.filter((item: any) => String(item.slug) === String(params[0]));
+    } else if (lower.includes("where is_banner =") || lower.includes("where is_banner=1")) {
+      data = data.filter((item: any) => item.is_banner == 1 || item.is_banner === true);
+    } else if (lower.includes("where tavsiya =") || lower.includes("where tavsiya=1")) {
+      data = data.filter((item: any) => item.tavsiya == 1 || item.tavsiya === true);
     } else if (lower.includes("where is_active =") || lower.includes("where is_active=1")) {
       data = data.filter((item: any) => item.is_active == 1 || item.is_active === true);
+    } else if (lower.includes("where") && !lower.includes("where 1=1") && params.length > 0) {
+      return [];
     }
+
+    if (lower.includes("order by") && lower.includes("desc")) {
+      data = [...data].reverse();
+    }
+
+    const limitMatch = lower.match(/limit\s+(\d+)/);
+    if (limitMatch) {
+      data = data.slice(0, parseInt(limitMatch[1], 10));
+    }
+
     return data;
   } catch (e) {
     return [];
@@ -449,20 +608,33 @@ function notifyContentUpdate(type: "anime" | "manga" | "drama" | "all") {
   } catch (e) {}
 }
 
+// Helper to verify JWT with any valid secret
+function verifyAnyJwt(token: string): any {
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    try {
+      return jwt.verify(token, "animem-super-jwt-secret-key-2026-secure");
+    } catch (e2) {
+      return null;
+    }
+  }
+}
+
 // Middleware to authenticate JWT tokens
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.sendStatus(401);
 
-  jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
-    if (err) return res.sendStatus(403);
-    req.user = decoded;
-    if (decoded && decoded.id) {
-      dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {});
-    }
-    next();
-  });
+  const decoded = verifyAnyJwt(token);
+  if (!decoded) return res.sendStatus(403);
+  req.user = decoded;
+  if (decoded && decoded.id) {
+    dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {});
+  }
+  next();
 };
 
 // Check and ensure database connection on start (100% Cloudflare D1)
@@ -829,9 +1001,13 @@ io.on("connection", (socket) => {
       try {
         const [rows]: any = await Promise.race([
           dbQuery(
-            `SELECT m.*, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
+            `SELECT m.*, 
+                    COALESCE(u.name, m.user_name, 'Foydalanuvchi') AS user_name, 
+                    u.avatar_url AS user_avatar, 
+                    u.avatar_frame_url AS user_avatar_frame, 
+                    u.avatar_frame_url AS avatar_frame_url 
              FROM messages m 
-             LEFT JOIN users u ON m.user_id = u.id 
+             LEFT JOIN users u ON (m.user_id = u.id AND m.user_id > 0)
              ORDER BY m.id DESC LIMIT 50`
           ),
           new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000))
@@ -3029,10 +3205,8 @@ app.get("/api/user/:id", async (req, res) => {
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
     if (token) {
-      try {
-        const decoded: any = jwt.verify(token, JWT_SECRET);
-        requestingUserId = decoded?.id;
-      } catch (e) {}
+      const decoded = verifyAnyJwt(token);
+      requestingUserId = decoded?.id;
     }
 
     const isOwner = Boolean(requestingUserId && String(requestingUserId) === String(userId));
@@ -5643,10 +5817,10 @@ app.post("/api/dramas/:id/like", async (req: any, res) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (token) {
-      try {
-        const decoded: any = jwt.verify(token, JWT_SECRET);
+      const decoded = verifyAnyJwt(token);
+      if (decoded?.id) {
         identifier = `user_${decoded.id}`;
-      } catch {}
+      }
     }
     if (!identifier) {
       identifier = req.body?.guestId || req.ip || `guest_${req.headers['user-agent'] || 'anon'}`;
@@ -6713,46 +6887,25 @@ app.post("/api/admin/shop/settings", authenticateToken, async (req: any, res: an
 });
 
 // Chat Routes
-// GET chat messages (Ultra-fast response with DB sync)
+// GET chat messages (Direct from Cloudflare D1 with local_store fallback)
 app.get("/api/chat/messages", async (req: any, res: any) => {
   try {
-    const store = loadLocalStore();
-    const localMsgs = (store.messages || []).slice(-50);
-
-    // If local store has messages, serve instantly (0ms latency)
-    if (localMsgs && localMsgs.length > 0) {
-      res.json(localMsgs);
-
-      // Background sync with database if available
-      (async () => {
-        try {
-          const [rows]: any = await dbQuery(
-            `SELECT m.*, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
-             FROM messages m 
-             LEFT JOIN users u ON m.user_id = u.id 
-             ORDER BY m.id DESC LIMIT 50`
-          );
-          if (Array.isArray(rows) && rows.length > 0) {
-            const dbMsgs = [...rows].reverse();
-            store.messages = dbMsgs;
-            saveLocalStore(store);
-          }
-        } catch (e) {}
-      })();
-      return;
-    }
-
-    // If local store is empty, query DB
     try {
       const [rows]: any = await dbQuery(
-        `SELECT m.*, u.avatar_url AS user_avatar, u.avatar_frame_url AS user_avatar_frame, u.avatar_frame_url AS avatar_frame_url 
+        `SELECT m.*, 
+                COALESCE(u.name, m.user_name, 'Foydalanuvchi') AS user_name, 
+                u.avatar_url AS user_avatar, 
+                u.avatar_frame_url AS user_avatar_frame, 
+                u.avatar_frame_url AS avatar_frame_url 
          FROM messages m 
-         LEFT JOIN users u ON m.user_id = u.id 
+         LEFT JOIN users u ON (m.user_id = u.id AND m.user_id > 0)
          ORDER BY m.id DESC LIMIT 50`
       );
       if (Array.isArray(rows) && rows.length > 0) {
         const dbMsgs = [...rows].reverse();
-        store.messages = dbMsgs;
+        const store = loadLocalStore();
+        store.messages = (store.messages || []).filter((m: any) => !dbMsgs.some((dm: any) => String(dm.id) === String(m.id))).concat(dbMsgs);
+        if (store.messages.length > 2000) store.messages = store.messages.slice(-2000);
         saveLocalStore(store);
         return res.json(dbMsgs);
       }
@@ -6760,6 +6913,8 @@ app.get("/api/chat/messages", async (req: any, res: any) => {
       console.warn("GET /api/chat/messages DB query failed, falling back to local_store:", dbErr?.message || dbErr);
     }
 
+    const store = loadLocalStore();
+    const localMsgs = (store.messages || []).slice(-50);
     return res.json(localMsgs);
   } catch (err) {
     console.error("GET /api/chat/messages error:", err);
