@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import './VideoPlayer.css';
 
 interface VideoPlayerProps {
   url: string;
   poster?: string;
   animeTitle?: string;
+}
+
+declare global {
+  interface Window {
+    Playerjs?: any;
+    getAnimemPlayerTime?: () => number;
+  }
 }
 
 function parseEmbedUrl(rawUrl: string): { isEmbed: boolean; embedUrl: string } {
@@ -46,8 +53,31 @@ function parseEmbedUrl(rawUrl: string): { isEmbed: boolean; embedUrl: string } {
   return { isEmbed: false, embedUrl: '' };
 }
 
+function loadPlayerJs(): Promise<void> {
+  if (window.Playerjs) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-animem-playerjs]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('PlayerJS yuklanmadi')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `${import.meta.env.BASE_URL}playerjs.js`;
+    script.async = true;
+    script.dataset.animemPlayerjs = 'true';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('PlayerJS yuklanmadi'));
+    document.head.appendChild(script);
+  });
+}
+
 export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const reactId = useId();
+  const playerId = useRef(`animem-player-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`).current;
+  const playerRef = useRef<{ api?: (command: string, value?: unknown) => unknown } | null>(null);
   const [hasError, setHasError] = useState(false);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
 
@@ -55,7 +85,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
     if (!raw || typeof raw !== 'string') return '/assets/sample/video.mp4';
     const trimmed = raw.trim();
 
-    // HLS havolalarini avtomatik to'g'ridan-to'g'ri o'ta tezkor MP4 oqimiga aylantirish
+    // HLS havolalarini avtomatik ravishda to'g'ridan-to'g'ri o'ta tezkor oqimga yo'naltirish
     const tgHlsMatch = trimmed.match(/\/api\/tghls\/([^\/]+)\/([0-9]+)/i);
     if (tgHlsMatch) {
       return `https://s3.animem.uz/api/tgstream/${tgHlsMatch[1]}/${tgHlsMatch[2]}`;
@@ -66,6 +96,11 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
       return `https://s3.animem.uz${tgPath}`;
     }
 
+    if (trimmed.includes('/api/tghls/')) {
+      const tgPath = trimmed.substring(trimmed.indexOf('/api/tghls/'));
+      return `https://s3.animem.uz${tgPath}`;
+    }
+
     return trimmed;
   };
 
@@ -73,26 +108,64 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const source = resolveSource(url);
 
   useEffect(() => {
-    setHasError(false);
     if (isEmbed) {
       setIsIframeLoading(true);
       const timer = setTimeout(() => {
         setIsIframeLoading(false);
-      }, 8000);
+      }, 10000);
       return () => clearTimeout(timer);
     }
-  }, [embedUrl, isEmbed, source]);
+  }, [embedUrl, isEmbed]);
+
+  useEffect(() => {
+    if (isEmbed) return;
+
+    let isCurrent = true;
+    setHasError(false);
+
+    loadPlayerJs()
+      .then(() => {
+        if (!isCurrent || !window.Playerjs) return;
+        const container = document.getElementById(playerId);
+        if (!container) return;
+
+        container.replaceChildren();
+        playerRef.current = new window.Playerjs({
+          id: playerId,
+          file: source,
+          poster: poster || '',
+          title: animeTitle || 'Animem.uz',
+          autoplay: 0,
+          loop: 0,
+          volume: 80,
+          theme: '#ff006a',
+        });
+      })
+      .catch(() => isCurrent && setHasError(true));
+
+    return () => {
+      isCurrent = false;
+      try {
+        playerRef.current?.api?.('stop');
+      } catch {
+        // PlayerJS may already be disposed while changing an episode.
+      }
+      playerRef.current = null;
+    };
+  }, [animeTitle, isEmbed, playerId, poster, source]);
 
   // Support interactive seeking (e.g. comment timestamps & Watch Together sync)
   useEffect(() => {
     const handleSeek = (e: any) => {
       const time = e.detail?.time;
-      if (typeof time === 'number' && !isNaN(time) && videoRef.current) {
-        try {
-          videoRef.current.currentTime = time;
-          videoRef.current.play().catch(() => {});
-        } catch (err) {
-          console.warn("Seek error:", err);
+      if (typeof time === 'number' && !isNaN(time)) {
+        if (!isEmbed && playerRef.current?.api) {
+          try {
+            playerRef.current.api('seek', time);
+            playerRef.current.api('play');
+          } catch (err) {
+            console.warn("Seek error:", err);
+          }
         }
         const stage = document.querySelector('.animem-player-shell');
         stage?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -101,13 +174,16 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
 
     const handleSync = (e: any) => {
       const { action, time } = e.detail || {};
-      if (videoRef.current) {
+      if (!isEmbed && playerRef.current?.api) {
         try {
-          if (typeof time === 'number') videoRef.current.currentTime = time;
           if (action === 'play') {
-            videoRef.current.play().catch(() => {});
+            if (typeof time === 'number') playerRef.current.api('seek', time);
+            playerRef.current.api('play');
           } else if (action === 'pause') {
-            videoRef.current.pause();
+            if (typeof time === 'number') playerRef.current.api('seek', time);
+            playerRef.current.api('pause');
+          } else if (action === 'seek' && typeof time === 'number') {
+            playerRef.current.api('seek', time);
           }
         } catch (err) {
           console.warn("Watch sync error:", err);
@@ -115,8 +191,16 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
       }
     };
 
-    (window as any).getAnimemPlayerTime = () => {
-      return videoRef.current?.currentTime || 0;
+    window.getAnimemPlayerTime = () => {
+      if (!isEmbed && playerRef.current?.api) {
+        try {
+          const t = playerRef.current.api('time');
+          return typeof t === 'number' ? t : 0;
+        } catch {
+          return 0;
+        }
+      }
+      return 0;
     };
 
     window.addEventListener('animem-seek-to', handleSeek);
@@ -125,9 +209,9 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
     return () => {
       window.removeEventListener('animem-seek-to', handleSeek);
       window.removeEventListener('animem-watch-sync', handleSync);
-      delete (window as any).getAnimemPlayerTime;
+      delete window.getAnimemPlayerTime;
     };
-  }, []);
+  }, [isEmbed]);
 
   return (
     <div className="animem-player-shell group">
@@ -160,29 +244,20 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
             />
           </>
         ) : (
-          <video
-            ref={videoRef}
-            src={source}
-            poster={poster}
-            controls
-            playsInline
-            preload="metadata"
-            className="animem-player-native-video"
-            onError={() => setHasError(true)}
-          />
+          <div id={playerId} className="animem-player-instance" />
         )}
 
         {hasError && (
           <div className="animem-player-error">
-            <strong>Video ochilmadi</strong>
-            <span>Internet aloqasini tekshiring yoki sahifani qayta yuklang.</span>
+            <strong>Player yuklanmadi</strong>
+            <span>Internet aloqasini tekshirib, sahifani qayta yuklang.</span>
             <button type="button" onClick={() => window.location.reload()}>Qayta yuklash</button>
           </div>
         )}
       </div>
 
       <div className="animem-player-footer">
-        <span>{isEmbed ? 'Tashqi player orqali tomosha qilinmoqda' : 'Ultra-tezkor to\'g\'ridan-to\'g\'ri brauzer oqimi ⚡'}</span>
+        <span>{isEmbed ? 'Tashqi player orqali tomosha qilinmoqda' : 'Sifat va tezlik player sozlamalarida'}</span>
       </div>
     </div>
   );

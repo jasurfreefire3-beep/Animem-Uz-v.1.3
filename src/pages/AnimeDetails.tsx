@@ -455,8 +455,7 @@ export default function AnimeDetails() {
       });
 
       if (res.status === 401 || res.status === 403) {
-        logout();
-        setRatingStatus("Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.");
+        setRatingStatus("Iltimos, avval tizimga kiring.");
         setTimeout(() => setRatingStatus(null), 5000);
         return;
       }

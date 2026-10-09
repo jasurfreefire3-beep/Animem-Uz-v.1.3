@@ -72,36 +72,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     if (storedToken && storedUser) {
-      if (storedToken.length > 1200) {
-        console.warn("Legacy oversized token detected, purging to prevent header overflow.");
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setToken(null);
-        setUser(null);
-      } else {
-        try {
-          const parsed = JSON.parse(storedUser);
-          setToken(storedToken);
-          setUser(parsed);
+      try {
+        const parsed = JSON.parse(storedUser);
+        setToken(storedToken);
+        setUser(parsed);
 
-          // Background sync with database to ensure frames, avatars, and inventory stay updated
-          if (parsed && parsed.id) {
-            fetch(`/api/user/${parsed.id}`, {
-              headers: { 'Authorization': `Bearer ${storedToken}` }
+        // Background sync with database to ensure frames, avatars, and inventory stay updated
+        if (parsed && parsed.id) {
+          fetch(`/api/user/${parsed.id}`, {
+            headers: { 'Authorization': `Bearer ${storedToken}` }
+          })
+            .then(res => {
+              const contentType = res.headers.get('content-type');
+              if (res.ok && contentType && contentType.includes('application/json')) {
+                return res.json();
+              }
+              return null;
             })
-              .then(res => res.json())
-              .then(data => {
-                if (data && data.user) {
-                  setUser(data.user);
-                  localStorage.setItem('user', JSON.stringify(data.user));
-                }
-              })
-              .catch(() => {});
-          }
-        } catch (e) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+            .then(data => {
+              if (data && data.user) {
+                setUser(data.user);
+                localStorage.setItem('user', JSON.stringify(data.user));
+              }
+            })
+            .catch(() => {});
         }
+      } catch (e) {
+        console.warn("Stored user parse error:", e);
       }
     }
   }, []);

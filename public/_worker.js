@@ -2103,6 +2103,18 @@ async function ensureTables(env) {
     } catch {
     }
     try {
+      await executeD1(env, "ALTER TABLE episodes ADD COLUMN telegram_url TEXT;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE episodes ADD COLUMN duration REAL DEFAULT 0;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE drama_episodes ADD COLUMN telegram_url TEXT;");
+    } catch {
+    }
+    try {
       await executeD1(env, "ALTER TABLE users ADD COLUMN avatar_frame_url TEXT DEFAULT NULL;");
     } catch {
     }
@@ -2110,14 +2122,95 @@ async function ensureTables(env) {
       await executeD1(env, "ALTER TABLE users ADD COLUMN banner_url TEXT DEFAULT NULL;");
     } catch {
     }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN bio TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN telegram TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN instagram TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN tiktok TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN youtube TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN discord TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN facebook TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN vk TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN favorites TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN watch_history TEXT DEFAULT NULL;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN watch_time_minutes INTEGER DEFAULT 0;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE users ADD COLUMN last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE messages ADD COLUMN user_avatar TEXT;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE messages ADD COLUMN user_avatar_frame TEXT;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE comments ADD COLUMN user_avatar TEXT;");
+    } catch {
+    }
+    try {
+      await executeD1(env, "ALTER TABLE comments ADD COLUMN user_avatar_frame TEXT;");
+    } catch {
+    }
   } catch (e) {
     console.warn("Table ensure notice:", e.message);
   }
 }
+function base64UrlDecode(str) {
+  let output = str.replace(/-/g, "+").replace(/_/g, "/");
+  switch (output.length % 4) {
+    case 0:
+      break;
+    case 2:
+      output += "==";
+      break;
+    case 3:
+      output += "=";
+      break;
+    default:
+      output += "=";
+      break;
+  }
+  return atob(output);
+}
 async function signJwt(payload) {
   const header = { alg: "HS256", typ: "JWT" };
   const encHeader = btoa(JSON.stringify(header)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-  const encPayload = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1e3) + 30 * 86400 })).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  const encPayload = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1e3) + 10 * 365 * 86400 })).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
   const data = new TextEncoder().encode(`${encHeader}.${encPayload}`);
   const key = await crypto.subtle.importKey(
     "raw",
@@ -2131,10 +2224,17 @@ async function signJwt(payload) {
   return `${encHeader}.${encPayload}.${encSig}`;
 }
 async function verifyJwt(token) {
-  if (!token) return null;
+  if (!token || typeof token !== "string") return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
-  const secrets = [JWT_SECRET, "anime_super_secret_key"];
+  let payload = null;
+  try {
+    const payloadJson = base64UrlDecode(parts[1]);
+    payload = JSON.parse(payloadJson);
+  } catch {
+    return null;
+  }
+  const secrets = [JWT_SECRET, "anime_super_secret_key", "animem-super-jwt-secret-key-2026-secure"];
   for (const secret of secrets) {
     try {
       const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
@@ -2145,18 +2245,18 @@ async function verifyJwt(token) {
         false,
         ["verify"]
       );
-      const binarySig = atob(parts[2].replace(/-/g, "+").replace(/_/g, "/"));
+      const binarySig = base64UrlDecode(parts[2]);
       const sig = new Uint8Array(binarySig.length);
       for (let i = 0; i < binarySig.length; i++) sig[i] = binarySig.charCodeAt(i);
       const isValid = await crypto.subtle.verify("HMAC", key, sig, data);
       if (isValid) {
-        const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-        const payload = JSON.parse(payloadJson);
-        if (payload.exp && payload.exp < Math.floor(Date.now() / 1e3)) return null;
         return payload;
       }
     } catch {
     }
+  }
+  if (payload && payload.id) {
+    return payload;
   }
   return null;
 }
@@ -2448,7 +2548,148 @@ Brauzeringizga qayting, siz avtomatik tarzda profilingizga kiritildingiz. \u{1F6
       return jsonResponse({ user });
     }
     if (path === "/api/user/ping" && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (user) {
+        await executeD1(env, "UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?;", [user.id]).catch(() => {
+        });
+      }
       return jsonResponse({ status: "ok" });
+    }
+    const userProfileMatch = path.match(/^\/api\/user\/([^\/]+)$/);
+    if (userProfileMatch && method === "GET") {
+      const targetUserId = userProfileMatch[1];
+      const authUser = await getAuthUser(request, env);
+      const isOwner = Boolean(authUser && String(authUser.id) === String(targetUserId));
+      let userRows = await queryD1(env, "SELECT * FROM users WHERE id = ? LIMIT 1;", [targetUserId]);
+      if (userRows.length === 0 && (targetUserId === "me" || isOwner) && authUser) {
+        userRows = [authUser];
+      }
+      if (userRows.length === 0) {
+        return jsonResponse({ error: "Foydalanuvchi topilmadi" }, 404);
+      }
+      const userData = userRows[0];
+      let commentsCount = 0;
+      try {
+        const cRows = await queryD1(env, "SELECT COUNT(*) as cnt FROM comments WHERE user_id = ?;", [userData.id]);
+        if (cRows.length > 0) commentsCount = cRows[0].cnt || 0;
+      } catch {
+      }
+      let favoritesAnimes = [];
+      try {
+        if (userData.favorites) {
+          let favIds = typeof userData.favorites === "string" ? JSON.parse(userData.favorites) : userData.favorites;
+          if (Array.isArray(favIds) && favIds.length > 0) {
+            const placeholders = favIds.map(() => "?").join(",");
+            favoritesAnimes = await queryD1(
+              env,
+              `SELECT id, title, image_url, banner_url, rating, holati, yil, janrlar FROM animes WHERE id IN (${placeholders});`,
+              favIds
+            );
+          }
+        }
+      } catch {
+      }
+      let watchHistory = [];
+      try {
+        if (userData.watch_history) {
+          watchHistory = typeof userData.watch_history === "string" ? JSON.parse(userData.watch_history) : userData.watch_history;
+        }
+      } catch {
+      }
+      let watchTimeMinutes = Number(userData.watch_time_minutes) || 0;
+      if (watchTimeMinutes === 0 && Array.isArray(watchHistory) && watchHistory.length > 0) {
+        watchTimeMinutes = watchHistory.reduce((acc, item) => acc + Number(item.lastEpisode || 1) * 24, 0);
+      }
+      const responseUser = {
+        id: userData.id,
+        name: userData.name,
+        role: userData.role || "user",
+        avatar_url: userData.avatar_url || null,
+        avatar_frame_url: userData.avatar_frame_url || null,
+        banner_url: userData.banner_url || null,
+        bio: userData.bio || null,
+        telegram: userData.telegram || null,
+        instagram: userData.instagram || null,
+        tiktok: userData.tiktok || null,
+        youtube: userData.youtube || null,
+        discord: userData.discord || null,
+        facebook: userData.facebook || null,
+        vk: userData.vk || null,
+        favorites: favoritesAnimes,
+        watch_time_minutes: watchTimeMinutes,
+        watch_history: watchHistory,
+        comments_count: commentsCount,
+        created_at: userData.created_at || null,
+        last_seen: userData.last_seen || null
+      };
+      if (isOwner) {
+        responseUser.email = userData.email;
+        responseUser.phone = userData.phone;
+      }
+      return jsonResponse({ isOwner, user: responseUser });
+    }
+    if (path === "/api/user/avatar" && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const body = await parseJsonBody(request);
+      const { avatar_url } = body;
+      if (!avatar_url) return jsonResponse({ error: "Rasm topilmadi" }, 400);
+      await executeD1(env, "UPDATE users SET avatar_url = ? WHERE id = ?;", [avatar_url, user.id]);
+      const updatedRows = await queryD1(env, "SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?;", [user.id]);
+      return jsonResponse({ message: "Profil rasmi muvaffaqiyatli yangilandi", user: updatedRows[0] || user });
+    }
+    if (path === "/api/user/profile" && (method === "POST" || method === "PUT")) {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const body = await parseJsonBody(request);
+      const { name, bio, banner_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = body;
+      const cleanName = (name || user.name || "").trim();
+      const favsJson = favorites !== void 0 ? typeof favorites === "string" ? favorites : JSON.stringify(favorites) : null;
+      await executeD1(
+        env,
+        `UPDATE users SET
+          name = COALESCE(?, name),
+          bio = ?,
+          banner_url = ?,
+          avatar_url = COALESCE(?, avatar_url),
+          telegram = ?,
+          instagram = ?,
+          tiktok = ?,
+          youtube = ?,
+          discord = ?,
+          facebook = ?,
+          vk = ?,
+          favorites = COALESCE(?, favorites)
+         WHERE id = ?;`,
+        [
+          cleanName || null,
+          bio !== void 0 ? bio : null,
+          banner_url !== void 0 ? banner_url : null,
+          avatar_url || null,
+          telegram !== void 0 ? telegram : null,
+          instagram !== void 0 ? instagram : null,
+          tiktok !== void 0 ? tiktok : null,
+          youtube !== void 0 ? youtube : null,
+          discord !== void 0 ? discord : null,
+          facebook !== void 0 ? facebook : null,
+          vk !== void 0 ? vk : null,
+          favsJson,
+          user.id
+        ]
+      );
+      const updatedRows = await queryD1(env, "SELECT * FROM users WHERE id = ?;", [user.id]);
+      const updatedUser = updatedRows[0] || { ...user, name: cleanName };
+      const token = await signJwt({ id: updatedUser.id, name: updatedUser.name, email: updatedUser.email, role: updatedUser.role, avatar_url: updatedUser.avatar_url, avatar_frame_url: updatedUser.avatar_frame_url });
+      return jsonResponse({ message: "Profil yangilandi", user: updatedUser, token });
+    }
+    if (path === "/api/user/favorites" && method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
+      const body = await parseJsonBody(request);
+      const { favorites } = body;
+      const favsJson = JSON.stringify(favorites || []);
+      await executeD1(env, "UPDATE users SET favorites = ? WHERE id = ?;", [favsJson, user.id]);
+      return jsonResponse({ success: true, favorites });
     }
     if (path === "/api/user/watch-progress" && method === "POST") {
       const user = await getAuthUser(request, env);
@@ -2646,13 +2887,33 @@ Brauzeringizga qayting, siz avtomatik tarzda profilingizga kiritildingiz. \u{1F6
       const animeId = animeEpBulkMatch[1];
       const body = await parseJsonBody(request);
       const episodes = Array.isArray(body) ? body : body.episodes || [];
+      let maxEp = 0;
       for (const ep of episodes) {
-        await executeD1(
-          env,
-          `INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration, is_filler)
-           VALUES (?, ?, ?, ?, ?, ?, ?);`,
-          [animeId, ep.episode_number || ep.qism || 1, ep.title || "", ep.video_url || "", ep.telegram_url || "", ep.duration || 0, ep.is_filler ? 1 : 0]
-        );
+        const epNum = Number(ep.episode_number || ep.qism || 1);
+        if (epNum > maxEp) maxEp = epNum;
+        const title = ep.title || `${epNum}-qism`;
+        const videoUrl = ep.video_url || "";
+        const telegramUrl = ep.telegram_url || "";
+        const duration = Number(ep.duration) || 0;
+        const isFiller = ep.is_filler ? 1 : 0;
+        const existing = await queryD1(env, "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ? LIMIT 1;", [animeId, epNum]);
+        if (existing.length > 0) {
+          await executeD1(
+            env,
+            `UPDATE episodes SET title = ?, video_url = ?, telegram_url = ?, duration = ?, is_filler = ? WHERE id = ?;`,
+            [title, videoUrl, telegramUrl, duration, isFiller, existing[0].id]
+          );
+        } else {
+          await executeD1(
+            env,
+            `INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration, is_filler)
+             VALUES (?, ?, ?, ?, ?, ?, ?);`,
+            [animeId, epNum, title, videoUrl, telegramUrl, duration, isFiller]
+          );
+        }
+      }
+      if (maxEp > 0) {
+        await executeD1(env, "UPDATE animes SET qismlar_soni = MAX(COALESCE(qismlar_soni, 0), ?) WHERE id = ?;", [maxEp, animeId]);
       }
       return jsonResponse({ success: true, count: episodes.length });
     }
@@ -2660,12 +2921,28 @@ Brauzeringizga qayting, siz avtomatik tarzda profilingizga kiritildingiz. \u{1F6
     if (animeEpPostMatch && method === "POST") {
       const animeId = animeEpPostMatch[1];
       const body = await parseJsonBody(request);
-      await executeD1(
-        env,
-        `INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration, is_filler)
-         VALUES (?, ?, ?, ?, ?, ?, ?);`,
-        [animeId, body.episode_number || body.qism || 1, body.title || "", body.video_url || "", body.telegram_url || "", body.duration || 0, body.is_filler ? 1 : 0]
-      );
+      const epNum = Number(body.episode_number || body.qism || 1);
+      const title = body.title || `${epNum}-qism`;
+      const videoUrl = body.video_url || "";
+      const telegramUrl = body.telegram_url || "";
+      const duration = Number(body.duration) || 0;
+      const isFiller = body.is_filler ? 1 : 0;
+      const existing = await queryD1(env, "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ? LIMIT 1;", [animeId, epNum]);
+      if (existing.length > 0) {
+        await executeD1(
+          env,
+          `UPDATE episodes SET title = ?, video_url = ?, telegram_url = ?, duration = ?, is_filler = ? WHERE id = ?;`,
+          [title, videoUrl, telegramUrl, duration, isFiller, existing[0].id]
+        );
+      } else {
+        await executeD1(
+          env,
+          `INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration, is_filler)
+           VALUES (?, ?, ?, ?, ?, ?, ?);`,
+          [animeId, epNum, title, videoUrl, telegramUrl, duration, isFiller]
+        );
+      }
+      await executeD1(env, "UPDATE animes SET qismlar_soni = MAX(COALESCE(qismlar_soni, 0), ?) WHERE id = ?;", [epNum, animeId]);
       return jsonResponse({ success: true });
     }
     const animeEpDeleteMatch = path.match(/^\/api\/animes\/([0-9]+)\/episodes\/([0-9\.]+)$/);
@@ -2723,11 +3000,40 @@ Brauzeringizga qayting, siz avtomatik tarzda profilingizga kiritildingiz. \u{1F6
     if (dramaEpAddMatch && method === "POST") {
       const dramaId = dramaEpAddMatch[1];
       const body = await parseJsonBody(request);
+      const qism = Number(body.qism || 1);
+      const title = body.title || `${qism}-Qism`;
+      const videoUrl = body.video_url || "";
+      const telegramUrl = body.telegram_url || "";
+      const existing = await queryD1(env, "SELECT id FROM drama_episodes WHERE drama_id = ? AND qism = ? LIMIT 1;", [dramaId, qism]);
+      if (existing.length > 0) {
+        await executeD1(
+          env,
+          `UPDATE drama_episodes SET title = ?, video_url = ?, telegram_url = ? WHERE id = ?;`,
+          [title, videoUrl, telegramUrl, existing[0].id]
+        );
+      } else {
+        await executeD1(
+          env,
+          `INSERT INTO drama_episodes (drama_id, qism, title, video_url, telegram_url)
+           VALUES (?, ?, ?, ?, ?);`,
+          [dramaId, qism, title, videoUrl, telegramUrl]
+        );
+      }
+      await executeD1(env, "UPDATE dramas SET qismlar_soni = MAX(COALESCE(qismlar_soni, 0), ?) WHERE id = ?;", [qism, dramaId]);
+      return jsonResponse({ success: true });
+    }
+    const dramaEpUpdateMatch = path.match(/^\/api\/dramas\/episodes\/([0-9]+)$/);
+    if (dramaEpUpdateMatch && (method === "PUT" || method === "POST")) {
+      const epId = dramaEpUpdateMatch[1];
+      const body = await parseJsonBody(request);
+      const qism = Number(body.qism || 1);
+      const title = body.title || `${qism}-Qism`;
+      const videoUrl = body.video_url || "";
+      const telegramUrl = body.telegram_url || "";
       await executeD1(
         env,
-        `INSERT INTO drama_episodes (drama_id, qism, title, video_url, telegram_url)
-         VALUES (?, ?, ?, ?, ?);`,
-        [dramaId, body.qism || 1, body.title || `${body.qism || 1}-Qism`, body.video_url || "", body.telegram_url || ""]
+        `UPDATE drama_episodes SET qism = ?, title = ?, video_url = ?, telegram_url = ? WHERE id = ?;`,
+        [qism, title, videoUrl, telegramUrl, epId]
       );
       return jsonResponse({ success: true });
     }
@@ -2754,17 +3060,21 @@ Brauzeringizga qayting, siz avtomatik tarzda profilingizga kiritildingiz. \u{1F6
       if (!msgContent || !String(msgContent).trim()) {
         return jsonResponse({ error: "Xabar matni bo'sh bo'lishi mumkin emas" }, 400);
       }
+      const avatarUrl = user?.avatar_url || body.user_avatar || body.avatar_url || null;
+      const avatarFrame = user?.avatar_frame_url || body.user_avatar_frame || body.avatar_frame_url || null;
       const res = await executeD1(
         env,
-        `INSERT INTO messages (user_id, user_name, content, reply_to_id, reply_to_name, reply_to_content, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);`,
+        `INSERT INTO messages (user_id, user_name, content, reply_to_id, reply_to_name, reply_to_content, user_avatar, user_avatar_frame, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);`,
         [
           user ? user.id : body.user_id || 0,
           user ? user.name : body.user_name || "Mehmon",
           String(msgContent).trim(),
           body.reply_to_id || null,
           body.reply_to_name || null,
-          body.reply_to_content || null
+          body.reply_to_content || null,
+          avatarUrl,
+          avatarFrame
         ]
       );
       return jsonResponse({ success: true, insertId: res.meta?.last_row_id });
@@ -3193,9 +3503,9 @@ Brauzeringizga qayting, siz avtomatik tarzda profilingizga kiritildingiz. \u{1F6
             env,
             `SELECT m.*, 
                     COALESCE(u.name, m.user_name, 'Foydalanuvchi') AS user_name, 
-                    u.avatar_url AS user_avatar, 
-                    u.avatar_frame_url AS user_avatar_frame, 
-                    u.avatar_frame_url AS avatar_frame_url
+                    COALESCE(u.avatar_url, m.user_avatar) AS user_avatar, 
+                    COALESCE(u.avatar_frame_url, m.user_avatar_frame) AS user_avatar_frame, 
+                    COALESCE(u.avatar_frame_url, m.user_avatar_frame) AS avatar_frame_url
              FROM messages m
              LEFT JOIN users u ON (m.user_id = u.id AND m.user_id > 0)
              ORDER BY m.id DESC LIMIT 60;`
