@@ -313,7 +313,14 @@ export default function Register() {
         body: JSON.stringify({ phone: formatted, type: 'register', captchaToken }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Kodni yuborishda xatolik yuz berdi');
       }
@@ -363,7 +370,14 @@ export default function Register() {
         body: JSON.stringify({ phone: formatted, code: phoneCode, type: 'register' }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Tasdiqlash kodi xato');
       }
@@ -410,7 +424,14 @@ export default function Register() {
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Ro\'yxatdan o\'tishda xatolik');
       }
@@ -448,7 +469,14 @@ export default function Register() {
         body: JSON.stringify({ email, captchaToken }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi. Iltimos qaytadan urinib ko'ring.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Kodni yuborishda xatolik yuz berdi');
       }
@@ -477,7 +505,14 @@ export default function Register() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Kodni qayta yuborishda xatolik');
       }
@@ -511,7 +546,14 @@ export default function Register() {
         body: JSON.stringify({ email, code: verificationCode }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Kodni tekshirishda xatolik');
       }
@@ -556,7 +598,14 @@ export default function Register() {
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Ro\'yxatdan o\'tishda xatolik');
       }

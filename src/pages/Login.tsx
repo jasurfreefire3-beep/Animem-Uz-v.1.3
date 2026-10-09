@@ -337,7 +337,14 @@ export default function Login() {
         body: JSON.stringify({ email: resetEmail, captchaToken }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Kodni yuborishda xatolik');
       }
@@ -389,7 +396,14 @@ export default function Login() {
         body: JSON.stringify({ phone: formatted, type: 'forgot' }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'SMS kod yuborishda xatolik');
       }
@@ -438,7 +452,14 @@ export default function Login() {
           body: JSON.stringify({ phone: formatted, code: resetCode, type: 'forgot' }),
         });
 
-        const data = await res.json();
+        const text = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Serverdan kutilmagan javob keldi.");
+        }
+
         if (!res.ok) {
           throw new Error(data.error || 'Kodni tekshirishda xatolik');
         }
@@ -449,7 +470,14 @@ export default function Login() {
           body: JSON.stringify({ email: resetEmail, code: resetCode }),
         });
 
-        const data = await res.json();
+        const text = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Serverdan kutilmagan javob keldi.");
+        }
+
         if (!res.ok) {
           throw new Error(data.error || 'Kodni tekshirishda xatolik');
         }
@@ -493,7 +521,14 @@ export default function Login() {
           }),
         });
 
-        const data = await res.json();
+        const text = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Serverdan kutilmagan javob keldi.");
+        }
+
         if (!res.ok) {
           throw new Error(data.error || 'Parolni tiklashda xatolik');
         }
@@ -507,7 +542,14 @@ export default function Login() {
           body: JSON.stringify({ email: resetEmail, code: resetCode, newPassword }),
         });
 
-        const data = await res.json();
+        const text = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Serverdan kutilmagan javob keldi.");
+        }
+
         if (!res.ok) {
           throw new Error(data.error || 'Parolni tiklashda xatolik');
         }
