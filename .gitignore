@@ -13,3 +13,4 @@ public/animebot/kawaii.db
 .env*
 !.env.example
 !.env.production
+.wrangler/

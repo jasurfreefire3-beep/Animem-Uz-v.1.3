@@ -294,8 +294,27 @@ export default function Chat() {
       setIsLoading(false);
     }, 1500);
 
+    // Continuous background sync for edge serverless consistency
+    const pollInterval = setInterval(() => {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      fetch(`${API_BASE}/api/chat/messages?t=${Date.now()}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            setMessages(prev => {
+              if (data.length !== prev.length || (data[data.length - 1]?.id !== prev[prev.length - 1]?.id)) {
+                return data;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(() => {});
+    }, 3500);
+
     return () => {
       clearTimeout(timeout);
+      clearInterval(pollInterval);
       socket.disconnect();
     };
   }, []);

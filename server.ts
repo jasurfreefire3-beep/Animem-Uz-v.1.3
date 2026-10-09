@@ -3756,7 +3756,8 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
   const cacheKey = `api_anime_slug_${slug}`;
   const cached = getCache<any>(cacheKey, 15000);
   if (cached) {
-    dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [cached.id]).catch(() => {});
+    dbQuery("UPDATE animes SET korishlar = COALESCE(korishlar, 0) + 1 WHERE id = ?", [cached.id]).catch(() => {});
+    cached.korishlar = (cached.korishlar || 0) + 1;
     return res.json(cached);
   }
 
@@ -3775,7 +3776,7 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
     if (Array.isArray(rows) && rows.length > 0) {
       const anime = rows.find((r: any) => toSlugLocal(r.title) === slug || String(r.id) === String(slug));
       if (anime) {
-        dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [anime.id]).catch(() => {});
+        dbQuery("UPDATE animes SET korishlar = COALESCE(korishlar, 0) + 1 WHERE id = ?", [anime.id]).catch(() => {});
         anime.korishlar = (anime.korishlar || 0) + 1;
         const merged = await mergeRatingsWithAnimes([anime]);
         setCache(cacheKey, merged[0]);
@@ -3795,6 +3796,21 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
   saveLocalStore(store);
   const merged = await mergeRatingsWithAnimes([anime]);
   res.json(merged[0]);
+});
+
+// Increment anime view count: POST /api/animes/:id/view
+app.post("/api/animes/:id/view", async (req, res) => {
+  const id = req.params.id;
+  try {
+    await dbQuery("UPDATE animes SET korishlar = COALESCE(korishlar, 0) + 1 WHERE id = ?", [id]);
+  } catch (e) {}
+  const store = loadLocalStore();
+  const anime = (store.animes || []).find((a: any) => String(a.id) === String(id));
+  if (anime) {
+    anime.korishlar = (anime.korishlar || 0) + 1;
+    saveLocalStore(store);
+  }
+  res.json({ success: true, korishlar: anime ? anime.korishlar : undefined });
 });
 
 // Get episodes of an anime

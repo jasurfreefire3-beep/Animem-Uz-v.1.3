@@ -148,6 +148,17 @@ export default function AnimeDetails() {
         setAnime(data);
         fetchRatingSummary(data.id);
 
+        // Record and sync anime view count
+        fetch(`${API_BASE}/api/animes/${data.id}/view`, { method: 'POST' })
+          .then(r => r.json())
+          .then(res => {
+            if (res && typeof res.korishlar === 'number') {
+              setAnime((prev: any) => prev ? { ...prev, korishlar: res.korishlar } : prev);
+            }
+          })
+          .catch(() => {});
+        setAnime((prev: any) => prev ? { ...prev, korishlar: (prev.korishlar || 0) + 1 } : prev);
+
         // Load watch progress & watched episodes
         const progress = getAnimeWatchProgress(data.id);
         const watchedMap = getWatchedEpisodesMap(data.id);
