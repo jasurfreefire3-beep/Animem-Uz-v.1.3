@@ -207,8 +207,9 @@ export default function AnimeDetails() {
         ]);
 
         if (epRes.status === 'fulfilled' && Array.isArray(epRes.value)) {
-          setEpisodesList(epRes.value);
-          const ep1 = epRes.value.find((e: any) => e.episode_number === 1);
+          const sorted = epRes.value.sort((a: any, b: any) => Number(a.episode_number) - Number(b.episode_number));
+          setEpisodesList(sorted);
+          const ep1 = sorted.find((e: any) => Number(e.episode_number) === 1);
           if (ep1 && ep1.video_url) {
             setCurrentVideoUrl(ep1.video_url);
           }

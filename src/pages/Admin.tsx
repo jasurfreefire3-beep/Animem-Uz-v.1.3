@@ -421,10 +421,10 @@ export default function Admin() {
     if (selectedAnimeId) {
       const fetchEps = async () => {
         try {
-          const res = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`);
+          const res = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes?t=${Date.now()}`);
           if (res.ok) {
             const data = await safeJson(res);
-            setEpisodesList(data);
+            setEpisodesList(Array.isArray(data) ? data.sort((a: any, b: any) => Number(a.episode_number) - Number(b.episode_number)) : []);
           }
         } catch (err) {
           console.error("Failed to fetch episodes:", err);
@@ -450,8 +450,26 @@ export default function Admin() {
     if (!selectedAnimeId) return;
     setMessage({ type: '', text: '' });
     try {
-      const currentEp = episodesList.find(e => e.episode_number === epNum);
+      const currentEp = episodesList.find(e => Number(e.episode_number) === Number(epNum));
       const fillerValue = isFiller !== undefined ? isFiller : Boolean(currentEp?.is_filler);
+
+      // Keep episode card intact locally so it never vanishes
+      setEpisodesList(prev => {
+        const copy = [...prev];
+        const idx = copy.findIndex(e => Number(e.episode_number) === Number(epNum));
+        if (idx >= 0) {
+          copy[idx] = { ...copy[idx], video_url: urlVal, is_filler: fillerValue ? 1 : 0, isNew: false };
+        } else {
+          copy.push({
+            anime_id: selectedAnimeId,
+            episode_number: epNum,
+            video_url: urlVal,
+            is_filler: fillerValue ? 1 : 0,
+            isNew: false
+          });
+        }
+        return copy.sort((a, b) => Number(a.episode_number) - Number(b.episode_number));
+      });
 
       const res = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`, {
         method: 'POST',
@@ -472,11 +490,13 @@ export default function Admin() {
       
       setMessage({ type: 'success', text: `${epNum}-qism muvaffaqiyatli saqlandi!` });
       
-      // Refresh list
-      const epsRes = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`);
+      // Refresh list with cache buster
+      const epsRes = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes?t=${Date.now()}`);
       if (epsRes.ok) {
         const data = await safeJson(epsRes);
-        setEpisodesList(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setEpisodesList(data.sort((a: any, b: any) => Number(a.episode_number) - Number(b.episode_number)));
+        }
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
@@ -546,10 +566,12 @@ export default function Admin() {
       }
 
       // Refresh list from server
-      const epsRes = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`);
+      const epsRes = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes?t=${Date.now()}`);
       if (epsRes.ok) {
         const data = await safeJson(epsRes);
-        setEpisodesList(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setEpisodesList(data.sort((a: any, b: any) => Number(a.episode_number) - Number(b.episode_number)));
+        }
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: `Ommaviy saqlashda xatolik: ${err.message}` });

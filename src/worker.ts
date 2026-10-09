@@ -59,6 +59,9 @@ async function executeD1(env: any, sql: string, params: any[] = []): Promise<{ r
       const res = await stmt.run();
       return { results: res.results || [], meta: res.meta || {} };
     } catch (e: any) {
+      if (!env.CLOUDFLARE_D1_TOKEN) {
+        throw e;
+      }
       console.warn('D1 native run failed, trying REST fallback:', e.message);
     }
   }
@@ -100,6 +103,9 @@ async function queryD1(env: any, sql: string, params: any[] = []): Promise<any[]
       const res = await stmt.all();
       return res.results || [];
     } catch (e: any) {
+      if (!env.CLOUDFLARE_D1_TOKEN) {
+        throw e;
+      }
       console.warn('D1 native all failed, trying REST fallback:', e.message);
     }
   }
@@ -112,246 +118,361 @@ let tablesInitialized = false;
 async function ensureTables(env: any) {
   if (tablesInitialized) return;
   tablesInitialized = true;
-  try {
-    await executeD1(env, `
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        email TEXT UNIQUE,
-        password TEXT,
-        phone TEXT,
-        role TEXT DEFAULT 'user',
-        avatar_url TEXT,
-        avatar_frame_url TEXT DEFAULT NULL,
-        banner_url TEXT DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS animes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        description TEXT,
-        image_url TEXT,
-        banner_url TEXT,
-        rating REAL DEFAULT 0,
-        rating_count INTEGER DEFAULT 0,
-        holati TEXT DEFAULT 'Chiqmoqda',
-        yil INTEGER DEFAULT 2026,
-        studiyasi TEXT,
-        qismlar_soni INTEGER DEFAULT 0,
-        korishlar INTEGER DEFAULT 0,
-        janrlar TEXT,
-        video_url TEXT,
-        tavsiya INTEGER DEFAULT 0,
-        is_banner INTEGER DEFAULT 0,
-        is_adult INTEGER DEFAULT 0,
-        telegram_url TEXT,
-        tags TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS episodes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        anime_id INTEGER NOT NULL,
-        episode_number REAL NOT NULL,
-        title TEXT,
-        video_url TEXT,
-        telegram_url TEXT,
-        duration REAL DEFAULT 0,
-        is_filler INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS dramas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        description TEXT,
-        image_url TEXT,
-        banner_url TEXT,
-        rating REAL DEFAULT 0,
-        rating_count INTEGER DEFAULT 0,
-        holati TEXT DEFAULT 'Faol',
-        yil INTEGER DEFAULT 2026,
-        studiyasi TEXT,
-        qismlar_soni INTEGER DEFAULT 0,
-        korishlar INTEGER DEFAULT 0,
-        janrlar TEXT,
-        video_url TEXT,
-        tavsiya INTEGER DEFAULT 0,
-        is_banner INTEGER DEFAULT 0,
-        is_adult INTEGER DEFAULT 0,
-        telegram_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS drama_episodes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        drama_id INTEGER NOT NULL,
-        qism INTEGER NOT NULL,
-        title TEXT,
-        video_url TEXT,
-        telegram_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS mangas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        description TEXT,
-        image_url TEXT,
-        banner_url TEXT,
-        rating REAL DEFAULT 0,
-        rating_count INTEGER DEFAULT 0,
-        holati TEXT DEFAULT 'Faol',
-        yil INTEGER DEFAULT 2026,
-        muallif TEXT,
-        boblar_soni INTEGER DEFAULT 0,
-        korishlar INTEGER DEFAULT 0,
-        janrlar TEXT,
-        tavsiya INTEGER DEFAULT 0,
-        is_banner INTEGER DEFAULT 0,
-        is_adult INTEGER DEFAULT 0,
-        telegram_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS manga_chapters (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        manga_id INTEGER NOT NULL,
-        chapter_number REAL NOT NULL,
-        title TEXT,
-        pages TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER DEFAULT 0,
-        user_name TEXT,
-        content TEXT NOT NULL,
-        reply_to_id TEXT,
-        reply_to_name TEXT,
-        reply_to_content TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS telegram_sessions (
-        session_id TEXT PRIMARY KEY,
-        status TEXT DEFAULT 'pending',
-        token TEXT,
-        user_json TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS comments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        anime_id INTEGER,
-        drama_id INTEGER,
-        manga_id INTEGER,
-        user_id INTEGER,
-        content TEXT,
-        likes INTEGER DEFAULT 0,
-        dislikes INTEGER DEFAULT 0,
-        liked_users TEXT DEFAULT '[]',
-        disliked_users TEXT DEFAULT '[]',
-        replies TEXT DEFAULT '[]',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS ratings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        anime_id INTEGER,
-        drama_id INTEGER,
-        manga_id INTEGER,
-        rating INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, anime_id)
-      );
-      CREATE TABLE IF NOT EXISTS watch_progress (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        anime_id INTEGER,
-        episode_id INTEGER,
-        episode_number REAL,
-        time REAL,
-        duration REAL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, anime_id)
-      );
-      CREATE TABLE IF NOT EXISTS user_lists (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        anime_id INTEGER,
-        status TEXT DEFAULT 'watching',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, anime_id)
-      );
-      CREATE TABLE IF NOT EXISTS shop_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        category TEXT NOT NULL,
-        image_url TEXT NOT NULL,
-        price INTEGER NOT NULL DEFAULT 0,
-        is_active INTEGER DEFAULT 1,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS shop_purchases (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        item_id INTEGER NOT NULL,
-        is_equipped INTEGER DEFAULT 0,
-        purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS shop_orders (
-        id TEXT PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        item_id INTEGER NOT NULL,
-        amount_uzs INTEGER NOT NULL,
-        tezcheck_bill_id TEXT DEFAULT NULL,
-        status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        paid_at TIMESTAMP NULL DEFAULT NULL
-      );
-      CREATE TABLE IF NOT EXISTS media_files (
-        id TEXT PRIMARY KEY,
-        data TEXT,
-        mime_type TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
 
-    // Additive column migrations
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN korishlar INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN image_url TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN banner_url TEXT;'); } catch {}
-    try { await executeD1(env, "ALTER TABLE animes ADD COLUMN holati TEXT DEFAULT 'Chiqmoqda';"); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN yil INTEGER DEFAULT 2026;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN studiyasi TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN qismlar_soni INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN janrlar TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN video_url TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN tavsiya INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN is_banner INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN is_adult INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE animes ADD COLUMN telegram_url TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE dramas ADD COLUMN korishlar INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE mangas ADD COLUMN korishlar INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE episodes ADD COLUMN is_filler INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE episodes ADD COLUMN telegram_url TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE episodes ADD COLUMN duration REAL DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE drama_episodes ADD COLUMN telegram_url TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN avatar_frame_url TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN banner_url TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN bio TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN telegram TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN instagram TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN tiktok TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN youtube TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN discord TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN facebook TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN vk TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN favorites TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN watch_history TEXT DEFAULT NULL;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN watch_time_minutes INTEGER DEFAULT 0;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE users ADD COLUMN last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE messages ADD COLUMN user_avatar TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE messages ADD COLUMN user_avatar_frame TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE comments ADD COLUMN user_avatar TEXT;'); } catch {}
-    try { await executeD1(env, 'ALTER TABLE comments ADD COLUMN user_avatar_frame TEXT;'); } catch {}
-  } catch (e: any) {
-    console.warn('Table ensure notice:', e.message);
+  const createTableStatements = [
+    `CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      email TEXT UNIQUE,
+      password TEXT,
+      phone TEXT,
+      role TEXT DEFAULT 'user',
+      avatar_url TEXT,
+      avatar_frame_url TEXT DEFAULT NULL,
+      banner_url TEXT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS animes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      image_url TEXT,
+      banner_url TEXT,
+      rating REAL DEFAULT 0,
+      rating_count INTEGER DEFAULT 0,
+      holati TEXT DEFAULT 'Chiqmoqda',
+      yil INTEGER DEFAULT 2026,
+      studiyasi TEXT,
+      qismlar_soni INTEGER DEFAULT 0,
+      korishlar INTEGER DEFAULT 0,
+      janrlar TEXT,
+      video_url TEXT,
+      tavsiya INTEGER DEFAULT 0,
+      is_banner INTEGER DEFAULT 0,
+      is_adult INTEGER DEFAULT 0,
+      telegram_url TEXT,
+      tags TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS episodes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      anime_id INTEGER NOT NULL,
+      episode_number REAL NOT NULL,
+      title TEXT,
+      video_url TEXT,
+      telegram_url TEXT,
+      duration REAL DEFAULT 0,
+      is_filler INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS dramas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      image_url TEXT,
+      banner_url TEXT,
+      rating REAL DEFAULT 0,
+      rating_count INTEGER DEFAULT 0,
+      holati TEXT DEFAULT 'Faol',
+      yil INTEGER DEFAULT 2026,
+      studiyasi TEXT,
+      qismlar_soni INTEGER DEFAULT 0,
+      korishlar INTEGER DEFAULT 0,
+      janrlar TEXT,
+      video_url TEXT,
+      tavsiya INTEGER DEFAULT 0,
+      is_banner INTEGER DEFAULT 0,
+      is_adult INTEGER DEFAULT 0,
+      telegram_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS drama_episodes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      drama_id INTEGER NOT NULL,
+      qism INTEGER NOT NULL,
+      title TEXT,
+      video_url TEXT,
+      telegram_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS mangas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      image_url TEXT,
+      banner_url TEXT,
+      rating REAL DEFAULT 0,
+      rating_count INTEGER DEFAULT 0,
+      holati TEXT DEFAULT 'Faol',
+      yil INTEGER DEFAULT 2026,
+      muallif TEXT,
+      boblar_soni INTEGER DEFAULT 0,
+      korishlar INTEGER DEFAULT 0,
+      janrlar TEXT,
+      tavsiya INTEGER DEFAULT 0,
+      is_banner INTEGER DEFAULT 0,
+      is_adult INTEGER DEFAULT 0,
+      telegram_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS manga_chapters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      manga_id INTEGER NOT NULL,
+      chapter_number REAL NOT NULL,
+      title TEXT,
+      pages TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 0,
+      user_name TEXT,
+      content TEXT NOT NULL,
+      reply_to_id TEXT,
+      reply_to_name TEXT,
+      reply_to_content TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS telegram_sessions (
+      session_id TEXT PRIMARY KEY,
+      status TEXT DEFAULT 'pending',
+      token TEXT,
+      user_json TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      anime_id INTEGER,
+      drama_id INTEGER,
+      manga_id INTEGER,
+      user_id INTEGER,
+      content TEXT,
+      likes INTEGER DEFAULT 0,
+      dislikes INTEGER DEFAULT 0,
+      liked_users TEXT DEFAULT '[]',
+      disliked_users TEXT DEFAULT '[]',
+      replies TEXT DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS ratings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      anime_id INTEGER,
+      drama_id INTEGER,
+      manga_id INTEGER,
+      rating INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, anime_id)
+    );`,
+    `CREATE TABLE IF NOT EXISTS watch_progress (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      anime_id INTEGER,
+      episode_id INTEGER,
+      episode_number REAL,
+      time REAL,
+      duration REAL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, anime_id)
+    );`,
+    `CREATE TABLE IF NOT EXISTS user_lists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      anime_id INTEGER,
+      status TEXT DEFAULT 'watching',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, anime_id)
+    );`,
+    `CREATE TABLE IF NOT EXISTS shop_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL,
+      image_url TEXT NOT NULL,
+      price INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS shop_purchases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      item_id INTEGER NOT NULL,
+      is_equipped INTEGER DEFAULT 0,
+      purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS shop_orders (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      item_id INTEGER NOT NULL,
+      amount_uzs INTEGER NOT NULL,
+      tezcheck_bill_id TEXT DEFAULT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      paid_at TIMESTAMP NULL DEFAULT NULL
+    );`,
+    `CREATE TABLE IF NOT EXISTS media_files (
+      id TEXT PRIMARY KEY,
+      data TEXT,
+      mime_type TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`
+  ];
+
+  for (const stmt of createTableStatements) {
+    try {
+      await executeD1(env, stmt);
+    } catch {}
   }
+
+  // Additive column migrations (each runs individually and silently continues if already exists)
+  const alterStatements = [
+    'ALTER TABLE animes ADD COLUMN korishlar INTEGER DEFAULT 0;',
+    'ALTER TABLE animes ADD COLUMN image_url TEXT;',
+    'ALTER TABLE animes ADD COLUMN banner_url TEXT;',
+    "ALTER TABLE animes ADD COLUMN holati TEXT DEFAULT 'Chiqmoqda';",
+    'ALTER TABLE animes ADD COLUMN yil INTEGER DEFAULT 2026;',
+    'ALTER TABLE animes ADD COLUMN studiyasi TEXT;',
+    'ALTER TABLE animes ADD COLUMN qismlar_soni INTEGER DEFAULT 0;',
+    'ALTER TABLE animes ADD COLUMN janrlar TEXT;',
+    'ALTER TABLE animes ADD COLUMN video_url TEXT;',
+    'ALTER TABLE animes ADD COLUMN tavsiya INTEGER DEFAULT 0;',
+    'ALTER TABLE animes ADD COLUMN is_banner INTEGER DEFAULT 0;',
+    'ALTER TABLE animes ADD COLUMN is_adult INTEGER DEFAULT 0;',
+    'ALTER TABLE animes ADD COLUMN telegram_url TEXT;',
+    'ALTER TABLE animes ADD COLUMN tags TEXT;',
+    'ALTER TABLE dramas ADD COLUMN korishlar INTEGER DEFAULT 0;',
+    'ALTER TABLE mangas ADD COLUMN korishlar INTEGER DEFAULT 0;',
+    'ALTER TABLE episodes ADD COLUMN title TEXT DEFAULT NULL;',
+    'ALTER TABLE episodes ADD COLUMN is_filler INTEGER DEFAULT 0;',
+    'ALTER TABLE episodes ADD COLUMN telegram_url TEXT DEFAULT NULL;',
+    'ALTER TABLE episodes ADD COLUMN duration REAL DEFAULT 0;',
+    'ALTER TABLE drama_episodes ADD COLUMN title TEXT DEFAULT NULL;',
+    'ALTER TABLE drama_episodes ADD COLUMN telegram_url TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN avatar_frame_url TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN banner_url TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN bio TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN telegram TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN instagram TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN tiktok TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN youtube TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN discord TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN facebook TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN vk TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN favorites TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN watch_history TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN watch_time_minutes INTEGER DEFAULT 0;',
+    'ALTER TABLE users ADD COLUMN last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP;',
+    'ALTER TABLE messages ADD COLUMN user_avatar TEXT;',
+    'ALTER TABLE messages ADD COLUMN user_avatar_frame TEXT;',
+    'ALTER TABLE comments ADD COLUMN user_avatar TEXT;',
+    'ALTER TABLE comments ADD COLUMN user_avatar_frame TEXT;'
+  ];
+
+  for (const stmt of alterStatements) {
+    try {
+      await executeD1(env, stmt);
+    } catch {}
+  }
+}
+
+// Robust helper to upsert anime episode with fallback for schemas without title/telegram_url/duration
+async function upsertAnimeEpisode(
+  env: any,
+  animeId: string | number,
+  epNum: number,
+  videoUrl: string,
+  isFiller: number,
+  title?: string,
+  telegramUrl?: string,
+  duration?: number
+) {
+  const normEpNum = Number(epNum);
+  const normAnimeId = Number(animeId) || animeId;
+  const t = title || `${normEpNum}-qism`;
+  const tg = telegramUrl || '';
+  const dur = Number(duration) || 0;
+  const filler = isFiller ? 1 : 0;
+
+  let existing: any[] = [];
+  try {
+    existing = await queryD1(
+      env,
+      'SELECT id FROM episodes WHERE (anime_id = ? OR anime_id = ?) AND (episode_number = ? OR episode_number = ?) LIMIT 1;',
+      [animeId, normAnimeId, normEpNum, epNum]
+    );
+  } catch (err: any) {
+    console.warn('Failed to query existing episode:', err.message);
+  }
+
+  if (existing.length > 0) {
+    const epId = existing[0].id;
+    try {
+      await executeD1(
+        env,
+        'UPDATE episodes SET title = ?, video_url = ?, telegram_url = ?, duration = ?, is_filler = ? WHERE id = ?;',
+        [t, videoUrl, tg, dur, filler, epId]
+      );
+    } catch {
+      try {
+        await executeD1(
+          env,
+          'UPDATE episodes SET video_url = ?, telegram_url = ?, duration = ?, is_filler = ? WHERE id = ?;',
+          [videoUrl, tg, dur, filler, epId]
+        );
+      } catch {
+        try {
+          await executeD1(
+            env,
+            'UPDATE episodes SET video_url = ?, is_filler = ? WHERE id = ?;',
+            [videoUrl, filler, epId]
+          );
+        } catch {
+          await executeD1(
+            env,
+            'UPDATE episodes SET video_url = ? WHERE id = ?;',
+            [videoUrl, epId]
+          );
+        }
+      }
+    }
+  } else {
+    try {
+      await executeD1(
+        env,
+        'INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration, is_filler) VALUES (?, ?, ?, ?, ?, ?, ?);',
+        [normAnimeId, normEpNum, t, videoUrl, tg, dur, filler]
+      );
+    } catch {
+      try {
+        await executeD1(
+          env,
+          'INSERT INTO episodes (anime_id, episode_number, video_url, telegram_url, duration, is_filler) VALUES (?, ?, ?, ?, ?, ?);',
+          [normAnimeId, normEpNum, videoUrl, tg, dur, filler]
+        );
+      } catch {
+        try {
+          await executeD1(
+            env,
+            'INSERT INTO episodes (anime_id, episode_number, video_url, is_filler) VALUES (?, ?, ?, ?);',
+            [normAnimeId, normEpNum, videoUrl, filler]
+          );
+        } catch {
+          await executeD1(
+            env,
+            'INSERT INTO episodes (anime_id, episode_number, video_url) VALUES (?, ?, ?);',
+            [normAnimeId, normEpNum, videoUrl]
+          );
+        }
+      }
+    }
+  }
+
+  try {
+    await executeD1(
+      env,
+      'UPDATE animes SET qismlar_soni = MAX(COALESCE(qismlar_soni, 0), ?) WHERE id = ? OR id = ?;',
+      [normEpNum, animeId, normAnimeId]
+    );
+  } catch {}
 }
 
 // ============================================================================
@@ -1154,34 +1275,15 @@ export default {
       const animeId = animeEpBulkMatch[1];
       const body = await parseJsonBody(request);
       const episodes = Array.isArray(body) ? body : body.episodes || [];
-      let maxEp = 0;
       for (const ep of episodes) {
         const epNum = Number(ep.episode_number || ep.qism || 1);
-        if (epNum > maxEp) maxEp = epNum;
         const title = ep.title || `${epNum}-qism`;
         const videoUrl = ep.video_url || '';
         const telegramUrl = ep.telegram_url || '';
         const duration = Number(ep.duration) || 0;
         const isFiller = ep.is_filler ? 1 : 0;
 
-        const existing = await queryD1(env, 'SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ? LIMIT 1;', [animeId, epNum]);
-        if (existing.length > 0) {
-          await executeD1(
-            env,
-            `UPDATE episodes SET title = ?, video_url = ?, telegram_url = ?, duration = ?, is_filler = ? WHERE id = ?;`,
-            [title, videoUrl, telegramUrl, duration, isFiller, existing[0].id]
-          );
-        } else {
-          await executeD1(
-            env,
-            `INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration, is_filler)
-             VALUES (?, ?, ?, ?, ?, ?, ?);`,
-            [animeId, epNum, title, videoUrl, telegramUrl, duration, isFiller]
-          );
-        }
-      }
-      if (maxEp > 0) {
-        await executeD1(env, 'UPDATE animes SET qismlar_soni = MAX(COALESCE(qismlar_soni, 0), ?) WHERE id = ?;', [maxEp, animeId]);
+        await upsertAnimeEpisode(env, animeId, epNum, videoUrl, isFiller, title, telegramUrl, duration);
       }
       return jsonResponse({ success: true, count: episodes.length });
     }
@@ -1198,22 +1300,7 @@ export default {
       const duration = Number(body.duration) || 0;
       const isFiller = body.is_filler ? 1 : 0;
 
-      const existing = await queryD1(env, 'SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ? LIMIT 1;', [animeId, epNum]);
-      if (existing.length > 0) {
-        await executeD1(
-          env,
-          `UPDATE episodes SET title = ?, video_url = ?, telegram_url = ?, duration = ?, is_filler = ? WHERE id = ?;`,
-          [title, videoUrl, telegramUrl, duration, isFiller, existing[0].id]
-        );
-      } else {
-        await executeD1(
-          env,
-          `INSERT INTO episodes (anime_id, episode_number, title, video_url, telegram_url, duration, is_filler)
-           VALUES (?, ?, ?, ?, ?, ?, ?);`,
-          [animeId, epNum, title, videoUrl, telegramUrl, duration, isFiller]
-        );
-      }
-      await executeD1(env, 'UPDATE animes SET qismlar_soni = MAX(COALESCE(qismlar_soni, 0), ?) WHERE id = ?;', [epNum, animeId]);
+      await upsertAnimeEpisode(env, animeId, epNum, videoUrl, isFiller, title, telegramUrl, duration);
       return jsonResponse({ success: true });
     }
 
@@ -1222,7 +1309,11 @@ export default {
     if (animeEpDeleteMatch && method === 'DELETE') {
       const animeId = animeEpDeleteMatch[1];
       const epNum = animeEpDeleteMatch[2];
-      await executeD1(env, 'DELETE FROM episodes WHERE anime_id = ? AND episode_number = ?;', [animeId, epNum]);
+      await executeD1(
+        env,
+        'DELETE FROM episodes WHERE (anime_id = ? OR anime_id = ?) AND (episode_number = ? OR episode_number = ?);',
+        [animeId, Number(animeId), epNum, Number(epNum)]
+      );
       return jsonResponse({ success: true });
     }
 
@@ -1640,8 +1731,18 @@ export default {
         const epMatch = path.match(/^\/api\/animes\/([0-9]+)\/episodes$/);
         if (epMatch) {
           const animeId = epMatch[1];
-          const rows = await queryD1(env, 'SELECT * FROM episodes WHERE anime_id = ? ORDER BY episode_number ASC;', [animeId]);
-          return new Response(JSON.stringify(rows), { headers: corsHeadersObj });
+          const numId = Number(animeId);
+          const rows = await queryD1(
+            env,
+            'SELECT * FROM episodes WHERE anime_id = ? OR anime_id = ? ORDER BY CAST(episode_number AS REAL) ASC;',
+            [animeId, numId]
+          );
+          return new Response(JSON.stringify(rows), {
+            headers: {
+              ...corsHeadersObj,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            }
+          });
         }
 
         // Ratings summary: /api/animes/:id/ratings-summary
