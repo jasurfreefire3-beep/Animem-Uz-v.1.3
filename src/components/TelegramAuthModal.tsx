@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { 
   X, 
   Send, 
   Loader2, 
   CheckCircle2, 
-  ExternalLink,
   AlertCircle,
   Smartphone,
   KeyRound,
@@ -38,8 +37,6 @@ export default function TelegramAuthModal({
   const [phone, setPhone] = useState('+998');
   const [code, setCode] = useState('');
   const [sessionId, setSessionId] = useState('');
-  const [deliveredDirectly, setDeliveredDirectly] = useState(false);
-  const [botUrl, setBotUrl] = useState('');
 
   // Loading & Error states
   const [loading, setLoading] = useState(false);
@@ -62,10 +59,8 @@ export default function TelegramAuthModal({
       setError('');
       setSuccessUser(null);
       setLoading(false);
-      setDeliveredDirectly(false);
-      setBotUrl(`https://t.me/${botUsername}`);
     }
-  }, [isOpen, botUsername]);
+  }, [isOpen]);
 
   // Handle countdown for resending code
   useEffect(() => {
@@ -84,11 +79,11 @@ export default function TelegramAuthModal({
     if (step === 'code') {
       setTimeout(() => {
         codeInputRef.current?.focus();
-      }, 100);
+      }, 120);
     }
   }, [step]);
 
-  // Poll for background authorization (in case user clicks Start or shares contact in bot)
+  // Poll for background authorization (if verified elsewhere)
   useEffect(() => {
     if (!sessionId || !isOpen || step === 'success') return;
 
@@ -96,7 +91,9 @@ export default function TelegramAuthModal({
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/auth/telegram/status/${sessionId}`);
-        const data = await res.json();
+        const text = await res.text();
+        let data: any = {};
+        try { data = JSON.parse(text); } catch { return; }
 
         if (!isMounted) return;
 
@@ -111,7 +108,7 @@ export default function TelegramAuthModal({
           }, 1200);
         }
       } catch (err) {
-        console.error('Telegram session poll error:', err);
+        // Silently ignore background poll errors
       }
     }, 2000);
 
@@ -124,7 +121,6 @@ export default function TelegramAuthModal({
   // Format phone number as user types
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
-    // Keep '+' at start if present
     if (!val.startsWith('+')) {
       val = '+' + val.replace(/[^\d]/g, '');
     } else {
@@ -152,14 +148,19 @@ export default function TelegramAuthModal({
         body: JSON.stringify({ phone: clean })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi. Iltimos qaytadan urinib ko'ring.");
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Kodni yuborishda xatolik yuz berdi");
       }
 
       setSessionId(data.sessionId);
-      setDeliveredDirectly(Boolean(data.deliveredDirectly));
-      setBotUrl(data.botUrl || `https://t.me/${botUsername}?start=${data.sessionId}`);
       setStep('code');
       setCountdown(60);
       setCanResend(false);
@@ -193,7 +194,14 @@ export default function TelegramAuthModal({
         })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Serverdan kutilmagan javob keldi. Iltimos qaytadan urinib ko'ring.");
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Tasdiqlash kodi noto'g'ri");
       }
@@ -218,7 +226,6 @@ export default function TelegramAuthModal({
     setCode(val);
     if (val.length === 5) {
       setTimeout(() => {
-        // Auto verify
         const submitBtn = document.getElementById('tg_verify_btn');
         if (submitBtn) submitBtn.click();
       }, 50);
@@ -318,15 +325,15 @@ export default function TelegramAuthModal({
                 <div className="w-14 h-14 bg-[#0088cc]/10 rounded-2xl flex items-center justify-center mx-auto mb-2.5 border border-[#0088cc]/30 shadow-[0_0_20px_rgba(0,136,204,0.2)]">
                   <Smartphone size={24} className="text-[#0088cc]" />
                 </div>
-                <h3 className="text-base font-black text-white">Telefon raqamingizni kiriting</h3>
+                <h3 className="text-base font-black text-white">Telegram raqamingizni kiriting</h3>
                 <p className="text-xs text-white/50 mt-1 max-w-xs mx-auto">
-                  Telegram hisobingizga ulangan raqamni kiritsangiz, botimiz sizga 5 xonali tasdiqlash kodini yuboradi.
+                  Telefon raqamingizni kiriting, botimiz sizga 5 xonali tasdiqlash kodini yuboradi.
                 </p>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-white/70 uppercase tracking-wider mb-1.5">
-                  Telegram Raqam
+                  Telegram Telefon Raqam
                 </label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-sm">
@@ -357,20 +364,14 @@ export default function TelegramAuthModal({
                 ) : (
                   <>
                     <Send size={15} />
-                    <span>Kodni Telegram orqali yuborish</span>
+                    <span>Kodni yuborish</span>
                   </>
                 )}
               </button>
-
-              <div className="pt-2 text-center">
-                <span className="text-[11px] text-white/40">
-                  Botimiz: <a href={`https://t.me/${botUsername}`} target="_blank" rel="noopener noreferrer" className="text-[#0088cc] hover:underline font-bold">@{botUsername}</a>
-                </span>
-              </div>
             </motion.form>
           )}
 
-          {/* STEP 2: CODE VERIFICATION */}
+          {/* STEP 2: CODE VERIFICATION (NO BOT BUTTON - DIRECT CODE ENTRY) */}
           {step === 'code' && (
             <motion.form 
               initial={{ opacity: 0, x: 10 }}
@@ -378,11 +379,11 @@ export default function TelegramAuthModal({
               onSubmit={handleVerifyCode} 
               className="space-y-4"
             >
-              <div className="text-center mb-4">
-                <div className="w-14 h-14 bg-[#0088cc]/10 rounded-2xl flex items-center justify-center mx-auto mb-2 border border-[#0088cc]/30 shadow-[0_0_20px_rgba(0,136,204,0.2)]">
-                  <KeyRound size={24} className="text-[#0088cc]" />
+              <div className="text-center mb-3">
+                <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-2 border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+                  <KeyRound size={24} className="text-emerald-400" />
                 </div>
-                <h3 className="text-base font-black text-white">Tasdiqlash kodini kiriting</h3>
+                <h3 className="text-base font-black text-white">Tasdiqlash kodi</h3>
                 <div className="flex items-center justify-center gap-2 mt-1">
                   <span className="text-xs text-white/60 font-mono">{phone}</span>
                   <button
@@ -395,29 +396,18 @@ export default function TelegramAuthModal({
                 </div>
               </div>
 
-              {/* Bot Deep Link Box (if direct push not available or as quick-open shortcut) */}
-              <div className="p-3.5 bg-[#0088cc]/10 border border-[#0088cc]/20 rounded-xl space-y-2 text-center">
-                <p className="text-[11px] text-white/80 leading-relaxed">
-                  {deliveredDirectly 
-                    ? "Tasdiqlash kodi Telegramingizga yuborildi." 
-                    : "Botimizdan tasdiqlash kodini olish uchun quyidagi tugmani bosing:"}
+              {/* Confirmation Banner */}
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center space-y-1">
+                <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-bold text-xs">
+                  <CheckCircle2 size={16} />
+                  <span>Telegramga kod yuborildi!</span>
+                </div>
+                <p className="text-[11px] text-white/60">
+                  Iltimos, Telegramingizga kelgan 5 xonali kodni kiriting
                 </p>
-                <a
-                  href={botUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-1.5 py-2 px-4 bg-[#0088cc] hover:bg-[#0077b5] text-white text-[11px] font-black uppercase tracking-wider rounded-lg shadow-md transition-all hover:scale-[1.02] cursor-pointer"
-                >
-                  <TelegramOfficialIcon className="w-3.5 h-3.5 text-white" />
-                  <span>@{botUsername} da kodni ko'rish</span>
-                  <ExternalLink size={12} className="opacity-70" />
-                </a>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-white/70 uppercase tracking-wider mb-1.5 text-center">
-                  5 Xonali Kod
-                </label>
                 <input
                   ref={codeInputRef}
                   type="text"
@@ -428,7 +418,7 @@ export default function TelegramAuthModal({
                   onChange={handleCodeChange}
                   placeholder="• • • • •"
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 px-4 text-white text-center text-2xl font-black font-mono tracking-[0.5em] focus:outline-none focus:border-[#0088cc] focus:ring-1 focus:ring-[#0088cc] transition-all"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 px-4 text-white text-center text-2xl font-black font-mono tracking-[0.5em] focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                 />
               </div>
 
