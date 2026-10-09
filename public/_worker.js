@@ -2654,12 +2654,13 @@ Xavfsizlik uchun kodni begonalarga bermang!`,
           } catch {
           }
         }
+        const userEmail = `${cleanDigits}@telegram.animem.uz`;
         let existing = [];
         try {
           existing = await queryD1(
             env,
-            "SELECT * FROM users WHERE phone = ? OR phone = ? OR (telegram_chat_id IS NOT NULL AND telegram_chat_id = ?) LIMIT 1;",
-            [cleanPhone, cleanPhone.replace("+", ""), String(chatId || "")]
+            "SELECT * FROM users WHERE phone = ? OR phone = ? OR email = ? OR (telegram_chat_id IS NOT NULL AND telegram_chat_id = ?) LIMIT 1;",
+            [cleanPhone, cleanDigits, userEmail, String(chatId || "")]
           );
         } catch {
         }
@@ -2669,43 +2670,73 @@ Xavfsizlik uchun kodni begonalarga bermang!`,
           try {
             const exec = await executeD1(
               env,
-              "INSERT INTO users (name, phone, role, avatar_url, telegram, telegram_chat_id, password) VALUES (?, ?, ?, ?, ?, ?, ?);",
-              [userName, cleanPhone, "user", avatarUrl, tgUser.username ? `@${tgUser.username}` : null, chatId ? String(chatId) : null, randomPass]
+              "INSERT INTO users (name, email, phone, role, avatar_url, telegram, telegram_chat_id, password) VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
+              [userName, userEmail, cleanPhone, "user", avatarUrl, tgUser.username ? `@${tgUser.username}` : null, chatId ? String(chatId) : null, randomPass]
             );
             user = {
               id: exec.meta?.last_row_id || Date.now(),
               name: userName,
+              email: userEmail,
               phone: cleanPhone,
               role: "user",
               avatar_url: avatarUrl,
               telegram: tgUser.username ? `@${tgUser.username}` : null
             };
-          } catch {
+          } catch (e1) {
             try {
               const exec2 = await executeD1(
                 env,
-                "INSERT INTO users (name, phone, role, avatar_url, password) VALUES (?, ?, ?, ?, ?);",
-                [userName, cleanPhone, "user", avatarUrl, randomPass]
+                "INSERT INTO users (name, email, phone, role, avatar_url, password) VALUES (?, ?, ?, ?, ?, ?);",
+                [userName, userEmail, cleanPhone, "user", avatarUrl, randomPass]
               );
               user = {
                 id: exec2.meta?.last_row_id || Date.now(),
                 name: userName,
+                email: userEmail,
                 phone: cleanPhone,
                 role: "user",
                 avatar_url: avatarUrl
               };
-            } catch {
-              const exec3 = await executeD1(
-                env,
-                "INSERT INTO users (name, phone, role, password) VALUES (?, ?, ?, ?);",
-                [userName, cleanPhone, "user", randomPass]
-              );
-              user = {
-                id: exec3.meta?.last_row_id || Date.now(),
-                name: userName,
-                phone: cleanPhone,
-                role: "user"
-              };
+            } catch (e2) {
+              try {
+                const exec3 = await executeD1(
+                  env,
+                  "INSERT INTO users (name, email, phone, role, password) VALUES (?, ?, ?, ?, ?);",
+                  [userName, userEmail, cleanPhone, "user", randomPass]
+                );
+                user = {
+                  id: exec3.meta?.last_row_id || Date.now(),
+                  name: userName,
+                  email: userEmail,
+                  phone: cleanPhone,
+                  role: "user"
+                };
+              } catch (e3) {
+                try {
+                  const fallback = await queryD1(env, "SELECT * FROM users WHERE email = ? OR phone = ? LIMIT 1;", [userEmail, cleanPhone]);
+                  if (fallback && fallback[0]) {
+                    user = fallback[0];
+                  } else {
+                    user = {
+                      id: Date.now(),
+                      name: userName,
+                      email: userEmail,
+                      phone: cleanPhone,
+                      role: "user",
+                      avatar_url: avatarUrl
+                    };
+                  }
+                } catch {
+                  user = {
+                    id: Date.now(),
+                    name: userName,
+                    email: userEmail,
+                    phone: cleanPhone,
+                    role: "user",
+                    avatar_url: avatarUrl
+                  };
+                }
+              }
             }
           }
         } else {

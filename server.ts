@@ -7787,9 +7787,10 @@ app.post("/api/auth/telegram/verify-code", async (req, res) => {
       }
     }
 
+    const userEmail = `${cleanDigits}@telegram.animem.uz`;
     let user: any = null;
     try {
-      const [users]: any = await dbQuery("SELECT * FROM users WHERE phone = ? OR phone = ? LIMIT 1", [cleanPhone, cleanDigits]);
+      const [users]: any = await dbQuery("SELECT * FROM users WHERE phone = ? OR phone = ? OR email = ? LIMIT 1", [cleanPhone, cleanDigits, userEmail]);
       if (users && users[0]) user = users[0];
     } catch {}
 
@@ -7797,12 +7798,12 @@ app.post("/api/auth/telegram/verify-code", async (req, res) => {
       const userName = `User_${cleanDigits.slice(-4)}`;
       try {
         const [insertRes]: any = await dbQuery(
-          "INSERT INTO users (name, phone, role) VALUES (?, ?, 'user')",
-          [userName, cleanPhone]
+          "INSERT INTO users (name, email, phone, role) VALUES (?, ?, ?, 'user')",
+          [userName, userEmail, cleanPhone]
         );
-        user = { id: insertRes.insertId || Date.now(), name: userName, phone: cleanPhone, role: 'user' };
+        user = { id: insertRes.insertId || Date.now(), name: userName, email: userEmail, phone: cleanPhone, role: 'user' };
       } catch {
-        user = { id: Date.now(), name: userName, phone: cleanPhone, role: 'user' };
+        user = { id: Date.now(), name: userName, email: userEmail, phone: cleanPhone, role: 'user' };
       }
     }
 
