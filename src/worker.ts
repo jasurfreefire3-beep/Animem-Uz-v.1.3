@@ -364,7 +364,14 @@ async function ensureTables(env: any) {
     'ALTER TABLE messages ADD COLUMN user_avatar TEXT;',
     'ALTER TABLE messages ADD COLUMN user_avatar_frame TEXT;',
     'ALTER TABLE comments ADD COLUMN user_avatar TEXT;',
-    'ALTER TABLE comments ADD COLUMN user_avatar_frame TEXT;'
+    'ALTER TABLE comments ADD COLUMN user_avatar_frame TEXT;',
+    'ALTER TABLE telegram_sessions ADD COLUMN phone TEXT DEFAULT NULL;',
+    'ALTER TABLE telegram_sessions ADD COLUMN code TEXT DEFAULT NULL;',
+    'ALTER TABLE telegram_sessions ADD COLUMN telegram_chat_id TEXT DEFAULT NULL;',
+    'ALTER TABLE telegram_sessions ADD COLUMN telegram_user TEXT DEFAULT NULL;',
+    'ALTER TABLE telegram_sessions ADD COLUMN expires_at TIMESTAMP DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN telegram_chat_id TEXT DEFAULT NULL;',
+    'ALTER TABLE users ADD COLUMN telegram_username TEXT DEFAULT NULL;'
   ];
 
   for (const stmt of alterStatements) {
@@ -473,6 +480,34 @@ async function upsertAnimeEpisode(
       [normEpNum, animeId, normAnimeId]
     );
   } catch {}
+}
+
+// Fetch user's profile photo and details from Telegram API
+async function getTelegramUserProfile(botToken: string, userIdOrChatId: number | string): Promise<{ avatarUrl?: string; name?: string; username?: string }> {
+  try {
+    let avatarUrl: string | undefined;
+    const photosRes = await fetch(`https://api.telegram.org/bot${botToken}/getUserProfilePhotos?user_id=${userIdOrChatId}&limit=1`);
+    if (photosRes.ok) {
+      const photosData: any = await photosRes.json();
+      if (photosData.ok && photosData.result?.photos?.length > 0) {
+        const photoArr = photosData.result.photos[0];
+        const bestPhoto = photoArr[photoArr.length - 1];
+        if (bestPhoto?.file_id) {
+          const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+          if (fileRes.ok) {
+            const fileData: any = await fileRes.json();
+            if (fileData.ok && fileData.result?.file_path) {
+              avatarUrl = `/api/tgavatar?path=${encodeURIComponent(fileData.result.file_path)}`;
+            }
+          }
+        }
+      }
+    }
+    return { avatarUrl };
+  } catch (e: any) {
+    console.warn('getTelegramUserProfile notice:', e.message);
+    return {};
+  }
 }
 
 // ============================================================================
@@ -631,35 +666,94 @@ export default {
       return fetch(proxyReq);
     }
 
+    // 0.1 TELEGRAM AVATAR PROXY (Shields bot token from clients and caches avatars)
+    if (path === '/api/tgavatar' && method === 'GET') {
+      const filePath = url.searchParams.get('path');
+      if (!filePath || filePath.includes('..')) {
+        return new Response('Invalid path', { status: 400 });
+      }
+      try {
+        const tgRes = await fetch(`https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`);
+        if (!tgRes.ok) {
+          return new Response('Avatar not found', { status: 404 });
+        }
+        return new Response(tgRes.body, {
+          headers: {
+            'Content-Type': tgRes.headers.get('Content-Type') || 'image/jpeg',
+            'Cache-Control': 'public, max-age=604800, immutable',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      } catch (err: any) {
+        return new Response('Avatar fetch error', { status: 500 });
+      }
+    }
+
     // 1. TELEGRAM BOT AUTHENTICATION WEBHOOK & SESSIONS
     if (path === '/api/auth/telegram/webhook' && method === 'POST') {
       try {
         const update = await parseJsonBody(request);
         if (update && update.message) {
           const msg = update.message;
-          const chat = msg.chat;
+          const chat = msg.chat || {};
           const text = msg.text || '';
           const from = msg.from || {};
+
+          // Fetch avatar and nickname for the Telegram sender
+          const tgProfile = await getTelegramUserProfile(BOT_TOKEN, from.id);
+          const userAvatar = tgProfile.avatarUrl || null;
+          const tgUsername = from.username ? `@${from.username}` : '';
+          const fullName = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Telegram User';
+
+          const userMeta = {
+            id: from.id,
+            username: from.username || '',
+            name: fullName,
+            avatar_url: userAvatar,
+            first_name: from.first_name || '',
+            last_name: from.last_name || '',
+          };
 
           if (text.startsWith('/start')) {
             const parts = text.split(' ');
             const startParam = parts[1] || '';
 
-            if (startParam && startParam.startsWith('auth_')) {
-              const sessionId = startParam;
-              await executeD1(env, 'INSERT OR REPLACE INTO telegram_sessions (session_id, status) VALUES (?, ?);', [sessionId, 'pending_phone']);
+            if (startParam) {
+              const sid = startParam;
+              // Check existing session
+              const sessions = await queryD1(env, 'SELECT * FROM telegram_sessions WHERE session_id = ? LIMIT 1;', [sid]);
+              let codeToSend = '';
+              let phoneFromSession = '';
+              if (sessions.length > 0) {
+                const sess = sessions[0];
+                codeToSend = sess.code || Math.floor(10000 + Math.random() * 90000).toString();
+                phoneFromSession = sess.phone || '';
 
-              // Send Contact Request Keyboard
+                await executeD1(
+                  env,
+                  'UPDATE telegram_sessions SET code = ?, telegram_chat_id = ?, telegram_user = ? WHERE session_id = ?;',
+                  [codeToSend, String(chat.id), JSON.stringify(userMeta), sid]
+                );
+              } else {
+                codeToSend = Math.floor(10000 + Math.random() * 90000).toString();
+                await executeD1(
+                  env,
+                  'INSERT OR REPLACE INTO telegram_sessions (session_id, code, telegram_chat_id, telegram_user, status) VALUES (?, ?, ?, ?, ?);',
+                  [sid, codeToSend, String(chat.id), JSON.stringify(userMeta), 'pending_code']
+                );
+              }
+
+              // Send verification code directly in chat!
               const sendUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
               await fetch(sendUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   chat_id: chat.id,
-                  text: `<b>Assalomu alaykum, ${from.first_name || 'Foydalanuvchi'}! 👋</b>\n\nSiz <b>ANIMEM.UZ</b> saytiga kirish jarayonini boshladingiz. Kirishni tasdiqlash uchun quyidagi <b>"📱 Telefon raqamni yuborish"</b> tugmasini bosing:`,
+                  text: `👋 <b>Assalomu alaykum, ${from.first_name || 'Foydalanuvchi'}!</b>\n\nSizning <b>ANIMEM.UZ</b> tasdiqlash kodingiz:\n\n👉 <code>${codeToSend}</code> 👈\n\nUshbu 5 xonali kodni saytdagi maydonga kiriting va profilingizga kiring! 🚀\n\n<i>Kod 5 daqiqa davomida amal qiladi.</i>`,
                   parse_mode: 'HTML',
                   reply_markup: {
-                    keyboard: [[{ text: '📱 Telefon raqamni yuborish', request_contact: true }]],
+                    keyboard: [[{ text: '📱 Telefon raqam bilan 1 bosishda kirish', request_contact: true }]],
                     one_time_keyboard: true,
                     resize_keyboard: true,
                   },
@@ -672,7 +766,7 @@ export default {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   chat_id: chat.id,
-                  text: `<b>Assalomu alaykum! 👋</b>\n\nANIMEM.UZ rasmiy botiga xush kelibsiz.\nSaytga kirish uchun saytimizdagi <b>"Telegram orqali kirish"</b> tugmasini bosing.`,
+                  text: `<b>Assalomu alaykum, ${from.first_name || ''}! 👋</b>\n\nANIMEM.UZ rasmiy botiga xush kelibsiz.\nSaytga kirish uchun saytimizda telefon raqamingizni kiriting.`,
                   parse_mode: 'HTML',
                 }),
               });
@@ -681,25 +775,50 @@ export default {
             const contact = msg.contact;
             let phone = contact.phone_number || '';
             if (!phone.startsWith('+')) phone = '+' + phone;
-            const fullName = [from.first_name, from.last_name].filter(Boolean).join(' ') || 'Telegram User';
 
             // Find existing user or create
-            let users = await queryD1(env, 'SELECT * FROM users WHERE phone = ? LIMIT 1;', [phone]);
+            let users = await queryD1(env, 'SELECT * FROM users WHERE phone = ? OR phone = ? OR telegram_chat_id = ? LIMIT 1;', [phone, phone.replace('+', ''), String(chat.id)]);
             let user = users[0];
             if (!user) {
               const randomPass = await hashPassword(Math.random().toString(36));
-              const exec = await executeD1(env, 'INSERT INTO users (name, phone, role, password) VALUES (?, ?, ?, ?);', [fullName, phone, 'user', randomPass]);
-              user = { id: exec.meta?.last_row_id || Date.now(), name: fullName, phone, role: 'user' };
+              const exec = await executeD1(
+                env,
+                'INSERT INTO users (name, phone, role, avatar_url, telegram, telegram_chat_id, password) VALUES (?, ?, ?, ?, ?, ?, ?);',
+                [fullName, phone, 'user', userAvatar, tgUsername, String(chat.id), randomPass]
+              );
+              user = { id: exec.meta?.last_row_id || Date.now(), name: fullName, phone, role: 'user', avatar_url: userAvatar, telegram: tgUsername };
+            } else {
+              await executeD1(
+                env,
+                'UPDATE users SET name = COALESCE(name, ?), telegram_chat_id = ?, telegram = ?, avatar_url = COALESCE(?, avatar_url) WHERE id = ?;',
+                [fullName, String(chat.id), tgUsername, userAvatar, user.id]
+              );
+              if (userAvatar && !user.avatar_url) user.avatar_url = userAvatar;
             }
 
-            const userPayload = { id: user.id, name: user.name, role: user.role || 'user', phone: user.phone, avatar_url: user.avatar_url || null };
+            const userPayload = {
+              id: user.id,
+              name: user.name,
+              role: user.role || 'user',
+              phone: user.phone,
+              avatar_url: user.avatar_url || null,
+              telegram: user.telegram || tgUsername,
+            };
             const token = await signJwt(userPayload);
 
             // Authorize the most recent pending session
-            const pending = await queryD1(env, "SELECT session_id FROM telegram_sessions WHERE status IN ('pending', 'pending_phone') ORDER BY created_at DESC LIMIT 1;");
+            const pending = await queryD1(
+              env,
+              "SELECT session_id FROM telegram_sessions WHERE (phone = ? OR telegram_chat_id = ? OR status IN ('pending', 'pending_phone', 'pending_code')) ORDER BY created_at DESC LIMIT 1;",
+              [phone, String(chat.id)]
+            );
             if (pending.length > 0) {
               const sid = pending[0].session_id;
-              await executeD1(env, 'UPDATE telegram_sessions SET status = ?, token = ?, user_json = ? WHERE session_id = ?;', ['authorized', token, JSON.stringify(userPayload), sid]);
+              await executeD1(
+                env,
+                'UPDATE telegram_sessions SET status = ?, token = ?, user_json = ? WHERE session_id = ?;',
+                ['authorized', token, JSON.stringify(userPayload), sid]
+              );
             }
 
             // Send confirmation
@@ -723,8 +842,195 @@ export default {
       }
     }
 
+    // 1.1 SEND VERIFICATION CODE TO TELEGRAM
+    if (path === '/api/auth/telegram/send-code' && method === 'POST') {
+      const body = await parseJsonBody(request);
+      const rawPhone = String(body.phone || '').trim();
+      let cleanPhone = rawPhone.replace(/[^\d+]/g, '');
+      if (!cleanPhone.startsWith('+')) cleanPhone = '+' + cleanPhone;
+
+      if (cleanPhone.length < 8) {
+        return jsonResponse({ error: "Iltimos, to'g'ri telefon raqam kiriting (masalan: +998901234567)" }, 400);
+      }
+
+      const code = Math.floor(10000 + Math.random() * 90000).toString();
+      const sessionId = 'tg_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+
+      // Save session with verification code
+      await executeD1(
+        env,
+        'INSERT INTO telegram_sessions (session_id, phone, code, status, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP);',
+        [sessionId, cleanPhone, code, 'pending_code']
+      );
+
+      // Check if we already have telegram_chat_id for this phone
+      const existingUser = await queryD1(
+        env,
+        'SELECT telegram_chat_id, name FROM users WHERE (phone = ? OR phone = ?) AND telegram_chat_id IS NOT NULL LIMIT 1;',
+        [cleanPhone, cleanPhone.replace('+', '')]
+      );
+
+      let chatId = existingUser[0]?.telegram_chat_id;
+      if (!chatId) {
+        const prevSession = await queryD1(
+          env,
+          'SELECT telegram_chat_id FROM telegram_sessions WHERE (phone = ? OR phone = ?) AND telegram_chat_id IS NOT NULL ORDER BY created_at DESC LIMIT 1;',
+          [cleanPhone, cleanPhone.replace('+', '')]
+        );
+        chatId = prevSession[0]?.telegram_chat_id;
+      }
+
+      if (chatId) {
+        // Direct Telegram message delivery
+        await executeD1(env, 'UPDATE telegram_sessions SET telegram_chat_id = ? WHERE session_id = ?;', [chatId, sessionId]);
+        const sendUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+        try {
+          const tgRes = await fetch(sendUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `🔐 <b>ANIMEM.UZ — Kirish kodi</b>\n\nSizning tasdiqlash kodingiz:\n\n👉 <code>${code}</code> 👈\n\nUshbu kodni saytga kiriting. Kod 5 daqiqa davomida amal qiladi.\nXavfsizlik uchun kodni begonalarga bermang!`,
+              parse_mode: 'HTML',
+            }),
+          });
+          const tgData: any = await tgRes.json();
+          if (tgData.ok) {
+            return jsonResponse({
+              success: true,
+              sessionId,
+              phone: cleanPhone,
+              deliveredDirectly: true,
+              message: "Tasdiqlash kodi Telegramingizga yuborildi!",
+            });
+          }
+        } catch (e: any) {
+          console.warn('Failed direct TG message:', e.message);
+        }
+      }
+
+      // If chatId is not yet known, user taps bot link to receive code and register avatar
+      return jsonResponse({
+        success: true,
+        sessionId,
+        phone: cleanPhone,
+        deliveredDirectly: false,
+        botUsername: 'animem_auth_bot',
+        botUrl: `https://t.me/animem_auth_bot?start=${sessionId}`,
+        message: "Botga kiring va START bosing, bot sizga tasdiqlash kodini yuboradi!",
+      });
+    }
+
+    // 1.2 VERIFY CODE & LOGIN WITH TELEGRAM NICKNAME AND AVATAR
+    if (path === '/api/auth/telegram/verify-code' && method === 'POST') {
+      const body = await parseJsonBody(request);
+      const rawPhone = String(body.phone || '').trim();
+      let cleanPhone = rawPhone.replace(/[^\d+]/g, '');
+      if (!cleanPhone.startsWith('+')) cleanPhone = '+' + cleanPhone;
+      const code = String(body.code || '').trim();
+      const sessionId = String(body.sessionId || '').trim();
+
+      if (!code || code.length !== 5) {
+        return jsonResponse({ error: "5 xonali tasdiqlash kodini to'liq kiriting" }, 400);
+      }
+
+      // Find matching session
+      const sessions = await queryD1(
+        env,
+        'SELECT * FROM telegram_sessions WHERE (session_id = ? OR phone = ? OR phone = ?) AND code = ? ORDER BY created_at DESC LIMIT 1;',
+        [sessionId, cleanPhone, cleanPhone.replace('+', ''), code]
+      );
+
+      if (sessions.length === 0) {
+        return jsonResponse({ error: "Tasdiqlash kodi noto'g'ri yoki eskirgan. Qaytadan urinib ko'ring." }, 400);
+      }
+
+      const sess = sessions[0];
+      let tgUser: any = {};
+      try { tgUser = JSON.parse(sess.telegram_user || '{}'); } catch {}
+
+      const chatId = sess.telegram_chat_id || tgUser.id || null;
+      let avatarUrl = tgUser.avatar_url || null;
+      let userName = tgUser.name || (tgUser.username ? `@${tgUser.username}` : null) || 'Telegram User';
+
+      // If we have chatId and no avatar yet, try fetching it from Telegram API
+      if (chatId && !avatarUrl) {
+        const prof = await getTelegramUserProfile(BOT_TOKEN, chatId);
+        if (prof.avatarUrl) avatarUrl = prof.avatarUrl;
+        if (!userName && prof.username) userName = `@${prof.username}`;
+      }
+
+      // Find or create user in DB
+      const existing = await queryD1(
+        env,
+        'SELECT * FROM users WHERE phone = ? OR phone = ? OR (telegram_chat_id IS NOT NULL AND telegram_chat_id = ?) LIMIT 1;',
+        [cleanPhone, cleanPhone.replace('+', ''), String(chatId || '')]
+      );
+
+      let user = existing[0];
+      if (!user) {
+        const randomPass = await hashPassword(Math.random().toString(36));
+        const exec = await executeD1(
+          env,
+          'INSERT INTO users (name, phone, role, avatar_url, telegram, telegram_chat_id, password) VALUES (?, ?, ?, ?, ?, ?, ?);',
+          [userName, cleanPhone, 'user', avatarUrl, tgUser.username ? `@${tgUser.username}` : null, chatId ? String(chatId) : null, randomPass]
+        );
+        user = {
+          id: exec.meta?.last_row_id || Date.now(),
+          name: userName,
+          phone: cleanPhone,
+          role: 'user',
+          avatar_url: avatarUrl,
+          telegram: tgUser.username ? `@${tgUser.username}` : null,
+        };
+      } else {
+        // Update user's avatar, telegram username, and chat_id if available
+        await executeD1(
+          env,
+          'UPDATE users SET name = COALESCE(name, ?), avatar_url = COALESCE(?, avatar_url), telegram = COALESCE(?, telegram), telegram_chat_id = COALESCE(?, telegram_chat_id) WHERE id = ?;',
+          [userName, avatarUrl, tgUser.username ? `@${tgUser.username}` : null, chatId ? String(chatId) : null, user.id]
+        );
+        if (avatarUrl && !user.avatar_url) user.avatar_url = avatarUrl;
+        if (userName && (!user.name || user.name === 'Telegram User')) user.name = userName;
+      }
+
+      const userPayload = {
+        id: user.id,
+        name: user.name,
+        role: user.role || 'user',
+        phone: user.phone || cleanPhone,
+        avatar_url: user.avatar_url || null,
+        telegram: user.telegram || (tgUser.username ? `@${tgUser.username}` : null),
+      };
+
+      const token = await signJwt(userPayload);
+
+      // Mark session as authorized
+      await executeD1(
+        env,
+        'UPDATE telegram_sessions SET status = ?, token = ?, user_json = ? WHERE session_id = ?;',
+        ['authorized', token, JSON.stringify(userPayload), sess.session_id]
+      );
+
+      // Notify user via Telegram
+      if (chatId) {
+        const sendUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+        fetch(sendUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `✅ <b>Kirish muvaffaqiyatli amalga oshirildi!</b>\n\n<b>ANIMEM.UZ</b> saytiga xush kelibsiz, <b>${userPayload.name}</b>! 🎬\n\nBarcha anime va seriallarni tomosha qilishingiz mumkin.`,
+            parse_mode: 'HTML',
+          }),
+        }).catch(() => {});
+      }
+
+      return jsonResponse({ success: true, token, user: userPayload });
+    }
+
     if (path === '/api/auth/telegram/session' && method === 'GET') {
-      const sessionId = 'auth_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
+      const sessionId = 'tg_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
       await executeD1(env, 'INSERT INTO telegram_sessions (session_id, status) VALUES (?, ?);', [sessionId, 'pending']);
       return jsonResponse({ sessionId });
     }
@@ -742,7 +1048,7 @@ export default {
         try { userObj = JSON.parse(sess.user_json); } catch {}
         return jsonResponse({ status: 'authorized', token: sess.token, user: userObj });
       }
-      return jsonResponse({ status: sess.status || 'pending' });
+      return jsonResponse({ status: sess.status || 'pending', codeSent: Boolean(sess.code) });
     }
 
     if (path === '/api/auth/telegram/simulate' && method === 'POST') {

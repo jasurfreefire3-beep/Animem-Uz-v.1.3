@@ -6,6 +6,7 @@ import { motion } from 'motion/react';
 import ReCAPTCHA from 'react-google-recaptcha';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 import { auth, googleProvider, facebookAuth, facebookProvider } from '../lib/firebase';
+import TelegramAuthModal from '../components/TelegramAuthModal';
 
 declare global {
   interface Window {
@@ -86,6 +87,7 @@ export default function Login() {
 
   // Telegram Bot Login State
   const [tgLoading, setTgLoading] = useState(false);
+  const [isTgModalOpen, setIsTgModalOpen] = useState(false);
 
   // Handle Telegram Bot authentication redirect & polling
   useEffect(() => {
@@ -180,23 +182,9 @@ export default function Login() {
     }
   };
 
-  const handleTelegramLoginStart = async () => {
-    try {
-      setError('');
-      setTgLoading(true);
-      const res = await fetch('/api/auth/telegram/session');
-      const data = await res.json();
-      if (!data.sessionId) throw new Error("Telegram seansini yaratib bo'lmadi");
-
-      const sid = data.sessionId;
-      localStorage.setItem('animem_tg_session', sid);
-
-      // To'g'ridan-to'g'ri Telegram botga yo'naltirish (hech qanday modal/oyna chiqmaydi)
-      window.location.href = `https://t.me/animem_auth_bot?start=${sid}`;
-    } catch (err: any) {
-      setError(err.message || "Telegram botga ulanishda xatolik yuz berdi");
-      setTgLoading(false);
-    }
+  const handleTelegramLoginStart = () => {
+    setError('');
+    setIsTgModalOpen(true);
   };
 
   const formatPhone = (input: string) => {
@@ -940,6 +928,16 @@ export default function Login() {
           </div>
         )}
       </motion.div>
+
+      {/* Telegram Phone & Code Authentication Modal */}
+      <TelegramAuthModal
+        isOpen={isTgModalOpen}
+        onClose={() => setIsTgModalOpen(false)}
+        onSuccess={(tok, usr) => {
+          login(tok, usr);
+          navigate('/');
+        }}
+      />
     </div>
   );
 }
