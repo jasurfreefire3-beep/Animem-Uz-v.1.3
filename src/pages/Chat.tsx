@@ -138,35 +138,19 @@ const MemoizedMessage = memo(({
 
 export default function Chat() {
   const { user, token } = useAuth();
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const cached = localStorage.getItem('cached_chat_messages');
-      return cached ? JSON.parse(cached) : [];
-    } catch (e) {
-      return [];
-    }
-  });
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    try {
-      const cached = localStorage.getItem('cached_chat_messages');
-      return !(cached && JSON.parse(cached).length > 0);
-    } catch (e) {
-      return true;
-    }
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [input, setInput] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeMsgId, setActiveMsgId] = useState<string | number | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  // Clear obsolete cache so old wiped messages never appear
   useEffect(() => {
     try {
-      if (messages.length > 0) {
-        // Only cache the last 50 messages to keep it fast
-        localStorage.setItem('cached_chat_messages', JSON.stringify(messages.slice(-50)));
-      }
+      localStorage.removeItem('cached_chat_messages');
     } catch(e) {}
-  }, [messages]);
+  }, []);
 
   // Context menu / Long press state for message actions
   const [selectedMsgForAction, setSelectedMsgForAction] = useState<Message | null>(null);
@@ -646,11 +630,11 @@ export default function Chat() {
               backgroundAttachment: 'local'
             }}
           >
-            {isLoading && messages.length === 0 ? (
+            {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20 space-y-3">
                 <div className="w-8 h-8 border-2 border-[#ff006a] border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-white/70 text-xs font-semibold animate-pulse tracking-wide">
-                  Xabarlar yuklanmoqda...
+                <span className="text-white/80 text-xs font-semibold animate-pulse tracking-wide">
+                  Yuklanmoqda...
                 </span>
               </div>
             ) : messages.length === 0 ? (

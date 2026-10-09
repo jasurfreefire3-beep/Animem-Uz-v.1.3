@@ -1,0 +1,11 @@
+*.mp4
+*.m4a
+*.webm
+*.avi
+*.mkv
+*.map
+node_modules/
+.git/
+.wrangler/
+coverage/
+data/

@@ -4,6 +4,7 @@ dist/
 coverage/
 .DS_Store
 *.log
+*.map
 .pytest_cache/
 .venv/
 __pycache__/
@@ -14,3 +15,8 @@ public/animebot/kawaii.db
 !.env.example
 !.env.production
 .wrangler/
+data/
+*.mp4
+*.m4a
+*.webm
+
