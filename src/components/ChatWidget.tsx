@@ -154,6 +154,57 @@ export default function ChatWidget() {
     } catch(e) {}
   }, []);
 
+  // Context menu / Long press state for message actions
+  const [selectedMsgForAction, setSelectedMsgForAction] = useState<Message | null>(null);
+  const touchTimeoutRef = useRef<any>(null);
+
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<any>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  const socketRef = useRef<Socket | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<{ id: string | number; name: string }[]>([]);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const isScrolledUp = scrollHeight - scrollTop - clientHeight > 100;
+    setShowScrollBottom(isScrolledUp);
+  };
+
+  const handleScrollToBottom = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    } else {
+      scrollToBottom();
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      }, 50);
+    }
+  }, [isOpen]);
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+  };
+
   const fetchMessages = useCallback(async () => {
     setIsLoading(true);
     try {

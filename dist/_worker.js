@@ -5,11 +5,7 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __commonJS = (cb, mod) => function __require() {
-  try {
-    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-  } catch (e) {
-    throw mod = 0, e;
-  }
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -34,7 +30,7 @@ var require_crypto = __commonJS({
   }
 });
 
-// ../animem-uz-server (2)/node_modules/bcryptjs/index.js
+// node_modules/bcryptjs/index.js
 var import_crypto = __toESM(require_crypto(), 1);
 var randomFallback = null;
 function randomBytes(len) {
@@ -1757,7 +1753,7 @@ var bcryptjs_default = {
   decodeBase64
 };
 
-// ../animem-uz-server (2)/src/worker.ts
+// src/worker.ts
 var STREAM_ORIGIN = "https://s3.animem.uz";
 var JWT_SECRET = "animem-super-jwt-secret-key-2026-secure";
 var BOT_TOKEN = "8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw";

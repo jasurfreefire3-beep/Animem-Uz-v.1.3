@@ -113,6 +113,8 @@ export interface Comment {
   drama_id?: string | number;
   user_id: string | number;
   user_name: string;
+  name?: string;
+  user?: any;
   user_avatar?: string;
   user_avatar_frame?: string;
   avatar_url?: string;
