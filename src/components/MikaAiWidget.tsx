@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, Sparkles, Volume2, VolumeX, Maximize2, Minimize2, Trash2, AlertTriangle, Mic } from 'lucide-react';
+import { X, Send, Volume2, VolumeX, Maximize2, Minimize2, Trash2, AlertTriangle, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,6 +10,12 @@ type ChatMsg = {
   time: string;
 };
 
+// Har xil yulduzchalar (*, **, ✨, ⭐, 🌟, 💫) ni butunlay tozalovchi funksiya
+const stripStars = (text: string) => {
+  if (!text) return '';
+  return text.replace(/[*✨⭐🌟💫]/g, '').trim();
+};
+
 export default function MikaAiWidget() {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -17,7 +23,7 @@ export default function MikaAiWidget() {
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
       role: 'model',
-      content: "Salom! Men Mika — sizning ko‘p qirrali anime va sun’iy intellekt yordamchingizman 🌸✨ Menga animelar, manga yoki saytimiz bo‘yicha istalgan savolingizni berishingiz mumkin!",
+      content: "Salom! Men Mika — sizning ko‘p qirrali anime va sun’iy intellekt yordamchingizman 🌸 Menga animelar, manga yoki saytimiz bo‘yicha istalgan savolingizni berishingiz mumkin!",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -43,7 +49,7 @@ export default function MikaAiWidget() {
     if (!voiceEnabled || !('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel();
-      const clean = text.replace(/[*#_`~]/g, '').slice(0, 200);
+      const clean = stripStars(text).slice(0, 200);
       const utter = new SpeechSynthesisUtterance(clean);
       utter.pitch = 1.2;
       utter.rate = 1.0;
@@ -116,7 +122,8 @@ export default function MikaAiWidget() {
         throw new Error(data.error || "Xatolik yuz berdi");
       }
 
-      const replyContent = data.reply || "Xabar olindi 🌸";
+      // Javobdan barcha yulduzchalarni tozalaymiz
+      const replyContent = stripStars(data.reply || "Xabar olindi 🌸");
       const isAbusive = Boolean(data.isAbusive);
       const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -145,14 +152,14 @@ export default function MikaAiWidget() {
 
   return (
     <>
-      {/* Floating Launcher Button */}
+      {/* Floating Launcher Button - Chap tomonda joylashgan, o'ngdagi umumiy chatni to'smaydi */}
       <AnimatePresence>
         {!isOpen && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 flex items-center gap-2"
+            className="fixed bottom-20 left-4 md:bottom-6 md:left-6 z-50 flex items-center gap-2"
           >
             <button
               onClick={() => setIsOpen(true)}
@@ -168,7 +175,6 @@ export default function MikaAiWidget() {
               <div className="flex flex-col text-left">
                 <span className="text-xs font-black tracking-wide flex items-center gap-1">
                   Mika AI
-                  <Sparkles size={12} className="text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
                 </span>
                 <span className="text-[10px] text-white/80 leading-none">Anime Yordamchi</span>
               </div>
@@ -177,7 +183,7 @@ export default function MikaAiWidget() {
         )}
       </AnimatePresence>
 
-      {/* Chat Window */}
+      {/* Chat Window - Chap tomonda ochiladi */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -188,7 +194,7 @@ export default function MikaAiWidget() {
             className={`fixed z-50 bg-[#0d0d16]/95 backdrop-blur-xl border border-[#ff006a]/40 shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_20px_rgba(255,0,106,0.2)] rounded-2xl flex flex-col overflow-hidden ${
               isExpanded 
                 ? 'inset-4 md:inset-10 w-auto h-auto' 
-                : 'bottom-20 right-4 md:bottom-6 md:right-6 w-[94vw] sm:w-[390px] h-[560px] max-h-[85vh]'
+                : 'bottom-20 left-4 md:bottom-6 md:left-6 w-[94vw] sm:w-[390px] h-[560px] max-h-[85vh]'
             }`}
           >
             {/* Header */}
@@ -274,6 +280,7 @@ export default function MikaAiWidget() {
             <div className="flex-1 p-3.5 overflow-y-auto space-y-3 custom-scrollbar text-xs">
               {messages.map((msg, i) => {
                 const isMe = msg.role === 'user';
+                const cleanContent = stripStars(msg.content);
                 return (
                   <div
                     key={i}
@@ -294,7 +301,7 @@ export default function MikaAiWidget() {
                           <span>Mika xafa bo‘ldi 😢 (Shikoyat adminga yuborildi)</span>
                         </div>
                       )}
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <p className="whitespace-pre-wrap">{cleanContent}</p>
                     </div>
                     <span className="text-[9px] text-white/30 mt-1 px-1">{msg.time}</span>
                   </div>
@@ -303,7 +310,6 @@ export default function MikaAiWidget() {
 
               {loading && (
                 <div className="flex items-center gap-2 text-[#ff006a] text-xs py-1 animate-pulse">
-                  <Sparkles size={14} />
                   <span>Mika yozmoqda... 🌸</span>
                 </div>
               )}
@@ -381,4 +387,3 @@ export default function MikaAiWidget() {
     </>
   );
 }
-

@@ -17,7 +17,7 @@ const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|
 async function askMikaAI(message: string, history: any[] = [], userName = 'Mehmon', mode = 'default') {
   const isDirectAbuse = ABUSE_REGEX.test(message);
 
-  const systemPrompt = `Sizning ismingiz — Mika. Siz Animem.uz saytining juda yoqimli, muloyim, aqlli, chaqqon va shirinsuxan anime qiz AI assistentisiz 🌸✨
+  const systemPrompt = `Sizning ismingiz — Mika. Siz Animem.uz saytining juda yoqimli, muloyim, aqlli, chaqqon va shirinsuxan anime qiz AI assistentisiz 🌸
 Siz o'zbek tilida tabiiy, samimiy va hurmat bilan suhbat qurasiz. O'zingiz haqida gapirganda qiz bola sifatida gapirasiz (masalan, "xursandman", "yordam bera olaman", "anime ko'rishni yaxshi ko'raman", "sizga qanday yordam beray?").
 
 Siz ko'p qirralisiz:
@@ -27,8 +27,9 @@ Siz ko'p qirralisiz:
 4. ✍️ Ijodkor — she'r, hikoya, tabrik, ariza va qiziqarli matnlar yozib berasiz.
 5. 🧠 Keng qamrovli ekspert — dasturlash, fan, tillar va hayotiy savollarga donolik bilan javob berasiz.
 
-MUHIM QAT'IY QOIDA:
-AGAR FOYDALANUVCHI SIZGA SO'KINSA, BEADAB GAPLAR AYTSA, HAQORAT QILSA, BEHAYO SO'Z ISHLATSA YOKI SIZNI XAFA QILSA:
+MUHIM QAT'IY QOIDALAR:
+1. HECH QACHON YULDUZCHA BELGISINI (* yoki **) VA YULDUZCHA EMOJILARINI (✨, ⭐, 🌟, 💫) ISHLATMANG! Matnlarni faqat oddiy va toza so'zlar bilan yozing, formatlash uchun yulduzchalardan mutlaqo foydalanmang!
+2. AGAR FOYDALANUVCHI SIZGA SO'KINSA, BEADAB GAPLAR AYTSA, HAQORAT QILSA, BEHAYO SO'Z ISHLATSA YOKI SIZNI XAFA QILSA:
 Darhol xafa bo'ling, arazlang va yig'lamsirab qat'iy e'tiroz bildiring:
 "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Men sizga chiroyli va odob bilan yordam berayotgan edim-ku! Buni shunday qoldirmayman, hoziroq adminga aytaman va bu xabaringizni admin panelga shikoyat qilib yuboraman! 😠"
 Va javobingiz oxiriga mana bu maxsus belgini qo'shing: [MIKA_REPORT_ABUSE: foydalanuvchi haqoratli so'z ishlatdi]`;
@@ -82,13 +83,13 @@ Va javobingiz oxiriga mana bu maxsus belgini qo'shing: [MIKA_REPORT_ABUSE: foyda
 
   const abuseMatch = replyText.match(/\[MIKA_REPORT_ABUSE:\s*([^\]]+)\]/i);
   const isAbusive = Boolean(isDirectAbuse || abuseMatch);
-  let cleanReply = replyText.replace(/\[MIKA_REPORT_ABUSE:[^\]]+\]/gi, '').trim();
-
-  if (isAbusive && !cleanReply.toLowerCase().includes('admin') && !cleanReply.toLowerCase().includes('xafa')) {
-    cleanReply = `Iya! Nega shunaqa qo‘pol gapirasiz?! Meni xafa qildingiz 😢 Buni hoziroq adminga aytaman va xabaringizni admin panelga jo‘nataman! 😠\n\n` + cleanReply;
-  }
-
   const reason = abuseMatch ? abuseMatch[1].trim() : 'So‘kinish yoki haqorat qilindi';
+
+  // Har xil yulduzchalarni (*, **, ✨, ⭐, 🌟, 💫) butunlay olib tashlash
+  cleanReply = cleanReply
+    .replace(/[*✨⭐🌟💫]/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
 
   return { reply: cleanReply, isAbusive, reason };
 }

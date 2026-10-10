@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, CornerUpLeft, MessageCircle, Volume2, VolumeX, Sparkles, AlertTriangle, Trash2, ArrowLeft } from 'lucide-react';
+import { Send, CornerUpLeft, MessageCircle, Volume2, VolumeX, AlertTriangle, Trash2, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -8,6 +8,11 @@ type BotMessage = {
   role: 'user' | 'model';
   content: string;
   isAbusive?: boolean;
+};
+
+const stripStars = (text: string) => {
+  if (!text) return '';
+  return text.replace(/[*✨⭐🌟💫]/g, '').trim();
 };
 
 const MIKA_MODES = [
@@ -21,7 +26,7 @@ const MIKA_MODES = [
 const QUICK_PROMPTS = [
   "🌸 Mika, o‘zing haqingda aytib ber!",
   "🎬 Bugun qaysi qiziqarli animeni ko‘rishni tavsiya qilasan?",
-  "⭐ Animem.uz saytida sevimli ro‘yxatimni qanday yarataman?",
+  "📌 Animem.uz saytida sevimli ro‘yxatimni qanday yarataman?",
   "✍️ Anime mavzusida chiroyli she’r yoki post yozib ber",
   "💡 Naruto yoki Attack on Titan ga o‘xshash anime bormi?"
 ];
@@ -31,7 +36,7 @@ export default function SupportBot() {
   const [messages, setMessages] = useState<BotMessage[]>([
     { 
       role: 'model', 
-      content: "Assalomu alaykum! Men Mika — sizning ko‘p qirrali anime yordamchingiz va samimiy dugonangizman 🌸✨ Saytimiz, animelar, manga yoki istalgan mavzuda bemalol so‘rashingiz mumkin! Sizga qanday yordam bera olaman?" 
+      content: "Assalomu alaykum! Men Mika — sizning ko‘p qirrali anime yordamchingiz va samimiy dugonangizman 🌸 Saytimiz, animelar, manga yoki istalgan mavzuda bemalol so‘rashingiz mumkin! Sizga qanday yordam bera olaman?" 
     }
   ]);
   const [input, setInput] = useState('');
@@ -54,11 +59,10 @@ export default function SupportBot() {
     if (!voiceEnabled || !('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel();
-      // Belgilarni tozalash
-      const clean = text.replace(/[*#_`~]/g, '').slice(0, 200);
+      const clean = stripStars(text).slice(0, 200);
       const utter = new SpeechSynthesisUtterance(clean);
       utter.rate = 1.0;
-      utter.pitch = 1.2; // Qiz bola ovoziga moslash
+      utter.pitch = 1.2;
       utter.lang = 'uz-UZ';
       window.speechSynthesis.speak(utter);
     } catch (e) {}
@@ -93,7 +97,7 @@ export default function SupportBot() {
         throw new Error(data.error || "Mika bilan bog‘lanishda xatolik yuz berdi");
       }
 
-      const replyContent = data.reply || "Xabar qabul qilindi 🌸";
+      const replyContent = stripStars(data.reply || "Xabar qabul qilindi 🌸");
       const isAbusive = Boolean(data.isAbusive);
 
       setMessages(prev => [...prev, { role: 'model', content: replyContent, isAbusive }]);
@@ -244,7 +248,6 @@ export default function SupportBot() {
           className="relative mb-2 w-full max-w-[280px] md:max-w-[340px] aspect-square flex items-end justify-center drop-shadow-[0_0_25px_rgba(255,0,106,0.35)]"
         >
           <div className="relative w-full h-full flex items-center justify-center">
-            {/* Anime Mika Character Illustration */}
             <img 
               src="https://api.dicebear.com/7.x/lorelei/svg?seed=MikaAnimeGirl&backgroundColor=ff006a,9333ea&mouth=happy01,smile01&eyes=happy01,wink" 
               alt="Mika" 
@@ -255,13 +258,9 @@ export default function SupportBot() {
             {/* Emotion Badge */}
             <div className="absolute top-2 right-4 bg-[#0c0c14]/90 border border-white/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg">
               {isMikaUpset ? (
-                <>
-                  <span className="text-red-400">😢 Xafa bo‘ldi</span>
-                </>
+                <span className="text-red-400">😢 Xafa bo‘ldi</span>
               ) : (
-                <>
-                  <span className="text-[#ff006a]">🌸 Kayfiyati a’lo</span>
-                </>
+                <span className="text-[#ff006a]">🌸 Kayfiyati a’lo</span>
               )}
             </div>
           </div>
@@ -291,11 +290,10 @@ export default function SupportBot() {
               >
                 {loading ? (
                   <div className="flex items-center gap-2 text-[#ff006a] font-mono animate-pulse">
-                    <Sparkles size={18} />
-                    <span>Mika o‘ylamoqda va javob tayyorlamoqda...</span>
+                    <span>Mika o‘ylamoqda va javob tayyorlamoqda... 🌸</span>
                   </div>
                 ) : (
-                  latestMessage?.content
+                  stripStars(latestMessage?.content || '')
                 )}
               </motion.div>
             </AnimatePresence>
