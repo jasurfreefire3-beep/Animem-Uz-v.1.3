@@ -1,3 +1,6 @@
+44
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Volume2, VolumeX, Maximize2, Minimize2, Trash2, AlertTriangle, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';

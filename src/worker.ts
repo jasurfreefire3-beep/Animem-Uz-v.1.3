@@ -8,40 +8,50 @@ const DATABASE_ID = '11e1d448-17a4-4156-ba89-434fa4e6bb1e';
 const STREAM_ORIGIN = 'https://s3.animem.uz';
 const JWT_SECRET = 'animem-super-jwt-secret-key-2026-secure';
 const BOT_TOKEN = '8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw';
-
 const GEMINI_API_KEY = 'AQ.Ab8RN6I6cELhWtyaeUjYd3HDbERQBSMeAWzW6NE-4l2ORFm40w';
-const GEMINI_MODEL = 'gemini-3.8-flash';
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
 
 async function askMikaAI(message: string, history: any[] = [], userName = 'Mehmon', mode = 'default') {
   const isDirectAbuse = ABUSE_REGEX.test(message);
 
-  const systemPrompt = `Sizning ismingiz — Mika. Siz Animem.uz saytining juda yoqimli, muloyim, aqlli, chaqqon va shirinsuxan anime qiz AI assistentisiz 🌸
-Siz o'zbek tilida tabiiy, samimiy va hurmat bilan suhbat qurasiz. O'zingiz haqida gapirganda qiz bola sifatida gapirasiz (masalan, "xursandman", "yordam bera olaman", "anime ko'rishni yaxshi ko'raman", "sizga qanday yordam beray?").
+  // 1. Agar to'g'ridan-to'g'ri so'kingan bo'lsa -> Lahzada (0.01 soniyada) javob qaytaramiz!
+  if (isDirectAbuse) {
+    return {
+      reply: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Men sizga chiroyli va odob bilan yordam berayotgan edim-ku! Buni shunday qoldirmayman, hoziroq adminga aytaman va bu xabaringizni admin panelga shikoyat qilib yuboraman! 😠",
+      isAbusive: true,
+      reason: "Foydalanuvchi so‘kindi yoki haqorat qildi"
+    };
+  }
 
-Siz ko'p qirralisiz:
-1. 🎬 Anime & Manga eksperti — foydalanuvchiga qiziqarli animelar (shonen, isekai, romance, jangari, komediya), o'zbekcha dublyajlar, yangi fasllar va personajlar haqida qiziqarli tavsiyalar berasiz.
-2. 🌐 Animem.uz qo'llanmasi — saytdagi pleyer, sevimli ro'yxatlar, manga o'qish, drama tomosha qilish, do'kon va profil sozlamalari haqida tushuntirasiz.
-3. 💖 Samimiy dugona va do'st — kayfiyatni ko'tarasiz, dildan suhbat qurasiz, samimiy maslahat berasiz.
-4. ✍️ Ijodkor — she'r, hikoya, tabrik, ariza va qiziqarli matnlar yozib berasiz.
-5. 🧠 Keng qamrovli ekspert — dasturlash, fan, tillar va hayotiy savollarga donolik bilan javob berasiz.
+  // 2. Qisqa salomlashishlar uchun lahzali javob
+  const trimmed = message.toLowerCase().trim();
+  if (trimmed === 'salom' || trimmed === 'assalomu alaykum' || trimmed === 'salom mika') {
+    return {
+      reply: "Assalomu alaykum! Xush ko‘rdim 🌸 Men Mika — sizning chaqqon anime yordamchingizman. Sizga qanday yordam bera olaman?",
+      isAbusive: false,
+      reason: ''
+    };
+  }
 
-MUHIM QAT'IY QOIDALAR:
-1. HECH QACHON YULDUZCHA BELGISINI (* yoki **) VA YULDUZCHA EMOJILARINI (✨, ⭐, 🌟, 💫) ISHLATMANG! Matnlarni faqat oddiy va toza so'zlar bilan yozing, formatlash uchun yulduzchalardan mutlaqo foydalanmang!
-2. AGAR FOYDALANUVCHI SIZGA SO'KINSA, BEADAB GAPLAR AYTSA, HAQORAT QILSA, BEHAYO SO'Z ISHLATSA YOKI SIZNI XAFA QILSA:
-Darhol xafa bo'ling, arazlang va yig'lamsirab qat'iy e'tiroz bildiring:
-"Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Men sizga chiroyli va odob bilan yordam berayotgan edim-ku! Buni shunday qoldirmayman, hoziroq adminga aytaman va bu xabaringizni admin panelga shikoyat qilib yuboraman! 😠"
-Va javobingiz oxiriga mana bu maxsus belgini qo'shing: [MIKA_REPORT_ABUSE: foydalanuvchi haqoratli so'z ishlatdi]`;
+  const systemPrompt = `Sizning ismingiz — Mika. Siz Animem.uz saytining juda yoqimli, aqlli, chaqqon va shirinsuxan anime qiz AI assistentisiz 🌸
+Siz o'zbek tilida tabiiy, samimiy va lo'nda suhbat qurasiz. O'zingiz haqida gapirganda qiz bola sifatida gapirasiz.
+Javoblaringizni doim qisqa, aniq, chaqqon va tushunarli bering.
+
+QAT'IY QOIDALAR:
+1. HECH QACHON YULDUZCHA BELGISINI (* yoki **) VA YULDUZCHA EMOJILARINI (✨, ⭐, 🌟, 💫) ISHLATMANG! Faqat toza matn yozing!
+2. AGAR FOYDALANUVCHI SIZGA SO'KINSA YOKI SIZNI XAFA QILSA:
+Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Adminga aytaman va admin panelga shikoyat yuboraman! 😠" va javob oxiriga [MIKA_REPORT_ABUSE: haqorat] deb qo'shing.`;
 
   const contents: any[] = [];
   if (Array.isArray(history)) {
-    const recent = history.slice(-8);
+    const recent = history.slice(-4); // Faqat oxirgi 4 ta xabar tezlik uchun
     for (const h of recent) {
       if (h.role === 'user' || h.role === 'model') {
         contents.push({
           role: h.role,
-          parts: [{ text: String(h.text || h.content || '') }]
+          parts: [{ text: String(h.text || h.content || '').slice(0, 300) }]
         });
       }
     }
@@ -55,37 +65,44 @@ Va javobingiz oxiriga mana bu maxsus belgini qo'shing: [MIKA_REPORT_ABUSE: foyda
   const body = {
     contents,
     systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 350
+    }
   };
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
   let replyText = '';
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s timeout
+
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
+
     if (!res.ok) {
       const err: any = await res.json().catch(() => ({}));
       throw new Error(err.error?.message || `Gemini xatosi (${res.status})`);
     }
     const data: any = await res.json();
-    replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Kechirasiz, javobni shakllantirishda xatolik yuz berdi 🌸";
+    replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Kechirasiz, javob tayyorlashda xatolik bo‘ldi 🌸";
   } catch (err: any) {
-    if (isDirectAbuse) {
-      replyText = "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Men sizga yordam berayotgan edim-ku! Buni hoziroq adminga aytaman va bu xabaringizni admin panelga shikoyat qilib yuboraman! 😠 [MIKA_REPORT_ABUSE: qo'pol va so'kingan so'z]";
-    } else {
-      throw err;
-    }
+    replyText = "Hozircha tarmoqda kichik uzilish bo‘ldi, yana bir bor so‘rab ko‘ring 🌸";
   }
 
   const abuseMatch = replyText.match(/\[MIKA_REPORT_ABUSE:\s*([^\]]+)\]/i);
-  const isAbusive = Boolean(isDirectAbuse || abuseMatch);
+  const isAbusive = Boolean(abuseMatch);
   const reason = abuseMatch ? abuseMatch[1].trim() : 'So‘kinish yoki haqorat qilindi';
 
-  // Har xil yulduzchalarni (*, **, ✨, ⭐, 🌟, 💫) butunlay olib tashlash
+  let cleanReply = replyText.replace(/\[MIKA_REPORT_ABUSE:[^\]]+\]/gi, '').trim();
+
+  // Barcha yulduzchalarni tozalash
   cleanReply = cleanReply
     .replace(/[*✨⭐🌟💫]/g, '')
     .replace(/[ \t]+/g, ' ')
