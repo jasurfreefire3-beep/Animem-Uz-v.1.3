@@ -1,22 +1,55 @@
-44
-
-
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, Volume2, VolumeX, Maximize2, Minimize2, Trash2, AlertTriangle, Mic } from 'lucide-react';
+import { X, Send, Volume2, VolumeX, Maximize2, Minimize2, Trash2, AlertTriangle, Mic, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-type ChatMsg = {
+export type AnimeButton = {
+  idOrSlug: string;
+  title: string;
+};
+
+export type ChatMsg = {
   role: 'user' | 'model';
   content: string;
   isAbusive?: boolean;
   time: string;
+  animeButtons?: AnimeButton[];
 };
 
-// Har xil yulduzchalar (*, **, ✨, ⭐, 🌟, 💫) ni butunlay tozalovchi funksiya
-const stripStars = (text: string) => {
+// Har xil yulduzchalar (*, **) va yulduzcha emojilarini (✨, ⭐, 🌟, 💫) tozalovchi va anime tugmalarini ajratib oluvchi funksiya
+export const parseMikaReply = (raw: string): { cleanText: string; buttons: AnimeButton[] } => {
+  if (!raw) return { cleanText: '', buttons: [] };
+  const buttons: AnimeButton[] = [];
+
+  // [ANIME_BUTTON: target | title] yoki [ANIME: target, title] teglarini ajratib olish
+  const tagRegex = /\[ANIME(?:_BUTTON)?:\s*([^\|\]\,]+)(?:[\|,]\s*([^\]]+))?\]/gi;
+  let cleanText = raw.replace(tagRegex, (_match, p1, p2) => {
+    const target = (p1 || '').trim();
+    const title = (p2 || target).trim();
+    if (target) {
+      buttons.push({ idOrSlug: target, title });
+    }
+    return '';
+  });
+
+  // Unicode flag 'u' bilan emoji buzilishini oldini olib, yulduzchalarni tozalash
+  cleanText = cleanText
+    .replace(/\*+/g, '')
+    .replace(/[✨⭐🌟💫]/gu, '')
+    .replace(/\uFFFD/g, '')
+    .trim();
+
+  return { cleanText, buttons };
+};
+
+export const stripStars = (text: string) => {
   if (!text) return '';
-  return text.replace(/[*✨⭐🌟💫]/g, '').trim();
+  return text
+    .replace(/\*+/g, '')
+    .replace(/[✨⭐🌟💫]/gu, '')
+    .replace(/\uFFFD/g, '')
+    .trim();
 };
 
 export default function MikaAiWidget() {
@@ -107,6 +140,14 @@ export default function MikaAiWidget() {
     setLoading(true);
 
     try {
+      const userProfile = user ? {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        role: user.role,
+        isAdmin: user.role === 'admin'
+      } : null;
+
       const res = await fetch('/api/mika/chat', {
         method: 'POST',
         headers: {
@@ -116,7 +157,8 @@ export default function MikaAiWidget() {
         body: JSON.stringify({
           message: textToSend,
           history: messages,
-          userName: user?.name || "Mehmon"
+          userName: user?.name || "Mehmon",
+          userProfile
         })
       });
 
@@ -125,23 +167,27 @@ export default function MikaAiWidget() {
         throw new Error(data.error || "Xatolik yuz berdi");
       }
 
-      // Javobdan barcha yulduzchalarni tozalaymiz
-      const replyContent = stripStars(data.reply || "Xabar olindi 🌸");
+      // Javobdan yulduzchalarni tozalaymiz va anime tugmalarini ajratamiz
+      const parsed = parseMikaReply(data.reply || "Xabar olindi 🌸");
+      const combinedButtons = (Array.isArray(data.animeButtons) && data.animeButtons.length > 0)
+        ? data.animeButtons
+        : parsed.buttons;
       const isAbusive = Boolean(data.isAbusive);
       const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       setMessages(prev => [...prev, {
         role: 'model',
-        content: replyContent,
+        content: parsed.cleanText,
         isAbusive,
-        time: replyTime
+        time: replyTime,
+        animeButtons: combinedButtons
       }]);
 
       if (isAbusive) {
         setAbuseAlert("🚨 Ushbu xabar Mika tomonidan noo‘rin deb topildi va Admin Panelga jo‘natildi!");
       }
 
-      speakText(replyContent);
+      speakText(parsed.cleanText);
     } catch (err: any) {
       setMessages(prev => [...prev, {
         role: 'model',
@@ -215,6 +261,11 @@ export default function MikaAiWidget() {
                     <span className="text-[9px] bg-[#ff006a]/20 text-[#ff006a] border border-[#ff006a]/30 px-1.5 py-0.2 rounded-full font-mono">
                       Qiz bola AI
                     </span>
+                    {user?.role === 'admin' && (
+                      <span className="text-[9px] bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 px-1.5 py-0.2 rounded-full font-mono flex items-center gap-0.5">
+                        👑 Admin
+                      </span>
+                    )}
                   </h3>
                   <p className="text-[10px] text-white/50">Har doim siz bilan • Animem.uz</p>
                 </div>
@@ -283,7 +334,13 @@ export default function MikaAiWidget() {
             <div className="flex-1 p-3.5 overflow-y-auto space-y-3 custom-scrollbar text-xs">
               {messages.map((msg, i) => {
                 const isMe = msg.role === 'user';
-                const cleanContent = stripStars(msg.content);
+                const { cleanText, buttons: parsedButtons } = isMe
+                  ? { cleanText: msg.content, buttons: [] }
+                  : parseMikaReply(msg.content);
+                const buttons = (msg.animeButtons && msg.animeButtons.length > 0)
+                  ? msg.animeButtons
+                  : parsedButtons;
+
                 return (
                   <div
                     key={i}
@@ -304,7 +361,35 @@ export default function MikaAiWidget() {
                           <span>Mika xafa bo‘ldi 😢 (Shikoyat adminga yuborildi)</span>
                         </div>
                       )}
-                      <p className="whitespace-pre-wrap">{cleanContent}</p>
+                      <p className="whitespace-pre-wrap">{cleanText}</p>
+
+                      {/* Anime Ko'rish Tugmalari */}
+                      {!isMe && buttons.length > 0 && (
+                        <div className="mt-2.5 flex flex-col gap-1.5 w-full">
+                          {buttons.map((btn, bIdx) => (
+                            <Link
+                              key={bIdx}
+                              to={`/anime/${btn.idOrSlug}`}
+                              className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-[#ff006a]/20 via-[#9333ea]/20 to-[#ff006a]/10 hover:from-[#ff006a]/35 hover:to-[#9333ea]/35 border border-[#ff006a]/40 hover:border-[#ff006a]/70 text-white font-medium text-xs transition-all duration-200 group active:scale-98 shadow-sm hover:shadow-[0_0_15px_rgba(255,0,106,0.3)]"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="p-1.5 rounded-lg bg-gradient-to-tr from-[#ff006a] to-[#9333ea] text-white shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_8px_rgba(255,0,106,0.5)]">
+                                  <Play size={11} className="fill-current text-white" />
+                                </span>
+                                <div className="flex flex-col text-left min-w-0">
+                                  <span className="truncate font-bold text-white group-hover:text-pink-200 text-xs">
+                                    {btn.title}
+                                  </span>
+                                  <span className="text-[9px] text-white/50 leading-none">Animem.uz da tomosha qilish</span>
+                                </div>
+                              </div>
+                              <span className="text-[11px] text-[#ff006a] group-hover:text-pink-300 shrink-0 flex items-center gap-1 font-bold">
+                                Ko‘rish ➔
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <span className="text-[9px] text-white/30 mt-1 px-1">{msg.time}</span>
                   </div>
@@ -323,25 +408,32 @@ export default function MikaAiWidget() {
             {/* Quick Prompts */}
             <div className="px-3 py-1.5 border-t border-white/5 flex gap-1.5 overflow-x-auto no-scrollbar bg-[#090910]">
               <button
-                onClick={() => handleSend("Mika, eng zo‘r anime qaysi?")}
+                onClick={() => handleSend("Mika, eng zo‘r anime qaysi? Tomosha qilishga tavsiya ber")}
                 disabled={loading}
-                className="text-[10px] bg-white/5 hover:bg-[#ff006a]/20 border border-white/10 text-white/70 hover:text-white px-2.5 py-1 rounded-full whitespace-nowrap transition-colors"
+                className="text-[10px] bg-white/5 hover:bg-[#ff006a]/20 border border-white/10 text-white/70 hover:text-white px-2.5 py-1 rounded-full whitespace-nowrap transition-colors flex items-center gap-1"
               >
-                🎬 Qaysi anime ko‘ray?
+                🎬 Anime tavsiya qil
+              </button>
+              <button
+                onClick={() => handleSend("Meni taniysanmi? Men adminmanmi yoqmi?")}
+                disabled={loading}
+                className="text-[10px] bg-white/5 hover:bg-[#ff006a]/20 border border-white/10 text-white/70 hover:text-white px-2.5 py-1 rounded-full whitespace-nowrap transition-colors flex items-center gap-1"
+              >
+                👑 Men adminmanmi?
+              </button>
+              <button
+                onClick={() => handleSend("Kayfiyatimni ko‘taradigan shirin gap ayt 🌸")}
+                disabled={loading}
+                className="text-[10px] bg-white/5 hover:bg-[#ff006a]/20 border border-white/10 text-white/70 hover:text-white px-2.5 py-1 rounded-full whitespace-nowrap transition-colors flex items-center gap-1"
+              >
+                💖 Kayfiyat ko‘tar
               </button>
               <button
                 onClick={() => handleSend("Saytda qanday qilib manga o‘qiyman?")}
                 disabled={loading}
-                className="text-[10px] bg-white/5 hover:bg-[#ff006a]/20 border border-white/10 text-white/70 hover:text-white px-2.5 py-1 rounded-full whitespace-nowrap transition-colors"
+                className="text-[10px] bg-white/5 hover:bg-[#ff006a]/20 border border-white/10 text-white/70 hover:text-white px-2.5 py-1 rounded-full whitespace-nowrap transition-colors flex items-center gap-1"
               >
                 📖 Manga o‘qish
-              </button>
-              <button
-                onClick={() => handleSend("Kayfiyatimni ko‘taradigan gap ayt 🌸")}
-                disabled={loading}
-                className="text-[10px] bg-white/5 hover:bg-[#ff006a]/20 border border-white/10 text-white/70 hover:text-white px-2.5 py-1 rounded-full whitespace-nowrap transition-colors"
-              >
-                💖 Kayfiyat ko‘tar
               </button>
             </div>
 

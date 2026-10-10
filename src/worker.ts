@@ -13,7 +13,14 @@ const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
 
-async function askMikaAI(message: string, history: any[] = [], userName = 'Mehmon', mode = 'default') {
+async function askMikaAI(
+  message: string,
+  history: any[] = [],
+  userName = 'Mehmon',
+  mode = 'default',
+  userProfile?: { id?: number | string; name?: string; role?: string; isAdmin?: boolean } | null,
+  availableAnimes: any[] = []
+) {
   const isDirectAbuse = ABUSE_REGEX.test(message);
 
   // 1. Agar to'g'ridan-to'g'ri so'kingan bo'lsa -> Lahzada (0.01 soniyada) javob qaytaramiz!
@@ -21,27 +28,106 @@ async function askMikaAI(message: string, history: any[] = [], userName = 'Mehmo
     return {
       reply: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Men sizga chiroyli va odob bilan yordam berayotgan edim-ku! Buni shunday qoldirmayman, hoziroq adminga aytaman va bu xabaringizni admin panelga shikoyat qilib yuboraman! 😠",
       isAbusive: true,
-      reason: "Foydalanuvchi so‘kindi yoki haqorat qildi"
+      reason: "Foydalanuvchi so‘kindi yoki haqorat qildi",
+      animeButtons: []
     };
   }
 
-  // 2. Qisqa salomlashishlar uchun lahzali javob
   const trimmed = message.toLowerCase().trim();
+
+  // 2. Qisqa salomlashishlar uchun lahzali javob
   if (trimmed === 'salom' || trimmed === 'assalomu alaykum' || trimmed === 'salom mika') {
     return {
       reply: "Assalomu alaykum! Xush ko‘rdim 🌸 Men Mika — sizning chaqqon anime yordamchingizman. Sizga qanday yordam bera olaman?",
       isAbusive: false,
-      reason: ''
+      reason: '',
+      animeButtons: []
     };
   }
+
+  const isAdmin = Boolean(userProfile?.isAdmin || userProfile?.role === 'admin');
+  const isRegisteredUser = Boolean(userProfile && (userProfile.role === 'user' || userProfile.id));
+
+  // 3. Profil va Adminlikni so'raganda lahzali aniq javob
+  if (
+    trimmed === 'men adminmanmi' ||
+    trimmed === 'men adminmanmi yoqmi' ||
+    trimmed === 'men adminmanmi yo‘qmi' ||
+    trimmed === 'adminmanmi' ||
+    trimmed === 'adminmanmi yoqmi' ||
+    trimmed === 'meni taniysanmi' ||
+    trimmed === 'men kimman' ||
+    trimmed === 'profilimni bilasanmi' ||
+    trimmed === 'profilim qanday'
+  ) {
+    if (isAdmin) {
+      return {
+        reply: `Albatta taniyman! Siz Animem.uz saytimizning hurmatli va aziz Adminisiz! 👑 Saytimizning bosh rahbari va boshqaruvchisisiz. Buyuring, hurmatli Admin, sizga qanday xizmat qilishim mumkin? 🌸`,
+        isAbusive: false,
+        reason: '',
+        animeButtons: []
+      };
+    } else if (isRegisteredUser) {
+      return {
+        reply: `Albatta taniyman! Siz bizning sevimli foydalanuvchimiz ${userName}siz 🌸 Saytimizning ro‘yxatdan o‘tgan faol a’zosisiz. Siz admin emassiz, ammo biz uchun juda qadrli do‘stimizsiz! 😊 Sizga qanday anime topib beray?`,
+        isAbusive: false,
+        reason: '',
+        animeButtons: []
+      };
+    } else {
+      return {
+        reply: `Siz hozircha saytimizga Mehmon sifatida tashrif buyurgansiz 🌸 Saytimizga kirish qilsangiz yoki ro‘yxatdan o‘tsangiz, sizni profilingiz bilan taniyman va ismingizni eslab qolaman! Hozircha siz admin emassiz 😊`,
+        isAbusive: false,
+        reason: '',
+        animeButtons: []
+      };
+    }
+  }
+
+  // 4. Foydalanuvchi profili kontekstini shakllantirish
+  let userRoleInfo = '';
+  if (isAdmin) {
+    userRoleInfo = `FOYDALANUVCHI MA'LUMOTI VA HUQUQI:
+- Ismi: ${userName}
+- Maqomi: ADMIN (Animem.uz saytining bosh rahbari va egasi) 👑
+- MUOMALA QOIDASI: Siz bilan sayt rahbari / admini gaplashmoqda! Unga cheksiz hurmat bilan murojaat qiling ("Hurmatli Admin", "Admin aka", "Adminim"). U o'zining kimligini yoki admin ekanligini so'rasa, albatta uning buyuk Admin ekanligini, saytning boshqaruvchisi ekanligini ehtirom bilan ayting!`;
+  } else if (isRegisteredUser) {
+    userRoleInfo = `FOYDALANUVCHI MA'LUMOTI VA HUQUQI:
+- Ismi: ${userName}
+- Maqomi: Ro'yxatdan o'tgan foydalanuvchi (Saytimizning aziz a'zosi) 🌸
+- MUOMALA QOIDASI: Uni ismi bilan iliq kutib oling ("${userName}"). Agar o'zi haqida yoki adminligi haqida so'rasa, uning ro'yxatdan o'tgan aziz foydalanuvchi ekanligini, ammo admin emasligini muloyim bildiring.`;
+  } else {
+    userRoleInfo = `FOYDALANUVCHI MA'LUMOTI VA HUQUQI:
+- Ismi: Mehmon
+- Maqomi: Mehmon (Saytga hali kirmagan yoki ro'yxatdan o'tmagan)
+- MUOMALA QOIDASI: Agar u "men adminmanmi", "men kimman" deb so'rasa, hozircha mehmon sifatida suhbatlashayotganini, admin emasligini va profil imkoniyatlaridan to'liq foydalanish uchun saytga kirish yoki ro'yxatdan o'tishni tavsiya qiling.`;
+  }
+
+  const animeListSample = Array.isArray(availableAnimes) && availableAnimes.length > 0
+    ? availableAnimes.slice(0, 35).map(a => `${a.title} (ID: ${a.id})`).join(', ')
+    : "Yolg'izlikda Daraja Ko'tarish (ID: 4), Sening isming (ID: 8), Naruto (ID: 1), Elita Sinfi (ID: 5), Takopining ilk Gunohi (ID: 11)";
 
   const systemPrompt = `Sizning ismingiz — Mika. Siz Animem.uz saytining juda yoqimli, aqlli, chaqqon va shirinsuxan anime qiz AI assistentisiz 🌸
 Siz o'zbek tilida tabiiy, samimiy va lo'nda suhbat qurasiz. O'zingiz haqida gapirganda qiz bola sifatida gapirasiz.
 Javoblaringizni doim qisqa, aniq, chaqqon va tushunarli bering.
 
+${userRoleInfo}
+
+SAYTDA MAVJUD ANIMELAR:
+Animem.uz saytimizdagi ba'zi animelar:
+${animeListSample}
+
 QAT'IY QOIDALAR:
 1. HECH QACHON YULDUZCHA BELGISINI (* yoki **) VA YULDUZCHA EMOJILARINI (✨, ⭐, 🌟, 💫) ISHLATMANG! Faqat toza matn yozing!
-2. AGAR FOYDALANUVCHI SIZGA SO'KINSA YOKI SIZNI XAFA QILSA:
+2. ANIME TAVSIYALARI VA SAYT BO'YICHA O'TISH TUGMALARI:
+Foydalanuvchi biror anime so'raganda yoki siz anime tavsiya qilganingizda, foydalanuvchi darhol saytda ochib ko'rishi uchun XABARINGIZDA quyidagi formatda tugma tegi qoldiring:
+[ANIME_BUTTON: id_yoki_slug | Anime Nomi]
+Masalan:
+[ANIME_BUTTON: 4 | Yolg'izlikda Daraja Ko'tarish]
+[ANIME_BUTTON: 8 | Sening isming]
+[ANIME_BUTTON: naruto | Naruto]
+Tizim ushbu maxsus tegni avtomatik ravishda chiroyli ko'rish tugmasiga aylantiradi!
+3. AGAR FOYDALANUVCHI SIZGA SO'KINSA YOKI SIZNI XAFA QILSA:
 Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Adminga aytaman va admin panelga shikoyat yuboraman! 😠" va javob oxiriga [MIKA_REPORT_ABUSE: haqorat] deb qo'shing.`;
 
   const contents: any[] = [];
@@ -102,13 +188,42 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz �
 
   let cleanReply = replyText.replace(/\[MIKA_REPORT_ABUSE:[^\]]+\]/gi, '').trim();
 
-  // Barcha yulduzchalarni tozalash
+  // Extract [ANIME_BUTTON: target | title]
+  const animeButtons: { idOrSlug: string; title: string }[] = [];
+  const buttonRegex = /\[ANIME(?:_BUTTON)?:\s*([^\|\]\,]+)(?:[\|,]\s*([^\]]+))?\]/gi;
+  cleanReply = cleanReply.replace(buttonRegex, (_m, p1, p2) => {
+    const target = (p1 || '').trim();
+    const title = (p2 || target).trim();
+    if (target) {
+      animeButtons.push({ idOrSlug: target, title });
+    }
+    return '';
+  });
+
+  // Agar tugma chiqmagan bo'lsa, mavjud animelar ichidan qidirib tugma hosil qilish
+  if (animeButtons.length === 0 && Array.isArray(availableAnimes) && availableAnimes.length > 0) {
+    const lowerMsg = message.toLowerCase();
+    const lowerReply = cleanReply.toLowerCase();
+    for (const a of availableAnimes) {
+      const aTitle = String(a.title || '').trim();
+      if (!aTitle || aTitle.length < 3) continue;
+      const lowerTitle = aTitle.toLowerCase();
+      if (lowerMsg.includes(lowerTitle) || lowerReply.includes(lowerTitle)) {
+        animeButtons.push({ idOrSlug: String(a.id), title: aTitle });
+        break;
+      }
+    }
+  }
+
+  // Barcha yulduzchalarni tozalash (UNICODE 'u' flag bilan emoji surrogate buzilishini oldini olamiz!)
   cleanReply = cleanReply
-    .replace(/[*✨⭐🌟💫]/g, '')
+    .replace(/\*+/g, '')
+    .replace(/[✨⭐🌟💫]/gu, '')
+    .replace(/\uFFFD/g, '')
     .replace(/[ \t]+/g, ' ')
     .trim();
 
-  return { reply: cleanReply, isAbusive, reason };
+  return { reply: cleanReply, isAbusive, reason, animeButtons };
 }
 
 function toSlug(text: string): string {
@@ -134,7 +249,7 @@ function jsonResponse(data: any, status = 200, extraHeaders: Record<string, stri
   return new Response(JSON.stringify(data), {
     status,
     headers: corsHeaders({
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
       ...extraHeaders,
     }),
   });
@@ -1429,6 +1544,9 @@ export default {
         // Try getting logged-in user if token exists
         let userId = 0;
         let userName = String(body.userName || '').trim() || 'Mehmon';
+        let userRole = 'guest';
+        let isAdmin = false;
+
         const authHeader = request.headers.get('Authorization') || '';
         if (authHeader.startsWith('Bearer ')) {
           try {
@@ -1437,13 +1555,49 @@ export default {
             if (decoded && decoded.id) {
               userId = decoded.id;
               if (decoded.name) userName = decoded.name;
+              if (decoded.role) userRole = decoded.role;
+              if (decoded.role === 'admin') isAdmin = true;
             }
           } catch {}
         }
 
+        // Fallback or override from body.userProfile if provided
+        if (body.userProfile) {
+          if (body.userProfile.id && !userId) userId = body.userProfile.id;
+          if (body.userProfile.name && (userName === 'Mehmon' || !userName)) userName = body.userProfile.name;
+          if (body.userProfile.role === 'admin' || body.userProfile.isAdmin) {
+            userRole = 'admin';
+            isAdmin = true;
+          } else if (body.userProfile.role) {
+            userRole = body.userProfile.role;
+          }
+        }
+
         const clientIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || '127.0.0.1';
 
-        const aiResult = await askMikaAI(userMsg, body.history || [], userName, body.mode || 'default');
+        // Load top available animes from D1 to inform Mika
+        let availableAnimes: any[] = [];
+        try {
+          availableAnimes = await queryD1(env, 'SELECT id, title FROM animes ORDER BY korishlar DESC LIMIT 50;');
+        } catch (dbErr) {
+          console.warn('Mika: animelarni yuklashda xatolik:', dbErr);
+        }
+
+        const userProfileObj = {
+          id: userId,
+          name: userName,
+          role: userRole,
+          isAdmin
+        };
+
+        const aiResult = await askMikaAI(
+          userMsg,
+          body.history || [],
+          userName,
+          body.mode || 'default',
+          userProfileObj,
+          availableAnimes
+        );
 
         // Agar so'kinish yoki haqorat aniqlangan bo'lsa -> ADMIN SHIKOYATLARIGA YOZAMIZ!
         if (aiResult.isAbusive) {
@@ -1460,6 +1614,7 @@ export default {
 
         return jsonResponse({
           reply: aiResult.reply,
+          animeButtons: aiResult.animeButtons || [],
           isAbusive: aiResult.isAbusive,
           reported: aiResult.isAbusive,
           reason: aiResult.reason

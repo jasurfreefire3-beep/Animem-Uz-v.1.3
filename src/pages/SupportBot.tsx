@@ -1,18 +1,51 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, CornerUpLeft, MessageCircle, Volume2, VolumeX, AlertTriangle, Trash2, ArrowLeft } from 'lucide-react';
+import { Send, CornerUpLeft, MessageCircle, Volume2, VolumeX, AlertTriangle, Trash2, ArrowLeft, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+
+export type AnimeButton = {
+  idOrSlug: string;
+  title: string;
+};
 
 type BotMessage = {
   role: 'user' | 'model';
   content: string;
   isAbusive?: boolean;
+  animeButtons?: AnimeButton[];
+};
+
+export const parseMikaReply = (raw: string): { cleanText: string; buttons: AnimeButton[] } => {
+  if (!raw) return { cleanText: '', buttons: [] };
+  const buttons: AnimeButton[] = [];
+
+  const tagRegex = /\[ANIME(?:_BUTTON)?:\s*([^\|\]\,]+)(?:[\|,]\s*([^\]]+))?\]/gi;
+  let cleanText = raw.replace(tagRegex, (_match, p1, p2) => {
+    const target = (p1 || '').trim();
+    const title = (p2 || target).trim();
+    if (target) {
+      buttons.push({ idOrSlug: target, title });
+    }
+    return '';
+  });
+
+  cleanText = cleanText
+    .replace(/\*+/g, '')
+    .replace(/[✨⭐🌟💫]/gu, '')
+    .replace(/\uFFFD/g, '')
+    .trim();
+
+  return { cleanText, buttons };
 };
 
 const stripStars = (text: string) => {
   if (!text) return '';
-  return text.replace(/[*✨⭐🌟💫]/g, '').trim();
+  return text
+    .replace(/\*+/g, '')
+    .replace(/[✨⭐🌟💫]/gu, '')
+    .replace(/\uFFFD/g, '')
+    .trim();
 };
 
 const MIKA_MODES = [
@@ -24,11 +57,12 @@ const MIKA_MODES = [
 ];
 
 const QUICK_PROMPTS = [
-  "🌸 Mika, o‘zing haqingda aytib ber!",
   "🎬 Bugun qaysi qiziqarli animeni ko‘rishni tavsiya qilasan?",
+  "👑 Men adminmanmi yoqmi? Profilimni bilasanmi?",
+  "🌸 Mika, o‘zing haqingda aytib ber!",
   "📌 Animem.uz saytida sevimli ro‘yxatimni qanday yarataman?",
   "✍️ Anime mavzusida chiroyli she’r yoki post yozib ber",
-  "💡 Naruto yoki Attack on Titan ga o‘xshash anime bormi?"
+  "💡 Naruto yoki Solo Leveling ga o‘xshash anime bormi?"
 ];
 
 export default function SupportBot() {
@@ -78,6 +112,14 @@ export default function SupportBot() {
     setLoading(true);
 
     try {
+      const userProfile = user ? {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        role: user.role,
+        isAdmin: user.role === 'admin'
+      } : null;
+
       const res = await fetch('/api/mika/chat', {
         method: 'POST',
         headers: {
@@ -88,6 +130,7 @@ export default function SupportBot() {
           message: textToSend,
           history: messages,
           userName: user?.name || "Mehmon",
+          userProfile,
           mode: activeMode
         })
       });
@@ -97,16 +140,24 @@ export default function SupportBot() {
         throw new Error(data.error || "Mika bilan bog‘lanishda xatolik yuz berdi");
       }
 
-      const replyContent = stripStars(data.reply || "Xabar qabul qilindi 🌸");
+      const parsed = parseMikaReply(data.reply || "Xabar qabul qilindi 🌸");
+      const combinedButtons = (Array.isArray(data.animeButtons) && data.animeButtons.length > 0)
+        ? data.animeButtons
+        : parsed.buttons;
       const isAbusive = Boolean(data.isAbusive);
 
-      setMessages(prev => [...prev, { role: 'model', content: replyContent, isAbusive }]);
+      setMessages(prev => [...prev, {
+        role: 'model',
+        content: parsed.cleanText,
+        isAbusive,
+        animeButtons: combinedButtons
+      }]);
 
       if (isAbusive) {
         setLastAbuseAlert("🚨 Sizning xabaringiz Mika tomonidan noo‘rin deb topildi va Admin Panelga shikoyat sifatida qayd etildi!");
       }
 
-      speakText(replyContent);
+      speakText(parsed.cleanText);
     } catch (err: any) {
       setMessages(prev => [...prev, { role: 'model', content: `Kechirasiz, xatolik: ${err.message} 🌸` }]);
     } finally {
@@ -161,10 +212,15 @@ export default function SupportBot() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-bold text-base text-white flex items-center gap-1.5">
-                Mika AI
+                Mika AI 🌸
                 <span className="text-[10px] bg-[#ff006a]/20 text-[#ff006a] border border-[#ff006a]/40 px-2 py-0.5 rounded-full font-mono">
-                  Gemini 3.8
+                  Qiz bola AI
                 </span>
+                {user?.role === 'admin' && (
+                  <span className="text-[10px] bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
+                    👑 Admin
+                  </span>
+                )}
               </h1>
             </div>
             <p className="text-xs text-white/50">Animem.uz rasmiy ko‘p qirrali anime qiz assistenti</p>
@@ -293,7 +349,30 @@ export default function SupportBot() {
                     <span>Mika o‘ylamoqda va javob tayyorlamoqda... 🌸</span>
                   </div>
                 ) : (
-                  stripStars(latestMessage?.content || '')
+                  <>
+                    <p>{stripStars(latestMessage?.content || '')}</p>
+                    {latestMessage?.animeButtons && latestMessage.animeButtons.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {latestMessage.animeButtons.map((btn, bIdx) => (
+                          <Link
+                            key={bIdx}
+                            to={`/anime/${btn.idOrSlug}`}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#ff006a]/20 via-[#9333ea]/20 to-[#ff006a]/10 hover:from-[#ff006a]/35 hover:to-[#9333ea]/35 border border-[#ff006a]/40 hover:border-[#ff006a]/70 text-white font-medium text-xs transition-all duration-200 group active:scale-98 shadow-sm hover:shadow-[0_0_15px_rgba(255,0,106,0.3)]"
+                          >
+                            <span className="p-1 rounded-lg bg-gradient-to-tr from-[#ff006a] to-[#9333ea] text-white shrink-0 group-hover:scale-105 transition-transform">
+                              <Play size={10} className="fill-current text-white" />
+                            </span>
+                            <span className="font-bold text-white group-hover:text-pink-200 text-xs">
+                              {btn.title}
+                            </span>
+                            <span className="text-[10px] text-[#ff006a] group-hover:text-pink-300 font-bold ml-1">
+                              Ko‘rish ➔
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </motion.div>
             </AnimatePresence>
