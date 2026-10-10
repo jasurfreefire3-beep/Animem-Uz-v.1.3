@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar';
 import MobileBottomNav from './components/MobileBottomNav';
 import Home from './pages/Home';
 import ChatWidget from './components/ChatWidget';
+import MikaAiWidget from './components/MikaAiWidget';
 import SpinBetterAdModal from './components/SpinBetterAdModal';
 import NotificationPromptModal from './components/NotificationPromptModal';
 import InstallAppButton from './components/InstallAppButton';
@@ -324,6 +325,7 @@ export default function App() {
       {/* 4. Overlay Chat widgets, Mobile Navigation, Ad Modal, Notification Prompt & PWA Install Button */}
       <MobileBottomNav />
       <ChatWidget />
+      <MikaAiWidget />
       <InstallAppButton />
       <SpinBetterAdModal />
       <NotificationPromptModal />

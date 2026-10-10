@@ -9,6 +9,90 @@ const STREAM_ORIGIN = 'https://s3.animem.uz';
 const JWT_SECRET = 'animem-super-jwt-secret-key-2026-secure';
 const BOT_TOKEN = '8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw';
 
+const GEMINI_API_KEY = 'AQ.Ab8RN6I6cELhWtyaeUjYd3HDbERQBSMeAWzW6NE-4l2ORFm40w';
+const GEMINI_MODEL = 'gemini-3.8-flash';
+
+const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
+
+async function askMikaAI(message: string, history: any[] = [], userName = 'Mehmon', mode = 'default') {
+  const isDirectAbuse = ABUSE_REGEX.test(message);
+
+  const systemPrompt = `Sizning ismingiz — Mika. Siz Animem.uz saytining juda yoqimli, muloyim, aqlli, chaqqon va shirinsuxan anime qiz AI assistentisiz 🌸✨
+Siz o'zbek tilida tabiiy, samimiy va hurmat bilan suhbat qurasiz. O'zingiz haqida gapirganda qiz bola sifatida gapirasiz (masalan, "xursandman", "yordam bera olaman", "anime ko'rishni yaxshi ko'raman", "sizga qanday yordam beray?").
+
+Siz ko'p qirralisiz:
+1. 🎬 Anime & Manga eksperti — foydalanuvchiga qiziqarli animelar (shonen, isekai, romance, jangari, komediya), o'zbekcha dublyajlar, yangi fasllar va personajlar haqida qiziqarli tavsiyalar berasiz.
+2. 🌐 Animem.uz qo'llanmasi — saytdagi pleyer, sevimli ro'yxatlar, manga o'qish, drama tomosha qilish, do'kon va profil sozlamalari haqida tushuntirasiz.
+3. 💖 Samimiy dugona va do'st — kayfiyatni ko'tarasiz, dildan suhbat qurasiz, samimiy maslahat berasiz.
+4. ✍️ Ijodkor — she'r, hikoya, tabrik, ariza va qiziqarli matnlar yozib berasiz.
+5. 🧠 Keng qamrovli ekspert — dasturlash, fan, tillar va hayotiy savollarga donolik bilan javob berasiz.
+
+MUHIM QAT'IY QOIDA:
+AGAR FOYDALANUVCHI SIZGA SO'KINSA, BEADAB GAPLAR AYTSA, HAQORAT QILSA, BEHAYO SO'Z ISHLATSA YOKI SIZNI XAFA QILSA:
+Darhol xafa bo'ling, arazlang va yig'lamsirab qat'iy e'tiroz bildiring:
+"Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Men sizga chiroyli va odob bilan yordam berayotgan edim-ku! Buni shunday qoldirmayman, hoziroq adminga aytaman va bu xabaringizni admin panelga shikoyat qilib yuboraman! 😠"
+Va javobingiz oxiriga mana bu maxsus belgini qo'shing: [MIKA_REPORT_ABUSE: foydalanuvchi haqoratli so'z ishlatdi]`;
+
+  const contents: any[] = [];
+  if (Array.isArray(history)) {
+    const recent = history.slice(-8);
+    for (const h of recent) {
+      if (h.role === 'user' || h.role === 'model') {
+        contents.push({
+          role: h.role,
+          parts: [{ text: String(h.text || h.content || '') }]
+        });
+      }
+    }
+  }
+
+  contents.push({
+    role: 'user',
+    parts: [{ text: `${userName ? `[Foydalanuvchi: ${userName}]: ` : ''}${message}` }]
+  });
+
+  const body = {
+    contents,
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+  };
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+  let replyText = '';
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err: any = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `Gemini xatosi (${res.status})`);
+    }
+    const data: any = await res.json();
+    replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Kechirasiz, javobni shakllantirishda xatolik yuz berdi 🌸";
+  } catch (err: any) {
+    if (isDirectAbuse) {
+      replyText = "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz 😢 Men sizga yordam berayotgan edim-ku! Buni hoziroq adminga aytaman va bu xabaringizni admin panelga shikoyat qilib yuboraman! 😠 [MIKA_REPORT_ABUSE: qo'pol va so'kingan so'z]";
+    } else {
+      throw err;
+    }
+  }
+
+  const abuseMatch = replyText.match(/\[MIKA_REPORT_ABUSE:\s*([^\]]+)\]/i);
+  const isAbusive = Boolean(isDirectAbuse || abuseMatch);
+  let cleanReply = replyText.replace(/\[MIKA_REPORT_ABUSE:[^\]]+\]/gi, '').trim();
+
+  if (isAbusive && !cleanReply.toLowerCase().includes('admin') && !cleanReply.toLowerCase().includes('xafa')) {
+    cleanReply = `Iya! Nega shunaqa qo‘pol gapirasiz?! Meni xafa qildingiz 😢 Buni hoziroq adminga aytaman va xabaringizni admin panelga jo‘nataman! 😠\n\n` + cleanReply;
+  }
+
+  const reason = abuseMatch ? abuseMatch[1].trim() : 'So‘kinish yoki haqorat qilindi';
+
+  return { reply: cleanReply, isAbusive, reason };
+}
+
 function toSlug(text: string): string {
   if (!text) return '';
   return text
@@ -234,6 +318,17 @@ async function ensureTables(env: any) {
       reply_to_id TEXT,
       reply_to_name TEXT,
       reply_to_content TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS mika_complaints (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 0,
+      user_name TEXT,
+      message TEXT NOT NULL,
+      ai_response TEXT,
+      reason TEXT,
+      ip TEXT,
+      status TEXT DEFAULT 'new',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`,
     `CREATE TABLE IF NOT EXISTS telegram_sessions (
@@ -1302,6 +1397,91 @@ export default {
         statusText: proxyResponse.statusText,
         headers: resHeaders,
       });
+    }
+
+    // 2.5 MIKA AI CHAT & COMPLAINTS SERVICE (GEMINI API)
+    if ((path === '/api/mika/chat' || path === '/api/support-bot') && method === 'POST') {
+      try {
+        const body = await parseJsonBody(request);
+        const userMsg = String(body.message || '').trim();
+        if (!userMsg) {
+          return jsonResponse({ error: "Xabar bo'sh bo'lishi mumkin emas" }, 400);
+        }
+
+        // Try getting logged-in user if token exists
+        let userId = 0;
+        let userName = String(body.userName || '').trim() || 'Mehmon';
+        const authHeader = request.headers.get('Authorization') || '';
+        if (authHeader.startsWith('Bearer ')) {
+          try {
+            const token = authHeader.substring(7);
+            const decoded: any = await verifyJwt(token);
+            if (decoded && decoded.id) {
+              userId = decoded.id;
+              if (decoded.name) userName = decoded.name;
+            }
+          } catch {}
+        }
+
+        const clientIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || '127.0.0.1';
+
+        const aiResult = await askMikaAI(userMsg, body.history || [], userName, body.mode || 'default');
+
+        // Agar so'kinish yoki haqorat aniqlangan bo'lsa -> ADMIN SHIKOYATLARIGA YOZAMIZ!
+        if (aiResult.isAbusive) {
+          try {
+            await executeD1(
+              env,
+              'INSERT INTO mika_complaints (user_id, user_name, message, ai_response, reason, ip, status) VALUES (?, ?, ?, ?, ?, ?, ?);',
+              [userId, userName, userMsg, aiResult.reply, aiResult.reason, String(clientIp), 'new']
+            );
+          } catch (dbErr: any) {
+            console.error('Mika shikoyatini saqlashda xatolik:', dbErr);
+          }
+        }
+
+        return jsonResponse({
+          reply: aiResult.reply,
+          isAbusive: aiResult.isAbusive,
+          reported: aiResult.isAbusive,
+          reason: aiResult.reason
+        });
+      } catch (err: any) {
+        console.error('Mika chat error:', err);
+        return jsonResponse({ error: err.message || "Mika bilan bog'lanishda xatolik yuz berdi" }, 500);
+      }
+    }
+
+    // Admin: Mika shikoyatlarini olish
+    if (path === '/api/mika/reports' && method === 'GET') {
+      try {
+        const reports = await queryD1(env, 'SELECT * FROM mika_complaints ORDER BY id DESC LIMIT 100;');
+        return jsonResponse({ ok: true, reports });
+      } catch (err: any) {
+        return jsonResponse({ ok: false, error: err.message }, 500);
+      }
+    }
+
+    // Admin: Bitta shikoyatni o'chirish
+    const mikaDeleteMatch = path.match(/^\/api\/mika\/reports\/(\d+)$/);
+    if (mikaDeleteMatch && method === 'DELETE') {
+      try {
+        const repId = mikaDeleteMatch[1];
+        await executeD1(env, 'DELETE FROM mika_complaints WHERE id = ?;', [repId]);
+        return jsonResponse({ ok: true });
+      } catch (err: any) {
+        return jsonResponse({ ok: false, error: err.message }, 500);
+      }
+    }
+
+    // Admin: Barcha shikoyatlarni tozalash
+    if (path === '/api/mika/clear-reports' && method === 'POST') {
+      try {
+        await executeD1(env, 'DELETE FROM mika_complaints;');
+        return jsonResponse({ ok: true });
+      } catch (err: any) {
+        return jsonResponse({ ok: false, error: err.message }, 500);
+      }
     }
 
     // 3. AUTHENTICATION & USER ENDPOINTS
