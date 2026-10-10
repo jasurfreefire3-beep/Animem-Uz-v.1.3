@@ -3,6 +3,27 @@ app_id: da_nkPI5tJUPo8l
 name: Animem-test
 owner: mosinjonovjasurbek00
 package: .
+annotations:
+  anybuild.run/provider: node
+  anybuild.run/version: 0.33.0
+  wasmer.io/version: 7.5.0
+  anybuild.run/config:
+    commands:
+      start: node index.js
+    edgejs_enable: true
+    edgejs_precompile: true
+    name: out
+    node_install_inputs:
+      - package.json
+    node_package_manager: npm
+    node_remove_native_binaries: true
+    node_server: express
+    npm_version: "11"
+    node_build_command: npm run build
+    node_framework: vite
+    node_install_requires_all_files: true
+    node_package_name: react-example
+    static_dir: dist
 env:
   NODE_ENV: "production"
   PORT: "8080"
@@ -17,3 +38,4 @@ env:
   WASMER_DB_PASSWORD: "pw_1DuID9AO03FagRCGyr9cBuO13NCui0wd"
   WASMER_DB_NAME: "Animem"
   JWT_SECRET: "anime_super_secret_key"
+enableDatabase: true
