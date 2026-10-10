@@ -36,7 +36,6 @@ var import_pg = require("pg");
 var import_jsonwebtoken = __toESM(require("jsonwebtoken"), 1);
 var import_bcryptjs = __toESM(require("bcryptjs"), 1);
 var import_dotenv = __toESM(require("dotenv"), 1);
-var import_vite = require("vite");
 var import_multer = __toESM(require("multer"), 1);
 var import_genai = require("@google/genai");
 var import_child_process = require("child_process");
@@ -8057,7 +8056,9 @@ ${msgText}
   });
   if (!isProduction) {
     try {
-      const vite = await (0, import_vite.createServer)({
+      const vitePkg = "vite";
+      const { createServer: createViteServer } = await import(vitePkg);
+      const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa"
       });
@@ -8098,4 +8099,3 @@ ${msgText}
   }
 }
 start();
-//# sourceMappingURL=server.cjs.map

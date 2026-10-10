@@ -13,7 +13,6 @@ import { Pool as PgPool } from "pg";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
-import { createServer as createViteServer } from "vite";
 import multer from "multer";
 import { GoogleGenAI } from "@google/genai";
 import { exec } from "child_process";
@@ -9455,6 +9454,8 @@ async function start() {
 
   if (!isProduction) {
     try {
+      const vitePkg = "vite";
+      const { createServer: createViteServer } = await import(vitePkg);
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",
