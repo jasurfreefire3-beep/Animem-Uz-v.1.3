@@ -13,13 +13,96 @@ const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
 
+const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+
+function getMikaSmartFallback(
+  message: string,
+  userName = 'Mehmon',
+  isAdmin = false,
+  _isRegisteredUser = false,
+  availableAnimes: any[] = []
+): { reply: string; buttons: { idOrSlug: string; title: string }[] } {
+  const lower = message.toLowerCase().trim();
+  const buttons: { idOrSlug: string; title: string }[] = [];
+
+  // 1. Agar biror anime nomi so'ralgan bo'lsa
+  if (Array.isArray(availableAnimes) && availableAnimes.length > 0) {
+    for (const a of availableAnimes) {
+      const aTitle = String(a.title || '').trim();
+      if (aTitle.length >= 3 && lower.includes(aTitle.toLowerCase())) {
+        buttons.push({ idOrSlug: String(a.id), title: aTitle });
+        return {
+          reply: `Ha, albatta! "${aTitle}" animem.uz saytimizda mavjud! Uni darhol tomosha qilish uchun quyidagi tugmani bosing 🌸`,
+          buttons
+        };
+      }
+    }
+  }
+
+  // 2. Tavsiya / Top animelar / Nima ko'ray
+  if (
+    lower.includes('tavsiya') ||
+    lower.includes('top') ||
+    lower.includes('qaysi') ||
+    lower.includes('koray') ||
+    lower.includes('ko‘ray') ||
+    lower.includes('maslahat') ||
+    lower.includes('yaxshi anime') ||
+    lower.includes('mashhur') ||
+    lower.includes('anime ber') ||
+    lower.includes('nima anime')
+  ) {
+    const picks = Array.isArray(availableAnimes) && availableAnimes.length > 0
+      ? availableAnimes.slice(0, 3)
+      : [
+          { id: 4, title: "Yolg'izlikda Daraja Ko'tarish" },
+          { id: 8, title: "Sening isming" },
+          { id: 1, title: "Naruto" }
+        ];
+
+    for (const p of picks) {
+      buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+    }
+
+    const greeting = isAdmin ? "Hurmatli Adminim 👑, " : (userName !== 'Mehmon' ? `${userName} 🌸, ` : "");
+    return {
+      reply: `${greeting}Sizga saytimizdagi eng mashhur va sara top animelarni tavsiya qilaman! Quyidagi tugmalar orqali istalgan birini ochib tomosha qilishingiz mumkin 🌸`,
+      buttons
+    };
+  }
+
+  // 3. Sayt yoki pleyer haqida
+  if (
+    lower.includes('sayt') ||
+    lower.includes('pleyer') ||
+    lower.includes('player') ||
+    lower.includes('video') ||
+    lower.includes('dublyaj') ||
+    lower.includes('manga') ||
+    lower.includes('drama')
+  ) {
+    return {
+      reply: `Animem.uz saytimizda barcha animelar va dramalar eng yuqori sifatda (Full HD) hamda o‘zbekcha ovozda taqdim etiladi! Sayt bo‘yicha qidiruvdan foydalanib yoki toifalar bo‘limidan o‘zingizga yoqqanini tomosha qilishingiz mumkin 🌸`,
+      buttons: []
+    };
+  }
+
+  // 4. Umumiy muloyim javob
+  const prefix = isAdmin ? "Hurmatli Adminim 👑, " : (userName !== 'Mehmon' ? `${userName} 🌸, ` : "");
+  return {
+    reply: `${prefix}Siz bilan suhbatlashayotganimdan juda xursandman 🌸 Hozircha AI serveri bilan bog‘lanishda kichik texnik uzilish bo‘lmoqda, ammo sizga kerakli animelarni topishda va tavsiyalar berishda doim yoningizdaman! Qanday anime qidiryapsiz? 🌸`,
+    buttons: []
+  };
+}
+
 async function askMikaAI(
   message: string,
   history: any[] = [],
   userName = 'Mehmon',
   mode = 'default',
   userProfile?: { id?: number | string; name?: string; role?: string; isAdmin?: boolean } | null,
-  availableAnimes: any[] = []
+  availableAnimes: any[] = [],
+  customApiKey?: string
 ) {
   const isDirectAbuse = ABUSE_REGEX.test(message);
 
@@ -157,29 +240,50 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz �
     }
   };
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-
+  const effectiveKey = customApiKey || GEMINI_API_KEY;
   let replyText = '';
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s timeout
+  let apiSuccess = false;
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+  for (const model of CANDIDATE_MODELS) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    if (!res.ok) {
-      const err: any = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Gemini xatosi (${res.status})`);
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data: any = await res.json();
+        replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (replyText) {
+          apiSuccess = true;
+          break;
+        }
+      } else if (res.status === 404) {
+        continue;
+      } else {
+        break;
+      }
+    } catch {
+      break;
     }
-    const data: any = await res.json();
-    replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Kechirasiz, javob tayyorlashda xatolik bo‘ldi 🌸";
-  } catch (err: any) {
-    replyText = "Hozircha tarmoqda kichik uzilish bo‘ldi, yana bir bor so‘rab ko‘ring 🌸";
+  }
+
+  const animeButtons: { idOrSlug: string; title: string }[] = [];
+
+  // Agar Gemini ishlamasa yoki kalit uzilgan bo'lsa -> Aqlli va samimiy oflayn mexanizm ishga tushadi!
+  if (!apiSuccess || !replyText) {
+    const fallback = getMikaSmartFallback(message, userName, isAdmin, isRegisteredUser, availableAnimes);
+    replyText = fallback.reply;
+    for (const b of fallback.buttons) {
+      animeButtons.push(b);
+    }
   }
 
   const abuseMatch = replyText.match(/\[MIKA_REPORT_ABUSE:\s*([^\]]+)\]/i);
@@ -189,7 +293,6 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz �
   let cleanReply = replyText.replace(/\[MIKA_REPORT_ABUSE:[^\]]+\]/gi, '').trim();
 
   // Extract [ANIME_BUTTON: target | title]
-  const animeButtons: { idOrSlug: string; title: string }[] = [];
   const buttonRegex = /\[ANIME(?:_BUTTON)?:\s*([^\|\]\,]+)(?:[\|,]\s*([^\]]+))?\]/gi;
   cleanReply = cleanReply.replace(buttonRegex, (_m, p1, p2) => {
     const target = (p1 || '').trim();
@@ -1596,7 +1699,8 @@ export default {
           userName,
           body.mode || 'default',
           userProfileObj,
-          availableAnimes
+          availableAnimes,
+          env?.GEMINI_API_KEY
         );
 
         // Agar so'kinish yoki haqorat aniqlangan bo'lsa -> ADMIN SHIKOYATLARIGA YOZAMIZ!

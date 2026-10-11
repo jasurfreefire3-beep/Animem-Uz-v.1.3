@@ -4,9 +4,51 @@ var STREAM_ORIGIN = "https://s3.animem.uz";
 var JWT_SECRET = "animem-super-jwt-secret-key-2026-secure";
 var BOT_TOKEN = "8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw";
 var GEMINI_API_KEY = "AQ.Ab8RN6I6cELhWtyaeUjYd3HDbERQBSMeAWzW6NE-4l2ORFm40w";
-var GEMINI_MODEL = "gemini-3.5-flash-lite";
 var ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
-async function askMikaAI(message, history = [], userName = "Mehmon", mode = "default", userProfile, availableAnimes = []) {
+var CANDIDATE_MODELS = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"];
+function getMikaSmartFallback(message, userName = "Mehmon", isAdmin = false, _isRegisteredUser = false, availableAnimes = []) {
+  const lower = message.toLowerCase().trim();
+  const buttons = [];
+  if (Array.isArray(availableAnimes) && availableAnimes.length > 0) {
+    for (const a of availableAnimes) {
+      const aTitle = String(a.title || "").trim();
+      if (aTitle.length >= 3 && lower.includes(aTitle.toLowerCase())) {
+        buttons.push({ idOrSlug: String(a.id), title: aTitle });
+        return {
+          reply: `Ha, albatta! "${aTitle}" animem.uz saytimizda mavjud! Uni darhol tomosha qilish uchun quyidagi tugmani bosing \u{1F338}`,
+          buttons
+        };
+      }
+    }
+  }
+  if (lower.includes("tavsiya") || lower.includes("top") || lower.includes("qaysi") || lower.includes("koray") || lower.includes("ko\u2018ray") || lower.includes("maslahat") || lower.includes("yaxshi anime") || lower.includes("mashhur") || lower.includes("anime ber") || lower.includes("nima anime")) {
+    const picks = Array.isArray(availableAnimes) && availableAnimes.length > 0 ? availableAnimes.slice(0, 3) : [
+      { id: 4, title: "Yolg'izlikda Daraja Ko'tarish" },
+      { id: 8, title: "Sening isming" },
+      { id: 1, title: "Naruto" }
+    ];
+    for (const p of picks) {
+      buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+    }
+    const greeting = isAdmin ? "Hurmatli Adminim \u{1F451}, " : userName !== "Mehmon" ? `${userName} \u{1F338}, ` : "";
+    return {
+      reply: `${greeting}Sizga saytimizdagi eng mashhur va sara top animelarni tavsiya qilaman! Quyidagi tugmalar orqali istalgan birini ochib tomosha qilishingiz mumkin \u{1F338}`,
+      buttons
+    };
+  }
+  if (lower.includes("sayt") || lower.includes("pleyer") || lower.includes("player") || lower.includes("video") || lower.includes("dublyaj") || lower.includes("manga") || lower.includes("drama")) {
+    return {
+      reply: `Animem.uz saytimizda barcha animelar va dramalar eng yuqori sifatda (Full HD) hamda o\u2018zbekcha ovozda taqdim etiladi! Sayt bo\u2018yicha qidiruvdan foydalanib yoki toifalar bo\u2018limidan o\u2018zingizga yoqqanini tomosha qilishingiz mumkin \u{1F338}`,
+      buttons: []
+    };
+  }
+  const prefix = isAdmin ? "Hurmatli Adminim \u{1F451}, " : userName !== "Mehmon" ? `${userName} \u{1F338}, ` : "";
+  return {
+    reply: `${prefix}Siz bilan suhbatlashayotganimdan juda xursandman \u{1F338} Hozircha AI serveri bilan bog\u2018lanishda kichik texnik uzilish bo\u2018lmoqda, ammo sizga kerakli animelarni topishda va tavsiyalar berishda doim yoningizdaman! Qanday anime qidiryapsiz? \u{1F338}`,
+    buttons: []
+  };
+}
+async function askMikaAI(message, history = [], userName = "Mehmon", mode = "default", userProfile, availableAnimes = [], customApiKey) {
   const isDirectAbuse = ABUSE_REGEX.test(message);
   if (isDirectAbuse) {
     return {
@@ -115,32 +157,49 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingi
       maxOutputTokens: 350
     }
   };
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+  const effectiveKey = customApiKey || GEMINI_API_KEY;
   let replyText = "";
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7e3);
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Gemini xatosi (${res.status})`);
+  let apiSuccess = false;
+  for (const model of CANDIDATE_MODELS) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6e3);
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        if (replyText) {
+          apiSuccess = true;
+          break;
+        }
+      } else if (res.status === 404) {
+        continue;
+      } else {
+        break;
+      }
+    } catch {
+      break;
     }
-    const data = await res.json();
-    replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Kechirasiz, javob tayyorlashda xatolik bo\u2018ldi \u{1F338}";
-  } catch (err) {
-    replyText = "Hozircha tarmoqda kichik uzilish bo\u2018ldi, yana bir bor so\u2018rab ko\u2018ring \u{1F338}";
+  }
+  const animeButtons = [];
+  if (!apiSuccess || !replyText) {
+    const fallback = getMikaSmartFallback(message, userName, isAdmin, isRegisteredUser, availableAnimes);
+    replyText = fallback.reply;
+    for (const b of fallback.buttons) {
+      animeButtons.push(b);
+    }
   }
   const abuseMatch = replyText.match(/\[MIKA_REPORT_ABUSE:\s*([^\]]+)\]/i);
   const isAbusive = Boolean(abuseMatch);
   const reason = abuseMatch ? abuseMatch[1].trim() : "So\u2018kinish yoki haqorat qilindi";
   let cleanReply = replyText.replace(/\[MIKA_REPORT_ABUSE:[^\]]+\]/gi, "").trim();
-  const animeButtons = [];
   const buttonRegex = /\[ANIME(?:_BUTTON)?:\s*([^\|\]\,]+)(?:[\|,]\s*([^\]]+))?\]/gi;
   cleanReply = cleanReply.replace(buttonRegex, (_m, p1, p2) => {
     const target = (p1 || "").trim();
@@ -1404,7 +1463,8 @@ Barcha anime va seriallarni tomosha qilishingiz mumkin.`,
           userName,
           body.mode || "default",
           userProfileObj,
-          availableAnimes
+          availableAnimes,
+          env?.GEMINI_API_KEY
         );
         if (aiResult.isAbusive) {
           try {
