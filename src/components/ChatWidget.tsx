@@ -154,6 +154,13 @@ export default function ChatWidget() {
     } catch(e) {}
   }, []);
 
+  // Notify other floating widgets (like Mika) about chat open/close state
+  useEffect(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('animem:chat-open', { detail: { isOpen } }));
+    } catch (e) {}
+  }, [isOpen]);
+
   // Context menu / Long press state for message actions
   const [selectedMsgForAction, setSelectedMsgForAction] = useState<Message | null>(null);
   const touchTimeoutRef = useRef<any>(null);
@@ -577,7 +584,7 @@ export default function ChatWidget() {
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.95 }}
-            className={`fixed z-50 bg-[#09090b]/95 backdrop-blur-md border border-[#1a1a1a] shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
+            className={`fixed z-[60] bg-[#09090b]/95 backdrop-blur-md border border-[#1a1a1a] shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
               isExpanded 
                 ? 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[calc(100vw-32px)] sm:max-w-[800px] h-full sm:h-[85vh] rounded-none sm:rounded-sm' 
                 : 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[380px] h-full sm:h-[550px] sm:max-h-[calc(100vh-120px)] rounded-none sm:rounded-sm'

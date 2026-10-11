@@ -58,7 +58,7 @@ const MIKA_MODES = [
 
 const QUICK_PROMPTS = [
   "🎬 Bugun qaysi qiziqarli animeni ko‘rishni tavsiya qilasan?",
-  "👑 Men adminmanmi yoqmi? Profilimni bilasanmi?",
+  "🔥 Hozirgi eng mashhur va ommabop animelar qaysilar?",
   "🌸 Mika, o‘zing haqingda aytib ber!",
   "📌 Animem.uz saytida sevimli ro‘yxatimni qanday yarataman?",
   "✍️ Anime mavzusida chiroyli she’r yoki post yozib ber",

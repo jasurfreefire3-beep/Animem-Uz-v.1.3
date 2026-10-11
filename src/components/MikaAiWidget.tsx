@@ -68,7 +68,17 @@ export default function MikaAiWidget() {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [abuseAlert, setAbuseAlert] = useState<string | null>(null);
+  const [isMainChatOpen, setIsMainChatOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Umumiy chat ochilganida Mika tugmasi chat ortida qolishini ta'minlash
+  useEffect(() => {
+    const handleChatToggle = (e: any) => {
+      setIsMainChatOpen(Boolean(e.detail?.isOpen));
+    };
+    window.addEventListener('animem:chat-open', handleChatToggle);
+    return () => window.removeEventListener('animem:chat-open', handleChatToggle);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -201,14 +211,20 @@ export default function MikaAiWidget() {
 
   return (
     <>
-      {/* Floating Launcher Button - O'ng burchakda umumiy chat tugmasining ustida, xalaqit bermaydigan qulay joylashuv */}
+      {/* Floating Launcher Button - O'ng burchakda umumiy chat tugmasining ustida, chat ochilganda chat ortida qoladi */}
       <AnimatePresence>
         {!isOpen && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            animate={{ 
+              scale: isMainChatOpen ? 0.8 : 1, 
+              opacity: isMainChatOpen ? 0 : 1
+            }}
             exit={{ scale: 0, opacity: 0 }}
-            className="fixed bottom-36 right-4 sm:bottom-24 sm:right-6 z-50 flex items-center group/btn"
+            transition={{ duration: 0.2 }}
+            className={`fixed bottom-36 right-4 sm:bottom-24 sm:right-6 z-40 flex items-center group/btn transition-all duration-200 ${
+              isMainChatOpen ? 'pointer-events-none opacity-0 -z-10' : ''
+            }`}
           >
             {/* Tooltip on hover (desktop) */}
             <div className="hidden sm:flex items-center pointer-events-none opacity-0 group-hover/btn:opacity-100 transition-all duration-200 -translate-x-2 group-hover/btn:-translate-x-3 mr-1">
@@ -247,7 +263,7 @@ export default function MikaAiWidget() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className={`fixed z-50 bg-[#0d0d16]/95 backdrop-blur-xl border border-[#ff006a]/40 shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_20px_rgba(255,0,106,0.2)] rounded-2xl flex flex-col overflow-hidden ${
+            className={`fixed z-[60] bg-[#0d0d16]/95 backdrop-blur-xl border border-[#ff006a]/40 shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_20px_rgba(255,0,106,0.2)] rounded-2xl flex flex-col overflow-hidden ${
               isExpanded 
                 ? 'inset-3 sm:inset-6 md:inset-10 w-auto h-auto' 
                 : 'bottom-20 right-3 sm:bottom-6 sm:right-6 w-[94vw] sm:w-[390px] h-[560px] max-h-[85vh]'
@@ -422,11 +438,11 @@ export default function MikaAiWidget() {
                 🎬 Anime tavsiya qil
               </button>
               <button
-                onClick={() => handleSend("Meni taniysanmi? Men adminmanmi yoqmi?")}
+                onClick={() => handleSend("Menga eng yaxshi va ommabop animelarni ayt 🌸")}
                 disabled={loading}
                 className="text-[10px] bg-white/5 hover:bg-[#ff006a]/20 border border-white/10 text-white/70 hover:text-white px-2.5 py-1 rounded-full whitespace-nowrap transition-colors flex items-center gap-1"
               >
-                👑 Men adminmanmi?
+                🔥 Top animelar
               </button>
               <button
                 onClick={() => handleSend("Kayfiyatimni ko‘taradigan shirin gap ayt 🌸")}
