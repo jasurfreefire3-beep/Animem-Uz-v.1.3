@@ -201,38 +201,45 @@ export default function MikaAiWidget() {
 
   return (
     <>
-      {/* Floating Launcher Button - Chap tomonda joylashgan, o'ngdagi umumiy chatni to'smaydi */}
+      {/* Floating Launcher Button - O'ng burchakda umumiy chat tugmasining ustida, xalaqit bermaydigan qulay joylashuv */}
       <AnimatePresence>
         {!isOpen && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            className="fixed bottom-20 left-4 md:bottom-6 md:left-6 z-50 flex items-center gap-2"
+            className="fixed bottom-36 right-4 sm:bottom-24 sm:right-6 z-50 flex items-center group/btn"
           >
+            {/* Tooltip on hover (desktop) */}
+            <div className="hidden sm:flex items-center pointer-events-none opacity-0 group-hover/btn:opacity-100 transition-all duration-200 -translate-x-2 group-hover/btn:-translate-x-3 mr-1">
+              <span className="bg-[#12121e]/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg border border-[#ff006a]/40 shadow-lg whitespace-nowrap flex items-center gap-1">
+                Mika AI 🌸
+              </span>
+            </div>
+
             <button
               onClick={() => setIsOpen(true)}
-              className="group relative flex items-center gap-2.5 bg-gradient-to-r from-[#ff006a] to-[#9333ea] hover:from-[#d40058] hover:to-[#7e22ce] text-white px-4 py-3 rounded-full shadow-[0_0_25px_rgba(255,0,106,0.5)] hover:shadow-[0_0_35px_rgba(255,0,106,0.8)] transition-all cursor-pointer border border-white/20 active:scale-95"
-              title="Mika AI bilan suhbatlashish"
+              className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-[#ff006a] via-[#b5179e] to-[#7209b7] hover:from-[#d40058] hover:to-[#5c0694] text-white shadow-[0_0_20px_rgba(255,0,106,0.45)] hover:shadow-[0_0_30px_rgba(255,0,106,0.8)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer border-2 border-white/30 flex items-center justify-center shrink-0"
+              title="Mika AI yordamchi bilan suhbat"
             >
-              <div className="relative">
-                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border border-white/40">
-                  <span className="text-base select-none">🌸</span>
-                </div>
-                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 border-[#121212] rounded-full animate-pulse" />
+              {/* Center icon */}
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/15 flex items-center justify-center overflow-hidden border border-white/30">
+                <span className="text-lg select-none">🌸</span>
               </div>
-              <div className="flex flex-col text-left">
-                <span className="text-xs font-black tracking-wide flex items-center gap-1">
-                  Mika AI
-                </span>
-                <span className="text-[10px] text-white/80 leading-none">Anime Yordamchi</span>
-              </div>
+
+              {/* Online Green Indicator */}
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-[#09090b] rounded-full animate-pulse shadow-sm" />
+
+              {/* Cute mini "AI" badge */}
+              <span className="absolute -top-1 -right-1 bg-gradient-to-r from-[#ff006a] to-[#9333ea] text-[9px] font-black text-white px-1.5 py-0.2 rounded-full border border-white/40 shadow-sm leading-tight">
+                AI
+              </span>
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Chat Window - Chap tomonda ochiladi */}
+      {/* Chat Window - O'ng tomonda ochiladi */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -242,8 +249,8 @@ export default function MikaAiWidget() {
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             className={`fixed z-50 bg-[#0d0d16]/95 backdrop-blur-xl border border-[#ff006a]/40 shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_20px_rgba(255,0,106,0.2)] rounded-2xl flex flex-col overflow-hidden ${
               isExpanded 
-                ? 'inset-4 md:inset-10 w-auto h-auto' 
-                : 'bottom-20 left-4 md:bottom-6 md:left-6 w-[94vw] sm:w-[390px] h-[560px] max-h-[85vh]'
+                ? 'inset-3 sm:inset-6 md:inset-10 w-auto h-auto' 
+                : 'bottom-20 right-3 sm:bottom-6 sm:right-6 w-[94vw] sm:w-[390px] h-[560px] max-h-[85vh]'
             }`}
           >
             {/* Header */}
