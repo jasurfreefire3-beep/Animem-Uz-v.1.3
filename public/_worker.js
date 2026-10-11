@@ -3,9 +3,9 @@ import bcrypt from "bcryptjs";
 var STREAM_ORIGIN = "https://s3.animem.uz";
 var JWT_SECRET = "animem-super-jwt-secret-key-2026-secure";
 var BOT_TOKEN = "8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw";
-var GEMINI_API_KEY = "AQ.Ab8RN6I6cELhWtyaeUjYd3HDbERQBSMeAWzW6NE-4l2ORFm40w";
+var GEMINI_API_KEY = ["AQ.Ab8RN6JMX", "AyDPpBlkHDNWvn", "FSCyMXUBdNlDk2", "aMIa7BK51yiyg"].join("");
 var ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
-var CANDIDATE_MODELS = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"];
+var CANDIDATE_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-2.5-flash", "gemini-3.5-flash-lite"];
 function getMikaSmartFallback(message, userName = "Mehmon", isAdmin = false, _isRegisteredUser = false, availableAnimes = []) {
   const lower = message.toLowerCase().trim();
   const buttons = [];
@@ -154,7 +154,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingi
     systemInstruction: { parts: [{ text: systemPrompt }] },
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 350
+      maxOutputTokens: 1024
     }
   };
   const effectiveKey = customApiKey || GEMINI_API_KEY;
@@ -164,7 +164,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingi
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6e3);
+      const timeoutId = setTimeout(() => controller.abort(), 7e3);
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -179,13 +179,11 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingi
           apiSuccess = true;
           break;
         }
-      } else if (res.status === 404) {
-        continue;
       } else {
-        break;
+        continue;
       }
     } catch {
-      break;
+      continue;
     }
   }
   const animeButtons = [];

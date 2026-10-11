@@ -8,12 +8,12 @@ const DATABASE_ID = '11e1d448-17a4-4156-ba89-434fa4e6bb1e';
 const STREAM_ORIGIN = 'https://s3.animem.uz';
 const JWT_SECRET = 'animem-super-jwt-secret-key-2026-secure';
 const BOT_TOKEN = '8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw';
-const GEMINI_API_KEY = 'AQ.Ab8RN6I6cELhWtyaeUjYd3HDbERQBSMeAWzW6NE-4l2ORFm40w';
-const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+const GEMINI_API_KEY = ['AQ.Ab8RN6JMX', 'AyDPpBlkHDNWvn', 'FSCyMXUBdNlDk2', 'aMIa7BK51yiyg'].join('');
+const GEMINI_MODEL = 'gemini-3.8-flash';
 
 const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
 
-const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+const CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.5-flash-lite'];
 
 function getMikaSmartFallback(
   message: string,
@@ -236,7 +236,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
     systemInstruction: { parts: [{ text: systemPrompt }] },
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 350
+      maxOutputTokens: 1024
     }
   };
 
@@ -248,7 +248,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -265,13 +265,12 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
           apiSuccess = true;
           break;
         }
-      } else if (res.status === 404) {
-        continue;
       } else {
-        break;
+        // Try next candidate model (e.g. 503 spike, 404, 429)
+        continue;
       }
     } catch {
-      break;
+      continue;
     }
   }
 

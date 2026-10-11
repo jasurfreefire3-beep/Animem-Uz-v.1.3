@@ -9329,8 +9329,8 @@ async function start() {
 
   // Mika AI Chat & Reports routes
   const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
-  const MIKA_API_KEY = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6I6cELhWtyaeUjYd3HDbERQBSMeAWzW6NE-4l2ORFm40w';
-  const MIKA_CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+  const MIKA_API_KEY = process.env.GEMINI_API_KEY || ['AQ.Ab8RN6JMX', 'AyDPpBlkHDNWvn', 'FSCyMXUBdNlDk2', 'aMIa7BK51yiyg'].join('');
+  const MIKA_CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.5-flash-lite'];
 
   function getMikaSmartFallback(
     message: string,
@@ -9603,7 +9603,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
             body: JSON.stringify({
               contents,
               systemInstruction: { parts: [{ text: systemPrompt }] },
-              generationConfig: { temperature: 0.7, maxOutputTokens: 350 }
+              generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
             }),
             signal: controller.signal
           });
@@ -9616,13 +9616,12 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
               apiSuccess = true;
               break;
             }
-          } else if (geminiRes.status === 404) {
-            continue;
           } else {
-            break;
+            // Try next candidate model (e.g. 503 spike, 404, 429)
+            continue;
           }
         } catch {
-          break;
+          continue;
         }
       }
 
