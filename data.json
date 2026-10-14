@@ -1,0 +1,375 @@
+{
+  "ratings": [
+    {
+      "id": 1,
+      "user_id": 3,
+      "anime_id": 4,
+      "rating": 5,
+      "created_at": "2026-07-16T12:50:48.000Z"
+    },
+    {
+      "id": 2,
+      "user_id": 3,
+      "anime_id": 7,
+      "rating": 5,
+      "created_at": "2026-07-16T12:51:11.000Z"
+    },
+    {
+      "id": 3,
+      "user_id": 1,
+      "anime_id": 2,
+      "rating": 8,
+      "created_at": "2026-07-16T12:51:26.000Z"
+    },
+    {
+      "id": 7,
+      "user_id": 1,
+      "anime_id": 4,
+      "rating": 9,
+      "created_at": "2026-07-16T12:56:29.000Z"
+    },
+    {
+      "id": 10,
+      "user_id": 1,
+      "anime_id": 16,
+      "rating": 10,
+      "created_at": "2026-07-17T03:36:19.000Z"
+    },
+    {
+      "id": 11,
+      "user_id": 1,
+      "anime_id": 19,
+      "rating": 5,
+      "created_at": "2026-07-17T05:49:53.000Z"
+    },
+    {
+      "id": 12,
+      "user_id": 14,
+      "anime_id": 4,
+      "rating": 5,
+      "created_at": "2026-07-18T09:55:57.000Z"
+    },
+    {
+      "id": 21,
+      "user_id": 8,
+      "anime_id": 23,
+      "rating": 5,
+      "created_at": "2026-07-18T14:47:39.000Z"
+    },
+    {
+      "id": 24,
+      "user_id": 1,
+      "anime_id": 9,
+      "rating": 5,
+      "created_at": "2026-07-19T10:43:44.000Z"
+    },
+    {
+      "id": 26,
+      "user_id": 1,
+      "anime_id": 23,
+      "rating": 10,
+      "created_at": "2026-07-19T10:50:01.000Z"
+    },
+    {
+      "id": 27,
+      "user_id": 1,
+      "anime_id": 22,
+      "rating": 10,
+      "created_at": "2026-07-19T10:50:24.000Z"
+    },
+    {
+      "id": 28,
+      "user_id": 1,
+      "anime_id": 21,
+      "rating": 10,
+      "created_at": "2026-07-19T10:50:36.000Z"
+    },
+    {
+      "id": 29,
+      "user_id": 3,
+      "anime_id": 22,
+      "rating": 10,
+      "created_at": "2026-07-19T10:53:11.000Z"
+    },
+    {
+      "id": 32,
+      "user_id": 3,
+      "anime_id": 25,
+      "rating": 10,
+      "created_at": "2026-07-19T16:03:13.000Z"
+    },
+    {
+      "id": 33,
+      "user_id": 1,
+      "anime_id": 38,
+      "rating": 10,
+      "created_at": "2026-07-20T12:41:34.000Z"
+    },
+    {
+      "id": 34,
+      "user_id": 1,
+      "anime_id": 26,
+      "rating": 10,
+      "created_at": "2026-07-21T07:21:53.000Z"
+    },
+    {
+      "id": 35,
+      "user_id": 21,
+      "anime_id": 25,
+      "rating": 9,
+      "created_at": "2026-07-21T09:20:11.000Z"
+    },
+    {
+      "id": 36,
+      "user_id": 443,
+      "anime_id": 142,
+      "rating": 10,
+      "created_at": "2026-09-05T08:36:25.400Z"
+    },
+    {
+      "id": 37,
+      "user_id": 810,
+      "anime_id": 10,
+      "rating": 10,
+      "created_at": "2026-09-06T02:32:18.403Z"
+    },
+    {
+      "id": 38,
+      "user_id": 402,
+      "anime_id": 77,
+      "rating": 10,
+      "created_at": "2026-09-06T10:11:29.315Z"
+    },
+    {
+      "id": 39,
+      "user_id": 503,
+      "anime_id": 104,
+      "rating": 10,
+      "created_at": "2026-09-06T14:37:30.631Z"
+    },
+    {
+      "id": 40,
+      "user_id": 487,
+      "anime_id": 67,
+      "rating": 10,
+      "created_at": "2026-09-06T18:38:24.333Z"
+    },
+    {
+      "id": 41,
+      "user_id": 3,
+      "anime_id": 91,
+      "rating": 10,
+      "created_at": "2026-09-07T01:13:34.597Z"
+    },
+    {
+      "id": 42,
+      "user_id": 443,
+      "anime_id": 138,
+      "rating": 10,
+      "created_at": "2026-09-08T10:00:13.251Z"
+    },
+    {
+      "id": 43,
+      "user_id": 1,
+      "anime_id": 148,
+      "rating": 10,
+      "created_at": "2026-09-08T12:46:39.413Z"
+    },
+    {
+      "id": 44,
+      "user_id": 443,
+      "anime_id": 150,
+      "rating": 10,
+      "created_at": "2026-09-08T16:03:47.442Z"
+    },
+    {
+      "id": 45,
+      "user_id": 3,
+      "anime_id": 151,
+      "rating": 8,
+      "created_at": "2026-09-08T17:12:49.528Z"
+    },
+    {
+      "id": 46,
+      "user_id": 487,
+      "anime_id": 133,
+      "rating": 10,
+      "created_at": "2026-09-08T18:51:03.568Z"
+    },
+    {
+      "id": 47,
+      "user_id": 804,
+      "anime_id": 116,
+      "rating": 2,
+      "created_at": "2026-09-08T19:16:33.461Z"
+    },
+    {
+      "id": 48,
+      "user_id": 423,
+      "anime_id": 153,
+      "rating": 10,
+      "created_at": "2026-09-10T11:55:52.239Z"
+    },
+    {
+      "id": 49,
+      "user_id": 443,
+      "anime_id": 127,
+      "rating": 10,
+      "created_at": "2026-09-10T13:14:52.335Z"
+    },
+    {
+      "id": 50,
+      "user_id": 443,
+      "anime_id": 81,
+      "rating": 10,
+      "created_at": "2026-09-10T14:00:18.704Z"
+    },
+    {
+      "id": 51,
+      "user_id": 443,
+      "anime_id": 149,
+      "rating": 10,
+      "created_at": "2026-09-11T09:27:12.951Z"
+    },
+    {
+      "id": 52,
+      "user_id": 443,
+      "anime_id": 154,
+      "rating": 10,
+      "created_at": "2026-09-11T09:30:00.949Z"
+    },
+    {
+      "id": 53,
+      "user_id": 443,
+      "anime_id": 63,
+      "rating": 10,
+      "created_at": "2026-09-11T14:21:28.263Z"
+    },
+    {
+      "id": 54,
+      "user_id": 443,
+      "anime_id": 75,
+      "rating": 9,
+      "created_at": "2026-09-11T15:38:09.560Z"
+    },
+    {
+      "id": 55,
+      "user_id": 884,
+      "anime_id": 136,
+      "rating": 10,
+      "created_at": "2026-09-11T15:56:11.839Z"
+    },
+    {
+      "id": 56,
+      "user_id": 3,
+      "anime_id": 156,
+      "rating": 10,
+      "created_at": "2026-09-11T18:07:41.057Z"
+    },
+    {
+      "id": 57,
+      "user_id": 890,
+      "anime_id": 10,
+      "rating": 10,
+      "created_at": "2026-09-11T21:53:08.662Z"
+    },
+    {
+      "id": 58,
+      "user_id": 72,
+      "anime_id": 153,
+      "rating": 8,
+      "created_at": "2026-09-12T10:40:29.957Z"
+    },
+    {
+      "id": 59,
+      "user_id": 443,
+      "anime_id": 158,
+      "rating": 10,
+      "created_at": "2026-09-12T13:15:56.619Z"
+    },
+    {
+      "id": 60,
+      "user_id": 689,
+      "anime_id": 155,
+      "rating": 10,
+      "created_at": "2026-09-12T14:47:17.996Z"
+    },
+    {
+      "id": 61,
+      "user_id": 443,
+      "anime_id": 160,
+      "rating": 10,
+      "created_at": "2026-09-12T15:57:45.405Z"
+    },
+    {
+      "id": 62,
+      "user_id": 909,
+      "anime_id": 156,
+      "rating": 10,
+      "created_at": "2026-09-12T16:21:43.353Z"
+    },
+    {
+      "id": 63,
+      "user_id": 895,
+      "anime_id": 22,
+      "rating": 10,
+      "created_at": "2026-09-12T18:50:33.236Z"
+    },
+    {
+      "id": 64,
+      "user_id": 689,
+      "anime_id": 133,
+      "rating": 10,
+      "created_at": "2026-09-13T03:37:33.513Z"
+    },
+    {
+      "id": 65,
+      "user_id": 926,
+      "anime_id": 115,
+      "rating": 10,
+      "created_at": "2026-09-13T10:22:20.133Z"
+    },
+    {
+      "id": 66,
+      "user_id": 916,
+      "anime_id": 80,
+      "rating": 10,
+      "created_at": "2026-09-13T12:00:17.125Z"
+    },
+    {
+      "id": 67,
+      "user_id": 926,
+      "anime_id": 105,
+      "rating": 10,
+      "created_at": "2026-09-13T14:16:47.172Z"
+    },
+    {
+      "id": 68,
+      "user_id": 926,
+      "anime_id": 83,
+      "rating": 10,
+      "created_at": "2026-09-13T15:47:22.772Z"
+    },
+    {
+      "id": 69,
+      "user_id": 926,
+      "anime_id": 81,
+      "rating": 10,
+      "created_at": "2026-09-13T17:41:21.294Z"
+    },
+    {
+      "id": 70,
+      "user_id": 487,
+      "anime_id": 160,
+      "rating": 10,
+      "created_at": "2026-09-13T20:25:58.305Z"
+    },
+    {
+      "id": 71,
+      "user_id": 926,
+      "anime_id": 124,
+      "rating": 10,
+      "created_at": "2026-09-14T11:45:12.818Z"
+    }
+  ]
+}
