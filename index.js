@@ -2072,7 +2072,9 @@ async function uploadImageBuffer(buffer, filename = "image.jpg", mimeType = "ima
     if (res.ok) {
       const text = (await res.text()).trim();
       if (text.startsWith("http://") || text.startsWith("https://")) {
-        return text.replace(/^http:\/\//i, "https://");
+        const catUrl = text.replace(/^http:\/\//i, "https://");
+        const fname = catUrl.split("/").pop() || filename;
+        return `https://image.animem.uz/${fname}`;
       }
     }
   } catch (catErr) {
@@ -2089,7 +2091,7 @@ async function uploadImageBuffer(buffer, filename = "image.jpg", mimeType = "ima
     console.warn("[media_files] DB save notice:", dbErr?.message || dbErr);
   }
   mediaMemoryCache.set(mediaId, { mimeType, base64: base64String, buffer });
-  return `/api/media/${mediaId}`;
+  return `https://image.animem.uz/api/media/${mediaId}`;
 }
 var mediaMemoryCache = /* @__PURE__ */ new Map();
 app.post("/api/media/upload", authenticateToken, memoryUpload.single("file"), async (req, res) => {
@@ -2169,10 +2171,17 @@ app.post("/api/media/upload-multiple", authenticateToken, memoryUpload.array("fi
     return res.status(500).json({ error: "Rasmlarni yuklashda xatolik yuz berdi" });
   }
 });
-app.get("/api/media/:id", async (req, res) => {
+app.get([
+  "/api/media/:id",
+  "/media/:id",
+  "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif))",
+  "/:id(img_[a-zA-Z0-9_\\-]+)"
+], async (req, res) => {
   try {
-    const id = req.params.id;
+    const id = req.params.id || req.params.filename;
     if (!id) return res.status(400).send("Media ID kiritilishi shart");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
     if (mediaMemoryCache.has(id)) {
       const cached = mediaMemoryCache.get(id);
       res.setHeader("Content-Type", cached.mimeType || "image/jpeg");
@@ -2180,26 +2189,58 @@ app.get("/api/media/:id", async (req, res) => {
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       return res.send(cached.buffer || Buffer.from(cached.base64, "base64"));
     }
-    const [rows] = await dbQuery("SELECT mime_type, data FROM media_files WHERE id = ?", [id]);
-    if (!rows || rows.length === 0) {
-      return res.status(404).send("Rasm MySQL bazasidan topilmadi");
+    try {
+      const [rows] = await dbQuery("SELECT mime_type, data FROM media_files WHERE id = ?", [id]);
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        const mimeType = row.mime_type || "image/jpeg";
+        const buffer = Buffer.from(row.data, "base64");
+        mediaMemoryCache.set(id, { mimeType, base64: row.data, buffer });
+        if (mediaMemoryCache.size > 500) {
+          const firstKey = mediaMemoryCache.keys().next().value;
+          if (firstKey) mediaMemoryCache.delete(firstKey);
+        }
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Disposition", "inline");
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        return res.send(buffer);
+      }
+    } catch (dbErr) {
     }
-    const row = rows[0];
-    const mimeType = row.mime_type || "image/jpeg";
-    const buffer = Buffer.from(row.data, "base64");
-    mediaMemoryCache.set(id, { mimeType, base64: row.data, buffer });
-    if (mediaMemoryCache.size > 300) {
-      const firstKey = mediaMemoryCache.keys().next().value;
-      if (firstKey) mediaMemoryCache.delete(firstKey);
+    try {
+      const catRes = await fetch(`https://files.catbox.moe/${id}`, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      });
+      if (catRes.ok) {
+        const arrayBuf = await catRes.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        const mimeType = catRes.headers.get("content-type") || "image/jpeg";
+        mediaMemoryCache.set(id, { mimeType, base64: buffer.toString("base64"), buffer });
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Disposition", "inline");
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        return res.send(buffer);
+      }
+    } catch (catErr) {
     }
-    res.setHeader("Content-Type", mimeType);
-    res.setHeader("Content-Disposition", "inline");
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    return res.send(buffer);
+    return res.status(404).send("Rasm topilmadi");
   } catch (err) {
-    console.error("Serve media from MySQL error:", err);
-    return res.status(500).send("Rasmni bazadan yuklab olishda xatolik");
+    console.error("Serve media error:", err);
+    return res.status(500).send("Rasmni yuklab olishda xatolik");
   }
+});
+app.options([
+  "/api/media/:id",
+  "/media/:id",
+  "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif))",
+  "/:id(img_[a-zA-Z0-9_\\-]+)"
+], (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.sendStatus(204);
 });
 var STATIC_FALLBACK_GIFS = [
   "https://api.animem.uz/i/47253226-8c0c-4bd7-8a13-63fc8ab21048",
@@ -2597,9 +2638,19 @@ app.post("/api/user/ping", authenticateToken, async (req, res) => {
 app.post("/api/user/avatar", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { avatar_url } = req.body;
+    let { avatar_url } = req.body;
     if (!avatar_url) {
       return res.status(400).json({ error: "Rasm topilmadi" });
+    }
+    if (avatar_url.startsWith("data:image/")) {
+      const match = avatar_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+      if (match) {
+        const mime = match[1];
+        const buf = Buffer.from(match[2], "base64");
+        avatar_url = await uploadImageBuffer(buf, "avatar.jpg", mime);
+      }
+    } else {
+      avatar_url = normalizeImageUrl(avatar_url);
     }
     await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [avatar_url, userId]);
     const [rows] = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
@@ -2613,11 +2664,35 @@ app.post("/api/user/avatar", authenticateToken, async (req, res) => {
 app.put("/api/user/profile", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name, bio, banner_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = req.body;
+    let { name, bio, banner_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: "Ism bo'sh bo'lishi mumkin emas" });
     }
     const cleanName = name.trim();
+    if (avatar_url) {
+      if (avatar_url.startsWith("data:image/")) {
+        const match = avatar_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (match) {
+          const mime = match[1];
+          const buf = Buffer.from(match[2], "base64");
+          avatar_url = await uploadImageBuffer(buf, "avatar.jpg", mime);
+        }
+      } else {
+        avatar_url = normalizeImageUrl(avatar_url);
+      }
+    }
+    if (banner_url) {
+      if (banner_url.startsWith("data:image/")) {
+        const match = banner_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (match) {
+          const mime = match[1];
+          const buf = Buffer.from(match[2], "base64");
+          banner_url = await uploadImageBuffer(buf, "banner.jpg", mime);
+        }
+      } else {
+        banner_url = normalizeImageUrl(banner_url);
+      }
+    }
     let favsJson = null;
     if (favorites) {
       favsJson = typeof favorites === "string" ? favorites : JSON.stringify(favorites);
@@ -3679,6 +3754,8 @@ app.post("/api/animes", authenticateToken, async (req, res) => {
       tags,
       is_adult
     } = req.body;
+    const cleanImageUrl = normalizeImageUrl(image_url);
+    const cleanBannerUrl = normalizeImageUrl(banner_url);
     let insertId = Date.now();
     try {
       const [result] = await dbQuery(
@@ -3688,8 +3765,8 @@ app.post("/api/animes", authenticateToken, async (req, res) => {
         [
           title || "",
           description || "",
-          image_url || "",
-          banner_url || "",
+          cleanImageUrl,
+          cleanBannerUrl,
           rating || 0,
           rating_count || 0,
           holati || "Faol",
@@ -3792,8 +3869,8 @@ app.put("/api/animes/:id", authenticateToken, async (req, res) => {
     const finalRatingCount = rating_count !== void 0 && rating_count !== null ? Number(rating_count) : existing ? Number(existing.rating_count || 0) : 0;
     const finalTitle = title !== void 0 ? title : existing?.title || "";
     const finalDescription = description !== void 0 ? description : existing?.description || "";
-    const finalImageUrl = image_url !== void 0 ? image_url : existing?.image_url || "";
-    const finalBannerUrl = banner_url !== void 0 ? banner_url : existing?.banner_url || "";
+    const finalImageUrl = normalizeImageUrl(image_url !== void 0 ? image_url : existing?.image_url || "");
+    const finalBannerUrl = normalizeImageUrl(banner_url !== void 0 ? banner_url : existing?.banner_url || "");
     const finalHolati = holati !== void 0 ? holati : existing?.holati || "Faol";
     const finalYil = yil !== void 0 ? yil ? Number(yil) : null : existing?.yil || null;
     const finalStudiyasi = studiyasi !== void 0 ? studiyasi : existing?.studiyasi || "";

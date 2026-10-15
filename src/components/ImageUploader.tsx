@@ -23,7 +23,7 @@ export default function ImageUploader({
   helpText,
   className = ''
 }: ImageUploaderProps) {
-  const [mode, setMode] = useState<'upload' | 'url'>(value && !value.startsWith('/api/media/') && !value.startsWith('data:') ? 'url' : 'upload');
+  const [mode, setMode] = useState<'upload' | 'url'>(value && !value.startsWith('/api/media/') && !value.startsWith('data:') && !value.includes('image.animem.uz') ? 'url' : 'upload');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);

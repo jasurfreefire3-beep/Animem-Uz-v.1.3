@@ -2517,7 +2517,30 @@ const memoryUpload = multer({
 
 /**
  * Direct in-memory buffer upload for images (Catbox CDN with MySQL fallback).
- * Never touches server disk. Files are permanent and served with HTTPS worldwide.
+function normalizeImageUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  let clean = url.trim();
+  if (clean.startsWith("/api/media/")) {
+    return `https://image.animem.uz${clean}`;
+  }
+  if (clean.startsWith("/media/")) {
+    return `https://image.animem.uz/api${clean}`;
+  }
+  if (clean.startsWith("https://animem.uz/api/media/")) {
+    return clean.replace("https://animem.uz/api/media/", "https://image.animem.uz/api/media/");
+  }
+  if (clean.startsWith("https://files.catbox.moe/")) {
+    return clean.replace("https://files.catbox.moe/", "https://image.animem.uz/");
+  }
+  if (clean.startsWith("http://files.catbox.moe/")) {
+    return clean.replace("http://files.catbox.moe/", "https://image.animem.uz/");
+  }
+  return clean;
+}
+
+/**
+ * Upload an image Buffer to Catbox CDN or database fallback.
+ * Always returns a clean URL with https://image.animem.uz domain.
  */
 async function uploadImageBuffer(
   buffer: Buffer,
@@ -2550,14 +2573,16 @@ async function uploadImageBuffer(
     if (res.ok) {
       const text = (await res.text()).trim();
       if (text.startsWith("http://") || text.startsWith("https://")) {
-        return text.replace(/^http:\/\//i, "https://");
+        const catUrl = text.replace(/^http:\/\//i, "https://");
+        const fname = catUrl.split("/").pop() || filename;
+        return `https://image.animem.uz/${fname}`;
       }
     }
   } catch (catErr: any) {
     console.warn("[Catbox] Upload attempt bypassed or failed, using internal media storage:", catErr?.message || catErr);
   }
 
-  // 2. 100% Reliable In-Memory Fallback: Save directly to media_files in MySQL database (zero disk write)
+  // 2. 100% Reliable In-Memory Fallback: Save directly to media_files in database (zero disk write)
   const base64String = buffer.toString("base64");
   const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
   try {
@@ -2570,7 +2595,7 @@ async function uploadImageBuffer(
   }
 
   mediaMemoryCache.set(mediaId, { mimeType, base64: base64String, buffer });
-  return `/api/media/${mediaId}`;
+  return `https://image.animem.uz/api/media/${mediaId}`;
 }
 
 // High performance in-memory media cache to minimize DB load on frequent hits
@@ -2659,11 +2684,19 @@ app.post("/api/media/upload-multiple", authenticateToken, memoryUpload.array("fi
   }
 });
 
-// Stream media from Catbox or local database
-app.get("/api/media/:id", async (req: any, res: any) => {
+// Stream media from RAM cache, database, or Catbox proxy
+app.get([
+  "/api/media/:id",
+  "/media/:id",
+  "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif))",
+  "/:id(img_[a-zA-Z0-9_\\-]+)"
+], async (req: any, res: any) => {
   try {
-    const id = req.params.id;
+    const id = req.params.id || req.params.filename;
     if (!id) return res.status(400).send("Media ID kiritilishi shart");
+
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
 
     // 1. Check in-memory RAM cache first
     if (mediaMemoryCache.has(id)) {
@@ -2674,31 +2707,65 @@ app.get("/api/media/:id", async (req: any, res: any) => {
       return res.send(cached.buffer || Buffer.from(cached.base64, "base64"));
     }
 
-    // 2. Query MySQL database
-    const [rows]: any = await dbQuery("SELECT mime_type, data FROM media_files WHERE id = ?", [id]);
-    if (!rows || rows.length === 0) {
-      return res.status(404).send("Rasm MySQL bazasidan topilmadi");
-    }
+    // 2. Query database media_files table
+    try {
+      const [rows]: any = await dbQuery("SELECT mime_type, data FROM media_files WHERE id = ?", [id]);
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        const mimeType = row.mime_type || "image/jpeg";
+        const buffer = Buffer.from(row.data, "base64");
 
-    const row = rows[0];
-    const mimeType = row.mime_type || "image/jpeg";
-    const buffer = Buffer.from(row.data, "base64");
+        // Cache in RAM for subsequent queries
+        mediaMemoryCache.set(id, { mimeType, base64: row.data, buffer });
+        if (mediaMemoryCache.size > 500) {
+          const firstKey = mediaMemoryCache.keys().next().value;
+          if (firstKey) mediaMemoryCache.delete(firstKey);
+        }
 
-    // Cache in RAM for subsequent queries
-    mediaMemoryCache.set(id, { mimeType, base64: row.data, buffer });
-    if (mediaMemoryCache.size > 300) {
-      const firstKey = mediaMemoryCache.keys().next().value;
-      if (firstKey) mediaMemoryCache.delete(firstKey);
-    }
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Disposition", "inline");
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        return res.send(buffer);
+      }
+    } catch (dbErr) {}
 
-    res.setHeader("Content-Type", mimeType);
-    res.setHeader("Content-Disposition", "inline");
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    return res.send(buffer);
+    // 3. Fallback: Proxy from Catbox CDN
+    try {
+      const catRes = await fetch(`https://files.catbox.moe/${id}`, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      });
+      if (catRes.ok) {
+        const arrayBuf = await catRes.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        const mimeType = catRes.headers.get("content-type") || "image/jpeg";
+
+        mediaMemoryCache.set(id, { mimeType, base64: buffer.toString("base64"), buffer });
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Disposition", "inline");
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        return res.send(buffer);
+      }
+    } catch (catErr) {}
+
+    return res.status(404).send("Rasm topilmadi");
   } catch (err: any) {
-    console.error("Serve media from MySQL error:", err);
-    return res.status(500).send("Rasmni bazadan yuklab olishda xatolik");
+    console.error("Serve media error:", err);
+    return res.status(500).send("Rasmni yuklab olishda xatolik");
   }
+});
+
+app.options([
+  "/api/media/:id",
+  "/media/:id",
+  "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif))",
+  "/:id(img_[a-zA-Z0-9_\\-]+)"
+], (req: any, res: any) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.sendStatus(204);
 });
 
 // --- GIF Management Endpoints (MySQL & Fast Memory Cache) ---
@@ -3157,14 +3224,25 @@ app.post("/api/user/ping", authenticateToken, async (req: any, res) => {
   }
 });
 
-// Update user profile photo (Avatar) as base64 string in MySQL
+// Update user profile photo (Avatar) - stored with https://image.animem.uz domain
 app.post("/api/user/avatar", authenticateToken, async (req: any, res) => {
   try {
     const userId = req.user.id;
-    const { avatar_url } = req.body;
+    let { avatar_url } = req.body;
 
     if (!avatar_url) {
       return res.status(400).json({ error: "Rasm topilmadi" });
+    }
+
+    if (avatar_url.startsWith("data:image/")) {
+      const match = avatar_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+      if (match) {
+        const mime = match[1];
+        const buf = Buffer.from(match[2], "base64");
+        avatar_url = await uploadImageBuffer(buf, "avatar.jpg", mime);
+      }
+    } else {
+      avatar_url = normalizeImageUrl(avatar_url);
     }
 
     await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [avatar_url, userId]);
@@ -3184,13 +3262,39 @@ app.post("/api/user/avatar", authenticateToken, async (req: any, res) => {
 app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
   try {
     const userId = req.user.id;
-    const { name, bio, banner_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = req.body;
+    let { name, bio, banner_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: "Ism bo'sh bo'lishi mumkin emas" });
     }
 
     const cleanName = name.trim();
+    if (avatar_url) {
+      if (avatar_url.startsWith("data:image/")) {
+        const match = avatar_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (match) {
+          const mime = match[1];
+          const buf = Buffer.from(match[2], "base64");
+          avatar_url = await uploadImageBuffer(buf, "avatar.jpg", mime);
+        }
+      } else {
+        avatar_url = normalizeImageUrl(avatar_url);
+      }
+    }
+
+    if (banner_url) {
+      if (banner_url.startsWith("data:image/")) {
+        const match = banner_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (match) {
+          const mime = match[1];
+          const buf = Buffer.from(match[2], "base64");
+          banner_url = await uploadImageBuffer(buf, "banner.jpg", mime);
+        }
+      } else {
+        banner_url = normalizeImageUrl(banner_url);
+      }
+    }
+
     let favsJson: string | null = null;
     if (favorites) {
       favsJson = typeof favorites === 'string' ? favorites : JSON.stringify(favorites);
@@ -4423,6 +4527,9 @@ app.post("/api/animes", authenticateToken, async (req: any, res) => {
       is_adult,
     } = req.body;
 
+    const cleanImageUrl = normalizeImageUrl(image_url);
+    const cleanBannerUrl = normalizeImageUrl(banner_url);
+
     let insertId = Date.now();
     try {
       const [result]: any = await dbQuery(
@@ -4432,8 +4539,8 @@ app.post("/api/animes", authenticateToken, async (req: any, res) => {
         [
           title || "",
           description || "",
-          image_url || "",
-          banner_url || "",
+          cleanImageUrl,
+          cleanBannerUrl,
           rating || 0.0,
           rating_count || 0,
           holati || "Faol",
@@ -4557,8 +4664,8 @@ app.put("/api/animes/:id", authenticateToken, async (req: any, res) => {
 
     const finalTitle = title !== undefined ? title : (existing?.title || "");
     const finalDescription = description !== undefined ? description : (existing?.description || "");
-    const finalImageUrl = image_url !== undefined ? image_url : (existing?.image_url || "");
-    const finalBannerUrl = banner_url !== undefined ? banner_url : (existing?.banner_url || "");
+    const finalImageUrl = normalizeImageUrl(image_url !== undefined ? image_url : (existing?.image_url || ""));
+    const finalBannerUrl = normalizeImageUrl(banner_url !== undefined ? banner_url : (existing?.banner_url || ""));
     const finalHolati = holati !== undefined ? holati : (existing?.holati || "Faol");
     const finalYil = yil !== undefined ? (yil ? Number(yil) : null) : (existing?.yil || null);
     const finalStudiyasi = studiyasi !== undefined ? studiyasi : (existing?.studiyasi || "");

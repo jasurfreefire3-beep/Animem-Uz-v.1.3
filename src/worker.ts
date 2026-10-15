@@ -16,6 +16,27 @@ const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|
 
 const CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.5-flash-lite'];
 
+function normalizeImageUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  let clean = url.trim();
+  if (clean.startsWith('/api/media/')) {
+    return `https://image.animem.uz${clean}`;
+  }
+  if (clean.startsWith('/media/')) {
+    return `https://image.animem.uz/api${clean}`;
+  }
+  if (clean.startsWith('https://animem.uz/api/media/')) {
+    return clean.replace('https://animem.uz/api/media/', 'https://image.animem.uz/api/media/');
+  }
+  if (clean.startsWith('https://files.catbox.moe/')) {
+    return clean.replace('https://files.catbox.moe/', 'https://image.animem.uz/');
+  }
+  if (clean.startsWith('http://files.catbox.moe/')) {
+    return clean.replace('http://files.catbox.moe/', 'https://image.animem.uz/');
+  }
+  return clean;
+}
+
 function getMikaSmartFallback(
   message: string,
   userName = 'Mehmon',
@@ -617,6 +638,31 @@ async function ensureTables(env: any) {
     } catch {}
   }
 
+  // One-time complete database wipe as requested by admin (resets D1 to 0)
+  try {
+    await executeD1(env, 'CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY);');
+    const migrated = await queryD1(env, "SELECT version FROM schema_migrations WHERE version = 'wipe_2026_10_15_clean_v1' LIMIT 1;");
+    if (!migrated || migrated.length === 0) {
+      console.log('Applying wipe_2026_10_15_clean_v1 on Cloudflare D1...');
+      await executeD1(env, 'DELETE FROM comments;');
+      await executeD1(env, 'DELETE FROM episodes;');
+      await executeD1(env, 'DELETE FROM ratings;');
+      await executeD1(env, 'DELETE FROM messages;');
+      await executeD1(env, 'DELETE FROM notifications;');
+      await executeD1(env, 'DELETE FROM watch_progress;');
+      await executeD1(env, 'DELETE FROM user_lists;');
+      await executeD1(env, 'DELETE FROM shop_orders;');
+      await executeD1(env, 'DELETE FROM shop_purchases;');
+      await executeD1(env, 'DELETE FROM media_files;');
+      await executeD1(env, 'DELETE FROM animes;');
+      await executeD1(env, "DELETE FROM users WHERE LOWER(TRIM(email)) NOT IN ('mosinjonovjasurbek28@gmail.com', 'mosinjonovjasurbek00@gmail.com');");
+      await executeD1(env, "INSERT OR REPLACE INTO schema_migrations (version) VALUES ('wipe_2026_10_15_clean_v1');");
+      console.log('wipe_2026_10_15_clean_v1 applied successfully on D1.');
+    }
+  } catch (mErr: any) {
+    console.warn('Wipe migration notice:', mErr?.message || mErr);
+  }
+
   // Auto-seed initial animes and shop items if empty in D1
   try {
     const existing = await queryD1(env, 'SELECT count(*) as cnt FROM animes LIMIT 1;');
@@ -654,16 +700,21 @@ async function ensureTables(env: any) {
     console.warn('Seed initial notice:', err?.message || err);
   }
 
-  // Ensure admin user exists
+  // Ensure master admin user exists with admin role and Admin2026! password
   try {
+    const hash = await hashPassword('Admin2026!');
     const adminCheck = await queryD1(env, 'SELECT id FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1;', ['mosinjonovjasurbek28@gmail.com']);
     if (!adminCheck || adminCheck.length === 0) {
-      const hash = await hashPassword('Admin2026!');
       await executeD1(env, `
-        INSERT INTO users (name, email, password, role)
-        VALUES (?, ?, ?, ?);
-      `, ['Admin', 'mosinjonovjasurbek28@gmail.com', hash, 'admin']).catch(() => {});
+        INSERT INTO users (id, name, username, email, password, role, coins, xp, level)
+        VALUES (1, 'Animem.uz Admin', 'admin', 'mosinjonovjasurbek28@gmail.com', ?, 'admin', 100000, 5000, 50);
+      `, [hash]).catch(() => {});
+    } else {
+      await executeD1(env, `
+        UPDATE users SET role = 'admin', password = ? WHERE LOWER(TRIM(email)) = 'mosinjonovjasurbek28@gmail.com';
+      `, [hash]).catch(() => {});
     }
+    await executeD1(env, `UPDATE users SET role = 'admin' WHERE LOWER(TRIM(email)) = 'mosinjonovjasurbek00@gmail.com';`).catch(() => {});
   } catch (e: any) {}
 }
 
@@ -2324,10 +2375,10 @@ export default {
       const user = await getAuthUser(request, env);
       if (!user) return jsonResponse({ error: "Avtorizatsiyadan o'ting" }, 401);
       const body = await parseJsonBody(request);
-      const { avatar_url } = body;
-      if (!avatar_url) return jsonResponse({ error: 'Rasm topilmadi' }, 400);
+      const cleanAvatarUrl = normalizeImageUrl(body.avatar_url);
+      if (!cleanAvatarUrl) return jsonResponse({ error: 'Rasm topilmadi' }, 400);
 
-      await executeD1(env, 'UPDATE users SET avatar_url = ? WHERE id = ?;', [avatar_url, user.id]);
+      await executeD1(env, 'UPDATE users SET avatar_url = ? WHERE id = ?;', [cleanAvatarUrl, user.id]);
       const updatedRows = await queryD1(env, 'SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?;', [user.id]);
       return jsonResponse({ message: 'Profil rasmi muvaffaqiyatli yangilandi', user: updatedRows[0] || user });
     }
@@ -2340,6 +2391,8 @@ export default {
       const { name, bio, banner_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = body;
 
       const cleanName = (name || user.name || '').trim();
+      const cleanAvatar = avatar_url ? normalizeImageUrl(avatar_url) : null;
+      const cleanBanner = banner_url ? normalizeImageUrl(banner_url) : null;
       const favsJson = favorites !== undefined ? (typeof favorites === 'string' ? favorites : JSON.stringify(favorites)) : null;
 
       await executeD1(
@@ -2347,7 +2400,7 @@ export default {
         `UPDATE users SET
           name = COALESCE(?, name),
           bio = ?,
-          banner_url = ?,
+          banner_url = COALESCE(?, banner_url),
           avatar_url = COALESCE(?, avatar_url),
           telegram = ?,
           instagram = ?,
@@ -2361,8 +2414,8 @@ export default {
         [
           cleanName || null,
           bio !== undefined ? bio : null,
-          banner_url !== undefined ? banner_url : null,
-          avatar_url || null,
+          cleanBanner,
+          cleanAvatar,
           telegram !== undefined ? telegram : null,
           instagram !== undefined ? instagram : null,
           tiktok !== undefined ? tiktok : null,
@@ -2519,8 +2572,9 @@ export default {
           if (catRes.ok) {
             const catUrl = (await catRes.text()).trim();
             if (catUrl.startsWith('http://') || catUrl.startsWith('https://')) {
-              const secureUrl = catUrl.replace(/^http:\/\//i, 'https://');
-              return jsonResponse({ success: true, url: secureUrl, id: secureUrl }, 201);
+              const fname = catUrl.split('/').pop();
+              const secureUrl = `https://image.animem.uz/${fname}`;
+              return jsonResponse({ success: true, url: secureUrl, id: fname }, 201);
             }
           }
         } catch (catErr: any) {
@@ -2539,7 +2593,7 @@ export default {
           const b64 = btoa(binary);
           const id = 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
           await executeD1(env, 'INSERT INTO media_files (id, data, mime_type) VALUES (?, ?, ?);', [id, b64, file.type || 'image/jpeg']);
-          return jsonResponse({ success: true, url: `/api/media/${id}`, id }, 201);
+          return jsonResponse({ success: true, url: `https://image.animem.uz/api/media/${id}`, id }, 201);
         }
 
         return jsonResponse({ error: 'Faylni yuklab bo\'lmadi. Qaytadan urinib ko\'ring.' }, 500);
@@ -2557,8 +2611,8 @@ export default {
       if (!title) return jsonResponse({ error: 'Anime nomi kiritilishi shart' }, 400);
 
       const description = body.description || body.tavsif || '';
-      const imageUrl = body.image_url || body.poster || '';
-      const bannerUrl = body.banner_url || body.banner || '';
+      const imageUrl = normalizeImageUrl(body.image_url || body.poster || '');
+      const bannerUrl = normalizeImageUrl(body.banner_url || body.banner || '');
       const holati = body.holati || body.status || 'Chiqmoqda';
       const yil = body.yil || body.year || 2026;
       const studiyasi = body.studiyasi || '';
@@ -2587,8 +2641,8 @@ export default {
       const body = await parseJsonBody(request);
       const title = body.title || body.nomi || '';
       const description = body.description || body.tavsif || '';
-      const imageUrl = body.image_url || body.poster || '';
-      const bannerUrl = body.banner_url || body.banner || '';
+      const imageUrl = normalizeImageUrl(body.image_url || body.poster || '');
+      const bannerUrl = normalizeImageUrl(body.banner_url || body.banner || '');
       const holati = body.holati || body.status || 'Chiqmoqda';
       const yil = body.yil || body.year || 2026;
       const studiyasi = body.studiyasi || '';
@@ -3216,33 +3270,63 @@ export default {
           });
         }
 
-        // Media files: /api/media/:id
-        const mediaMatch = path.match(/^\/api\/media\/([a-zA-Z0-9_\-\.]+)$/);
+        // Media files: /api/media/:id or /media/:id or direct image file /:filename or hostname image.animem.uz
+        const isImageHost = url.hostname === 'image.animem.uz';
+        const mediaMatch = path.match(/^\/(?:api\/)?media\/([a-zA-Z0-9_\-\.]+)$/) ||
+                           (isImageHost ? path.match(/^\/([a-zA-Z0-9_\-\.]+)$/) : null) ||
+                           path.match(/^\/([a-zA-Z0-9_\-\.]+\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif))$/) ||
+                           path.match(/^\/(img_[a-zA-Z0-9_\-]+)$/);
+
         if (mediaMatch) {
           const mediaId = mediaMatch[1];
-          const rows = await queryD1(env, 'SELECT data, mime_type FROM media_files WHERE id = ?;', [mediaId]);
-          if (rows.length > 0 && rows[0].data) {
-            const rawData = rows[0].data;
-            let mimeType = rows[0].mime_type || 'image/jpeg';
-            let b64 = rawData;
-            if (rawData.startsWith('data:')) {
-              const parts = rawData.split(',');
-              mimeType = parts[0].split(':')[1].split(';')[0];
-              b64 = parts[1];
+          // 1. Check D1 media_files
+          try {
+            const rows = await queryD1(env, 'SELECT data, mime_type FROM media_files WHERE id = ?;', [mediaId]);
+            if (rows.length > 0 && rows[0].data) {
+              const rawData = rows[0].data;
+              let mimeType = rows[0].mime_type || 'image/jpeg';
+              let b64 = rawData;
+              if (rawData.startsWith('data:')) {
+                const parts = rawData.split(',');
+                mimeType = parts[0].split(':')[1].split(';')[0];
+                b64 = parts[1];
+              }
+              const binaryStr = atob(b64);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+              return new Response(bytes.buffer, {
+                headers: {
+                  'Content-Type': mimeType,
+                  'Cache-Control': 'public, max-age=31536000, immutable',
+                  'Access-Control-Allow-Origin': '*',
+                },
+              });
             }
-            const binaryStr = atob(b64);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-            }
-            return new Response(bytes.buffer, {
+          } catch {}
+
+          // 2. Fallback: Proxy from Catbox CDN
+          try {
+            const catRes = await fetch(`https://files.catbox.moe/${mediaId}`, {
               headers: {
-                'Content-Type': mimeType,
-                'Cache-Control': 'public, max-age=86400',
-                'Access-Control-Allow-Origin': '*',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               },
             });
-          }
+            if (catRes.ok) {
+              const body = await catRes.arrayBuffer();
+              return new Response(body, {
+                status: 200,
+                headers: {
+                  'Content-Type': catRes.headers.get('content-type') || 'image/jpeg',
+                  'Cache-Control': 'public, max-age=31536000, immutable',
+                  'Access-Control-Allow-Origin': '*',
+                },
+              });
+            }
+          } catch {}
+
+          return jsonResponse({ error: 'Rasm topilmadi' }, 404);
         }
       } catch (err: any) {
         console.warn('D1 query error:', err.message);

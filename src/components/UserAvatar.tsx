@@ -64,6 +64,9 @@ export default function UserAvatar({
     if (cleanSrc.startsWith('uploads/')) {
       cleanSrc = '/' + cleanSrc;
     }
+    if (cleanSrc.startsWith('https://files.catbox.moe/')) {
+      cleanSrc = cleanSrc.replace('https://files.catbox.moe/', 'https://image.animem.uz/');
+    }
   }
 
   // Normalize frameUrl
@@ -72,6 +75,9 @@ export default function UserAvatar({
     cleanFrame = frameUrl.trim();
     if (cleanFrame.startsWith('uploads/')) {
       cleanFrame = '/' + cleanFrame;
+    }
+    if (cleanFrame.startsWith('https://files.catbox.moe/')) {
+      cleanFrame = cleanFrame.replace('https://files.catbox.moe/', 'https://image.animem.uz/');
     }
   }
 
