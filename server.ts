@@ -5,8 +5,11 @@ import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import http from "http";
-import https from "https";
 import dns from "dns";
+try {
+  dns.setDefaultResultOrder('ipv4first');
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {}
 import nodemailer from "nodemailer";
 import { Server } from "socket.io";
 import { Pool as PgPool } from "pg";
@@ -132,47 +135,23 @@ const ANIMEBOT_SYNC_SECRET = process.env.ANIMEBOT_SYNC_SECRET || "";
 // MySQL Database Pool Connection
 
 // =================================================================
-// DATABASE CONFIGURATION: SUPABASE (PRIMARY) & WASMER (CHAT & COMMENTS)
+// DATABASE CONFIGURATION: SOLE POSTGRESQL (animems)
 // =================================================================
-const SUPABASE_DB_HOST = process.env.SUPABASE_DB_HOST || "aws-0-ap-northeast-2.pooler.supabase.com";
-const SUPABASE_DB_PORT = parseInt(process.env.SUPABASE_DB_PORT || "6543", 10);
-const SUPABASE_DB_USER = process.env.SUPABASE_DB_USER || "postgres.bkvowaestqzxwlrhkbhk";
-const SUPABASE_DB_PASSWORD = process.env.SUPABASE_DB_PASSWORD || "animemuz_200";
-const SUPABASE_DB_NAME = process.env.SUPABASE_DB_NAME || "postgres";
+const DATABASE_URL = process.env.DATABASE_URL || "postgres://user_f51af4cc:pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww@psql.fr-roub1.bengt.wasmernet.com:20184/animems";
 
-const supabasePool = new PgPool({
-  host: SUPABASE_DB_HOST,
-  port: SUPABASE_DB_PORT,
-  database: SUPABASE_DB_NAME,
-  user: SUPABASE_DB_USER,
-  password: SUPABASE_DB_PASSWORD,
+const pgPool = new PgPool({
+  connectionString: DATABASE_URL,
   ssl: { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
-
-// Wasmer PostgreSQL for Chat & Comments
-const WASMER_DB_HOST = process.env.WASMER_DB_HOST || "psql.fr-roub1.bengt.wasmernet.com";
-const WASMER_DB_PORT = parseInt(process.env.WASMER_DB_PORT || "20184", 10);
-const WASMER_DB_USER = process.env.WASMER_DB_USER || "user_82ffe893";
-const WASMER_DB_PASSWORD = process.env.WASMER_DB_PASSWORD || "pw_1DuID9AO03FagRCGyr9cBuO13NCui0wd";
-const WASMER_DB_NAME = process.env.WASMER_DB_NAME || "Animem";
-
-const wasmerPool = new PgPool({
-  host: WASMER_DB_HOST,
-  port: WASMER_DB_PORT,
-  database: WASMER_DB_NAME,
-  user: WASMER_DB_USER,
-  password: WASMER_DB_PASSWORD,
-  ssl: { rejectUnauthorized: false },
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+pgPool.on("error", (err) => {
+  console.warn("[PostgreSQL Pool Error Caught]:", err.message);
 });
 
-// PostgreSQL Database Pool Connection for Videos
-const pgPool = wasmerPool;
+const supabasePool = pgPool;
+const wasmerPool = pgPool;
 
 // Initialize PostgreSQL Video Table
 async function initPgDb() {
@@ -221,11 +200,7 @@ async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> 
     return p;
   });
 
-  // Route comments and messages queries to Wasmer PostgreSQL!
-  const isCommentsOrMessages = /\b(comments|messages)\b/i.test(cleanSql);
-  const targetPool = isCommentsOrMessages ? wasmerPool : supabasePool;
-
-  const res = await targetPool.query(pgSql, cleanParams);
+  const res = await pgPool.query(pgSql, cleanParams);
 
   if (isSelect) {
     return [res.rows || [], []] as unknown as T;
@@ -412,111 +387,24 @@ let memoryLocalStore: any = null;
 let saveStoreTimeout: any = null;
 
 function loadLocalStore() {
-  if (memoryLocalStore) {
-    return memoryLocalStore;
-  }
-  try {
-    if (!fs.existsSync(LOCAL_STORE_PATH)) {
-      const defaultData = {
-        animes: [
-          {
-            id: 1,
-            title: "Solo Leveling 2-Mavsum",
-            description: "Sung Jin-Woo eng kuchsiz ovchidan dunyoning eng kuchli soyalar hukmdorigacha bo'lgan yo'lini davom ettiradi.",
-            image_url: "https://m.media-amazon.com/images/M/MV5BODlhWOE5NjMtN2I0OC00NjA3LTkyM2YtM2I5Njg3MTBhYTY1XkEyXkFqcGc@._V1_.jpg",
-            banner_url: "https://m.media-amazon.com/images/M/MV5BODlhWOE5NjMtN2I0OC00NjA3LTkyM2YtM2I5Njg3MTBhYTY1XkEyXkFqcGc@._V1_.jpg",
-            rating: 9.8,
-            rating_count: 150,
-            holati: "Davom etmoqda",
-            yil: 2025,
-            studiyasi: "A-1 Pictures",
-            qismlar_soni: 12,
-            korishlar: 1240,
-            janrlar: "Jangari, Sarguzasht, Fantastika",
-            video_url: "https://www.w3schools.com/html/mov_bbb.mp4",
-            tavsiya: true,
-            is_banner: true
-          },
-          {
-            id: 2,
-            title: "Jujutsu Kaisen 2-Mavsum",
-            description: "Gojo Satoru va Suguru Getoning o'tmishi hamda Shibuya voqealari tasvirlangan unutilmas mavsum.",
-            image_url: "https://m.media-amazon.com/images/M/MV5BNGY4MTg3NjgtMmFkYi00ZTNmLTgwAVtLTExNmI0MDI0U3M4XkEyXkFqcGc@._V1_.jpg",
-            banner_url: "https://m.media-amazon.com/images/M/MV5BNGY4MTg3NjgtMmFkYi00ZTNmLTgwAVtLTExNmI0MDI0U3M4XkEyXkFqcGc@._V1_.jpg",
-            rating: 9.5,
-            rating_count: 120,
-            holati: "Tugallangan",
-            yil: 2023,
-            studiyasi: "MAPPA",
-            qismlar_soni: 23,
-            korishlar: 980,
-            janrlar: "Jangari, Mistika, Mifyologiya",
-            video_url: "https://www.w3schools.com/html/mov_bbb.mp4",
-            tavsiya: true,
-            is_banner: true
-          },
-          {
-            id: 3,
-            title: "Demon Slayer: Hashira Training Arc",
-            description: "Tanjiro va uning do'stlari Yuqori Darajali iblislar bilan bo'ladigan hal qiluvchi jang oldidan Hashiralar bilan mashg'ulot o'tkazishadi.",
-            image_url: "https://m.media-amazon.com/images/M/MV5BZjgwNzRhM2EtNWY2OC00M2I2LThmYWYtMDlkY2VmZWM4Y2FlXkEyXkFqcGc@._V1_.jpg",
-            banner_url: "https://m.media-amazon.com/images/M/MV5BZjgwNzRhM2EtNWY2OC00M2I2LThmYWYtMDlkY2VmZWM4Y2FlXkEyXkFqcGc@._V1_.jpg",
-            rating: 9.2,
-            rating_count: 95,
-            holati: "Tugallangan",
-            yil: 2024,
-            studiyasi: "ufotable",
-            qismlar_soni: 8,
-            korishlar: 850,
-            janrlar: "Jangari, Mifyologiya, Tarixiy",
-            video_url: "https://www.w3schools.com/html/mov_bbb.mp4",
-            tavsiya: true,
-            is_banner: true
-          }
-        ],
-        notifications: [
-          {
-            id: 1,
-            message: "Xush kelibsiz! Animem.uz platformasiga yangi animelar va epizodlar yuklanmoqda.",
-            created_at: new Date().toISOString()
-          }
-        ],
-        comments: [],
-        episodes: [],
-        users: [],
-        ratings: [],
-        messages: [],
-        mangas: [],
-        manga_chapters: [],
-        dramas: [],
-        donations: []
-      };
-      fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(defaultData, null, 2), "utf-8");
-      memoryLocalStore = defaultData;
-      return memoryLocalStore;
-    }
-    const raw = fs.readFileSync(LOCAL_STORE_PATH, "utf-8");
-    memoryLocalStore = JSON.parse(raw);
-    if (!memoryLocalStore.mangas) memoryLocalStore.mangas = [];
-    if (!memoryLocalStore.manga_chapters) memoryLocalStore.manga_chapters = [];
-    if (!memoryLocalStore.dramas) memoryLocalStore.dramas = [];
-    if (!memoryLocalStore.drama_episodes) memoryLocalStore.drama_episodes = [];
-    if (!memoryLocalStore.donations) memoryLocalStore.donations = [];
-    return memoryLocalStore;
-  } catch (e) {
-    console.error("Error loading local_store.json:", e);
-    return { animes: [], notifications: [], comments: [], episodes: [], users: [], ratings: [], messages: [] };
-  }
+  return {
+    animes: [],
+    notifications: [],
+    comments: [],
+    episodes: [],
+    users: [],
+    ratings: [],
+    messages: [],
+    mangas: [],
+    manga_chapters: [],
+    dramas: [],
+    drama_episodes: [],
+    donations: []
+  };
 }
 
-function saveLocalStore(data: any) {
-  memoryLocalStore = data;
-  if (saveStoreTimeout) clearTimeout(saveStoreTimeout);
-  saveStoreTimeout = setTimeout(() => {
-    fs.promises.writeFile(LOCAL_STORE_PATH, JSON.stringify(data, null, 2), "utf-8").catch((err) => {
-      console.error("Error async saving local_store.json:", err);
-    });
-  }, 1000);
+function saveLocalStore(_data: any) {
+  // PostgreSQL animems is the sole single source of truth
 }
 
 const server = http.createServer(app);
@@ -578,13 +466,13 @@ const authenticateToken = (req: any, res: any, next: any) => {
   next();
 };
 
-// Check and ensure database connection on start (100% Supabase PostgreSQL)
+// Check and ensure database connection on start (100% PostgreSQL animems)
 async function testDbConnection() {
   try {
-    const [rows]: any = await d1ExecuteQuery("SELECT COUNT(*) as cnt FROM animes;");
-    console.log(`✅ [Supabase PostgreSQL] Connected successfully! Found ${rows[0]?.cnt || 0} animes.`);
+    const [rows]: any = await d1ExecuteQuery("SELECT COUNT(*) as cnt FROM anime;");
+    console.log(`✅ [PostgreSQL animems] Connected successfully! Found ${rows[0]?.cnt || 0} animes in PostgreSQL.`);
   } catch (err: any) {
-    console.error(`❌ [Supabase Connection Error]`, err?.message || err);
+    console.error(`❌ [PostgreSQL Connection Error]`, err?.message || err);
   }
 }
 testDbConnection();
@@ -2000,52 +1888,58 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.post("/api/auth/google", async (req, res) => {
   try {
-    const { email, name, avatar_url } = req.body;
+    const { email, name, avatar_url, google_id } = req.body;
     if (!email || !name) {
       return res.status(400).json({ error: "Kerakli ma'lumotlar yo'q" });
     }
 
-    let [users]: any = await dbQuery("SELECT * FROM users WHERE email = ?", [email]);
-    let user = users[0];
+    const cleanEmail = email.toLowerCase().trim();
+    let [users]: any = await dbQuery("SELECT * FROM users WHERE LOWER(email) = ?", [cleanEmail]);
+    let user = users && users[0];
 
     if (!user) {
-      const role = email === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
-      // Auto generate random password for google users (they won't use it anyway)
-      const randomPass = Math.random().toString(36).slice(-8);
+      const role = cleanEmail === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+      const randomPass = crypto.randomBytes(16).toString("hex");
       const hashedPassword = await bcrypt.hash(randomPass, 10);
+      const cleanUsername = cleanEmail.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "") + "_" + Math.floor(Math.random() * 1000);
       
       const [result]: any = await dbQuery(
-        "INSERT INTO users (name, email, password, role, avatar_url) VALUES (?, ?, ?, ?, ?)",
-        [name, email, hashedPassword, role, avatar_url || null]
+        "INSERT INTO users (name, display_name, username, email, password, password_hash, role, avatar_url, google_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [name, name, cleanUsername, cleanEmail, hashedPassword, hashedPassword, role, avatar_url || null, google_id || null]
       );
       
       user = {
         id: result.insertId,
         name,
-        email,
+        display_name: name,
+        username: cleanUsername,
+        email: cleanEmail,
         role,
         avatar_url: avatar_url || null,
       };
     } else {
-      // If user exists but doesn't have an avatar, or if google avatar is newer, we can save it
       if (avatar_url && !user.avatar_url) {
         await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [avatar_url, user.id]);
         user.avatar_url = avatar_url;
+      }
+      if (google_id && !user.google_id) {
+        await dbQuery("UPDATE users SET google_id = ? WHERE id = ?", [google_id, user.id]);
+        user.google_id = google_id;
       }
     }
 
     const userPayload = {
       id: user.id,
-      name: user.name,
+      name: user.name || user.display_name || user.username || name,
       email: user.email,
-      role: user.role,
+      role: user.role || "user",
       avatar_url: user.avatar_url,
     };
 
     const tokenPayload = {
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role || "user",
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: "30d" });
@@ -2056,7 +1950,7 @@ app.post("/api/auth/google", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Google Login error:", error);
-    res.status(500).json({ error: "Serverda xatolik yuz berdi" });
+    res.status(500).json({ error: "Google orqali kirishda xatolik yuz berdi" });
   }
 });
 

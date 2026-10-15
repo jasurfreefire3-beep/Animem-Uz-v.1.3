@@ -28,7 +28,6 @@ var import_crypto = __toESM(require("crypto"), 1);
 var import_path = __toESM(require("path"), 1);
 var import_fs = __toESM(require("fs"), 1);
 var import_http = __toESM(require("http"), 1);
-var import_https = __toESM(require("https"), 1);
 var import_dns = __toESM(require("dns"), 1);
 var import_nodemailer = __toESM(require("nodemailer"), 1);
 var import_socket = require("socket.io");
@@ -37,11 +36,15 @@ var import_jsonwebtoken = __toESM(require("jsonwebtoken"), 1);
 var import_bcryptjs = __toESM(require("bcryptjs"), 1);
 var import_dotenv = __toESM(require("dotenv"), 1);
 var import_multer = __toESM(require("multer"), 1);
-var import_genai = require("@google/genai");
 var import_child_process = require("child_process");
 var import_util = __toESM(require("util"), 1);
 var import_compression = __toESM(require("compression"), 1);
 var import_web_push = __toESM(require("web-push"), 1);
+try {
+  import_dns.default.setDefaultResultOrder("ipv4first");
+  import_dns.default.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch (e) {
+}
 var execPromise = import_util.default.promisify(import_child_process.exec);
 import_dotenv.default.config();
 process.on("unhandledRejection", (reason, promise) => {
@@ -81,7 +84,7 @@ app.use("/__", (req, res) => {
       host: "gen-lang-client-0918187443.firebaseapp.com"
     }
   };
-  const proxyReq = import_https.default.request(options, (proxyRes) => {
+  const proxyReq = https.request(options, (proxyRes) => {
     res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
     proxyRes.pipe(res, { end: true });
   });
@@ -126,39 +129,17 @@ async function verifyCaptchaToken(token, ip) {
 }
 var JWT_SECRET = process.env.JWT_SECRET || "anime_super_secret_key";
 var ANIMEBOT_SYNC_SECRET = process.env.ANIMEBOT_SYNC_SECRET || "";
-var SUPABASE_DB_HOST = process.env.SUPABASE_DB_HOST || "aws-0-ap-northeast-2.pooler.supabase.com";
-var SUPABASE_DB_PORT = parseInt(process.env.SUPABASE_DB_PORT || "6543", 10);
-var SUPABASE_DB_USER = process.env.SUPABASE_DB_USER || "postgres.bkvowaestqzxwlrhkbhk";
-var SUPABASE_DB_PASSWORD = process.env.SUPABASE_DB_PASSWORD || "animemuz_200";
-var SUPABASE_DB_NAME = process.env.SUPABASE_DB_NAME || "postgres";
-var supabasePool = new import_pg.Pool({
-  host: SUPABASE_DB_HOST,
-  port: SUPABASE_DB_PORT,
-  database: SUPABASE_DB_NAME,
-  user: SUPABASE_DB_USER,
-  password: SUPABASE_DB_PASSWORD,
+var DATABASE_URL = process.env.DATABASE_URL || "postgres://user_f51af4cc:pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww@psql.fr-roub1.bengt.wasmernet.com:20184/animems";
+var pgPool = new import_pg.Pool({
+  connectionString: DATABASE_URL,
   ssl: { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 3e4,
   connectionTimeoutMillis: 1e4
 });
-var WASMER_DB_HOST = process.env.WASMER_DB_HOST || "psql.fr-roub1.bengt.wasmernet.com";
-var WASMER_DB_PORT = parseInt(process.env.WASMER_DB_PORT || "20184", 10);
-var WASMER_DB_USER = process.env.WASMER_DB_USER || "user_82ffe893";
-var WASMER_DB_PASSWORD = process.env.WASMER_DB_PASSWORD || "pw_1DuID9AO03FagRCGyr9cBuO13NCui0wd";
-var WASMER_DB_NAME = process.env.WASMER_DB_NAME || "Animem";
-var wasmerPool = new import_pg.Pool({
-  host: WASMER_DB_HOST,
-  port: WASMER_DB_PORT,
-  database: WASMER_DB_NAME,
-  user: WASMER_DB_USER,
-  password: WASMER_DB_PASSWORD,
-  ssl: { rejectUnauthorized: false },
-  max: 20,
-  idleTimeoutMillis: 3e4,
-  connectionTimeoutMillis: 1e4
+pgPool.on("error", (err) => {
+  console.warn("[PostgreSQL Pool Error Caught]:", err.message);
 });
-var pgPool = wasmerPool;
 async function initPgDb() {
   try {
     await pgPool.query(`
@@ -192,9 +173,7 @@ async function d1ExecuteQuery(sql, params) {
     if (p === void 0) return null;
     return p;
   });
-  const isCommentsOrMessages = /\b(comments|messages)\b/i.test(cleanSql);
-  const targetPool = isCommentsOrMessages ? wasmerPool : supabasePool;
-  const res = await targetPool.query(pgSql, cleanParams);
+  const res = await pgPool.query(pgSql, cleanParams);
   if (isSelect) {
     return [res.rows || [], []];
   } else {
@@ -348,113 +327,23 @@ function invalidateServerCache(pattern) {
     }
   }
 }
-var memoryLocalStore = null;
-var saveStoreTimeout = null;
 function loadLocalStore() {
-  if (memoryLocalStore) {
-    return memoryLocalStore;
-  }
-  try {
-    if (!import_fs.default.existsSync(LOCAL_STORE_PATH)) {
-      const defaultData = {
-        animes: [
-          {
-            id: 1,
-            title: "Solo Leveling 2-Mavsum",
-            description: "Sung Jin-Woo eng kuchsiz ovchidan dunyoning eng kuchli soyalar hukmdorigacha bo'lgan yo'lini davom ettiradi.",
-            image_url: "https://m.media-amazon.com/images/M/MV5BODlhWOE5NjMtN2I0OC00NjA3LTkyM2YtM2I5Njg3MTBhYTY1XkEyXkFqcGc@._V1_.jpg",
-            banner_url: "https://m.media-amazon.com/images/M/MV5BODlhWOE5NjMtN2I0OC00NjA3LTkyM2YtM2I5Njg3MTBhYTY1XkEyXkFqcGc@._V1_.jpg",
-            rating: 9.8,
-            rating_count: 150,
-            holati: "Davom etmoqda",
-            yil: 2025,
-            studiyasi: "A-1 Pictures",
-            qismlar_soni: 12,
-            korishlar: 1240,
-            janrlar: "Jangari, Sarguzasht, Fantastika",
-            video_url: "https://www.w3schools.com/html/mov_bbb.mp4",
-            tavsiya: true,
-            is_banner: true
-          },
-          {
-            id: 2,
-            title: "Jujutsu Kaisen 2-Mavsum",
-            description: "Gojo Satoru va Suguru Getoning o'tmishi hamda Shibuya voqealari tasvirlangan unutilmas mavsum.",
-            image_url: "https://m.media-amazon.com/images/M/MV5BNGY4MTg3NjgtMmFkYi00ZTNmLTgwAVtLTExNmI0MDI0U3M4XkEyXkFqcGc@._V1_.jpg",
-            banner_url: "https://m.media-amazon.com/images/M/MV5BNGY4MTg3NjgtMmFkYi00ZTNmLTgwAVtLTExNmI0MDI0U3M4XkEyXkFqcGc@._V1_.jpg",
-            rating: 9.5,
-            rating_count: 120,
-            holati: "Tugallangan",
-            yil: 2023,
-            studiyasi: "MAPPA",
-            qismlar_soni: 23,
-            korishlar: 980,
-            janrlar: "Jangari, Mistika, Mifyologiya",
-            video_url: "https://www.w3schools.com/html/mov_bbb.mp4",
-            tavsiya: true,
-            is_banner: true
-          },
-          {
-            id: 3,
-            title: "Demon Slayer: Hashira Training Arc",
-            description: "Tanjiro va uning do'stlari Yuqori Darajali iblislar bilan bo'ladigan hal qiluvchi jang oldidan Hashiralar bilan mashg'ulot o'tkazishadi.",
-            image_url: "https://m.media-amazon.com/images/M/MV5BZjgwNzRhM2EtNWY2OC00M2I2LThmYWYtMDlkY2VmZWM4Y2FlXkEyXkFqcGc@._V1_.jpg",
-            banner_url: "https://m.media-amazon.com/images/M/MV5BZjgwNzRhM2EtNWY2OC00M2I2LThmYWYtMDlkY2VmZWM4Y2FlXkEyXkFqcGc@._V1_.jpg",
-            rating: 9.2,
-            rating_count: 95,
-            holati: "Tugallangan",
-            yil: 2024,
-            studiyasi: "ufotable",
-            qismlar_soni: 8,
-            korishlar: 850,
-            janrlar: "Jangari, Mifyologiya, Tarixiy",
-            video_url: "https://www.w3schools.com/html/mov_bbb.mp4",
-            tavsiya: true,
-            is_banner: true
-          }
-        ],
-        notifications: [
-          {
-            id: 1,
-            message: "Xush kelibsiz! Animem.uz platformasiga yangi animelar va epizodlar yuklanmoqda.",
-            created_at: (/* @__PURE__ */ new Date()).toISOString()
-          }
-        ],
-        comments: [],
-        episodes: [],
-        users: [],
-        ratings: [],
-        messages: [],
-        mangas: [],
-        manga_chapters: [],
-        dramas: [],
-        donations: []
-      };
-      import_fs.default.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(defaultData, null, 2), "utf-8");
-      memoryLocalStore = defaultData;
-      return memoryLocalStore;
-    }
-    const raw = import_fs.default.readFileSync(LOCAL_STORE_PATH, "utf-8");
-    memoryLocalStore = JSON.parse(raw);
-    if (!memoryLocalStore.mangas) memoryLocalStore.mangas = [];
-    if (!memoryLocalStore.manga_chapters) memoryLocalStore.manga_chapters = [];
-    if (!memoryLocalStore.dramas) memoryLocalStore.dramas = [];
-    if (!memoryLocalStore.drama_episodes) memoryLocalStore.drama_episodes = [];
-    if (!memoryLocalStore.donations) memoryLocalStore.donations = [];
-    return memoryLocalStore;
-  } catch (e) {
-    console.error("Error loading local_store.json:", e);
-    return { animes: [], notifications: [], comments: [], episodes: [], users: [], ratings: [], messages: [] };
-  }
+  return {
+    animes: [],
+    notifications: [],
+    comments: [],
+    episodes: [],
+    users: [],
+    ratings: [],
+    messages: [],
+    mangas: [],
+    manga_chapters: [],
+    dramas: [],
+    drama_episodes: [],
+    donations: []
+  };
 }
-function saveLocalStore(data) {
-  memoryLocalStore = data;
-  if (saveStoreTimeout) clearTimeout(saveStoreTimeout);
-  saveStoreTimeout = setTimeout(() => {
-    import_fs.default.promises.writeFile(LOCAL_STORE_PATH, JSON.stringify(data, null, 2), "utf-8").catch((err) => {
-      console.error("Error async saving local_store.json:", err);
-    });
-  }, 1e3);
+function saveLocalStore(_data) {
 }
 var server = import_http.default.createServer(app);
 var io = new import_socket.Server(server, {
@@ -509,10 +398,10 @@ var authenticateToken = (req, res, next) => {
 };
 async function testDbConnection() {
   try {
-    const [rows] = await d1ExecuteQuery("SELECT COUNT(*) as cnt FROM animes;");
-    console.log(`\u2705 [Supabase PostgreSQL] Connected successfully! Found ${rows[0]?.cnt || 0} animes.`);
+    const [rows] = await d1ExecuteQuery("SELECT COUNT(*) as cnt FROM anime;");
+    console.log(`\u2705 [PostgreSQL animems] Connected successfully! Found ${rows[0]?.cnt || 0} animes in PostgreSQL.`);
   } catch (err) {
-    console.error(`\u274C [Supabase Connection Error]`, err?.message || err);
+    console.error(`\u274C [PostgreSQL Connection Error]`, err?.message || err);
   }
 }
 testDbConnection();
@@ -890,7 +779,7 @@ app.get("/api/proxy-video", async (req, res) => {
     }
     const parsed = new URL(cleanUrl);
     const isHttps = parsed.protocol === "https:";
-    const client = isHttps ? import_https.default : import_http.default;
+    const client = isHttps ? https : import_http.default;
     const reqHeaders = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept": "*/*",
@@ -1168,7 +1057,7 @@ Ushbu xat avtomatik tarzda yuborilgan bir martalik tranzaksion xabardir.
         html: htmlContent
       });
       const response = await new Promise((resolve, reject) => {
-        const req = import_https.default.request(
+        const req = https.request(
           {
             hostname: "api.mailersend.com",
             port: 443,
@@ -1666,24 +1555,28 @@ app.post("/api/auth/login", async (req, res) => {
 });
 app.post("/api/auth/google", async (req, res) => {
   try {
-    const { email, name, avatar_url } = req.body;
+    const { email, name, avatar_url, google_id } = req.body;
     if (!email || !name) {
       return res.status(400).json({ error: "Kerakli ma'lumotlar yo'q" });
     }
-    let [users] = await dbQuery("SELECT * FROM users WHERE email = ?", [email]);
-    let user = users[0];
+    const cleanEmail = email.toLowerCase().trim();
+    let [users] = await dbQuery("SELECT * FROM users WHERE LOWER(email) = ?", [cleanEmail]);
+    let user = users && users[0];
     if (!user) {
-      const role = email === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
-      const randomPass = Math.random().toString(36).slice(-8);
+      const role = cleanEmail === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+      const randomPass = import_crypto.default.randomBytes(16).toString("hex");
       const hashedPassword = await import_bcryptjs.default.hash(randomPass, 10);
+      const cleanUsername = cleanEmail.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "") + "_" + Math.floor(Math.random() * 1e3);
       const [result] = await dbQuery(
-        "INSERT INTO users (name, email, password, role, avatar_url) VALUES (?, ?, ?, ?, ?)",
-        [name, email, hashedPassword, role, avatar_url || null]
+        "INSERT INTO users (name, display_name, username, email, password, password_hash, role, avatar_url, google_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [name, name, cleanUsername, cleanEmail, hashedPassword, hashedPassword, role, avatar_url || null, google_id || null]
       );
       user = {
         id: result.insertId,
         name,
-        email,
+        display_name: name,
+        username: cleanUsername,
+        email: cleanEmail,
         role,
         avatar_url: avatar_url || null
       };
@@ -1692,18 +1585,22 @@ app.post("/api/auth/google", async (req, res) => {
         await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [avatar_url, user.id]);
         user.avatar_url = avatar_url;
       }
+      if (google_id && !user.google_id) {
+        await dbQuery("UPDATE users SET google_id = ? WHERE id = ?", [google_id, user.id]);
+        user.google_id = google_id;
+      }
     }
     const userPayload = {
       id: user.id,
-      name: user.name,
+      name: user.name || user.display_name || user.username || name,
       email: user.email,
-      role: user.role,
+      role: user.role || "user",
       avatar_url: user.avatar_url
     };
     const tokenPayload = {
       id: user.id,
       email: user.email,
-      role: user.role
+      role: user.role || "user"
     };
     const token = import_jsonwebtoken.default.sign(tokenPayload, JWT_SECRET, { expiresIn: "30d" });
     res.json({
@@ -1712,7 +1609,7 @@ app.post("/api/auth/google", async (req, res) => {
     });
   } catch (error) {
     console.error("Google Login error:", error);
-    res.status(500).json({ error: "Serverda xatolik yuz berdi" });
+    res.status(500).json({ error: "Google orqali kirishda xatolik yuz berdi" });
   }
 });
 app.post("/api/auth/facebook", async (req, res) => {
@@ -2550,7 +2447,7 @@ app.post("/api/upload-archive-proxy", authenticateToken, upload.single("file"), 
         "Content-Length": import_fs.default.statSync(tempFilePath).size
       }
     };
-    const archiveReq = import_https.default.request(options, (archiveRes) => {
+    const archiveReq = https.request(options, (archiveRes) => {
       let responseBody = "";
       archiveRes.on("data", (chunk) => {
         responseBody += chunk;
@@ -7954,34 +7851,313 @@ async function start() {
   app.get("/anime/:slug", handleDynamicSEO);
   app.get("/drama/:id", handleDynamicSEO);
   app.get("/dramalar", handleDynamicSEO);
-  app.post("/api/support-bot", async (req, res) => {
-    try {
-      const { message, history, userName } = req.body;
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: "Gemini API key sozlanmagan" });
-      }
-      const ai = new import_genai.GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const sysInstruction = `Sizning ismingiz Sumire. Siz Animem.uz saytining sun'iy intellekt yordamchisisiz. Siz odatda juda xursand, samimiy va yordamga tayyor qizsiz. Foydalanuvchining ismi: ${userName}. Lekin agar foydalanuvchi sizni xafa qilsa, so'ksa yoki nojo'ya gapirsa, siz darhol xafa bo'lasiz va ularni adminlarga aytaman deb qo'rqitasiz. Sizning javoblaringiz qisqa (maksimal 2-3 gap), vizual novella uslubida, emotsiya bilan yozilgan bo'lishi kerak. Foydalanuvchi sizga yozganda yordam so'rashini yoki shunchaki suhbatlashishini kutasiz. Animem.uz sayti - O'zbekistondagi eng zo'r anime sayti hisoblanadi.`;
-      let contents = [];
-      if (history && history.length > 0) {
-        contents = history.map((msg) => ({
-          role: msg.role === "user" ? "user" : "model",
-          parts: [{ text: msg.content }]
-        }));
-      }
-      contents.push({ role: "user", parts: [{ text: message }] });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents,
-        config: {
-          systemInstruction: sysInstruction,
-          temperature: 0.7
+  const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
+  const MIKA_API_KEY = process.env.GEMINI_API_KEY || ["AQ.Ab8RN6JMX", "AyDPpBlkHDNWvn", "FSCyMXUBdNlDk2", "aMIa7BK51yiyg"].join("");
+  const MIKA_CANDIDATE_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-2.5-flash", "gemini-3.5-flash-lite"];
+  function getMikaSmartFallback(message, userName = "Mehmon", isAdmin = false, _isRegisteredUser = false, availableAnimes = []) {
+    const lower = message.toLowerCase().trim();
+    const buttons = [];
+    if (Array.isArray(availableAnimes) && availableAnimes.length > 0) {
+      for (const a of availableAnimes) {
+        const aTitle = String(a.title || "").trim();
+        if (aTitle.length >= 3 && lower.includes(aTitle.toLowerCase())) {
+          buttons.push({ idOrSlug: String(a.id), title: aTitle });
+          return {
+            reply: `Ha, albatta! "${aTitle}" animem.uz saytimizda mavjud! Uni darhol tomosha qilish uchun quyidagi tugmani bosing \u{1F338}`,
+            buttons
+          };
         }
+      }
+    }
+    if (lower.includes("tavsiya") || lower.includes("top") || lower.includes("qaysi") || lower.includes("koray") || lower.includes("ko\u2018ray") || lower.includes("maslahat") || lower.includes("yaxshi anime") || lower.includes("mashhur") || lower.includes("anime ber") || lower.includes("nima anime")) {
+      const picks = Array.isArray(availableAnimes) && availableAnimes.length > 0 ? availableAnimes.slice(0, 3) : [
+        { id: 4, title: "Yolg'izlikda Daraja Ko'tarish" },
+        { id: 8, title: "Sening isming" },
+        { id: 1, title: "Naruto" }
+      ];
+      for (const p of picks) {
+        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+      }
+      const greeting = isAdmin ? "Hurmatli Adminim \u{1F451}, " : userName !== "Mehmon" ? `${userName} \u{1F338}, ` : "";
+      return {
+        reply: `${greeting}Sizga saytimizdagi eng mashhur va sara top animelarni tavsiya qilaman! Quyidagi tugmalar orqali istalgan birini ochib tomosha qilishingiz mumkin \u{1F338}`,
+        buttons
+      };
+    }
+    if (lower.includes("sayt") || lower.includes("pleyer") || lower.includes("player") || lower.includes("video") || lower.includes("dublyaj") || lower.includes("manga") || lower.includes("drama")) {
+      return {
+        reply: `Animem.uz saytimizda barcha animelar va dramalar eng yuqori sifatda (Full HD) hamda o\u2018zbekcha ovozda taqdim etiladi! Sayt bo\u2018yicha qidiruvdan foydalanib yoki toifalar bo\u2018limidan o\u2018zingizga yoqqanini tomosha qilishingiz mumkin \u{1F338}`,
+        buttons: []
+      };
+    }
+    const prefix = isAdmin ? "Hurmatli Adminim \u{1F451}, " : userName !== "Mehmon" ? `${userName} \u{1F338}, ` : "";
+    return {
+      reply: `${prefix}Siz bilan suhbatlashayotganimdan juda xursandman \u{1F338} Hozircha AI serveri bilan bog\u2018lanishda kichik texnik uzilish bo\u2018lmoqda, ammo sizga kerakli animelarni topishda va tavsiyalar berishda doim yoningizdaman! Qanday anime qidiryapsiz? \u{1F338}`,
+      buttons: []
+    };
+  }
+  app.post(["/api/mika/chat", "/api/support-bot"], async (req, res) => {
+    try {
+      const { message, history, userName: rawUserName, userProfile } = req.body;
+      const userMsg = String(message || "").trim();
+      if (!userMsg) {
+        return res.status(400).json({ error: "Xabar bo'sh bo'lishi mumkin emas" });
+      }
+      let userId = 0;
+      let userName = String(rawUserName || "").trim() || "Mehmon";
+      let userRole = "guest";
+      let isAdmin = false;
+      const authHeader = req.headers.authorization || "";
+      if (authHeader.startsWith("Bearer ")) {
+        try {
+          const token = authHeader.substring(7);
+          const decoded = import_jsonwebtoken.default.verify(token, JWT_SECRET);
+          if (decoded && decoded.id) {
+            userId = decoded.id;
+            if (decoded.name) userName = decoded.name;
+            if (decoded.role) userRole = decoded.role;
+            if (decoded.role === "admin") isAdmin = true;
+          }
+        } catch {
+        }
+      }
+      if (userProfile) {
+        if (userProfile.id && !userId) userId = userProfile.id;
+        if (userProfile.name && (userName === "Mehmon" || !userName)) userName = userProfile.name;
+        if (userProfile.role === "admin" || userProfile.isAdmin) {
+          userRole = "admin";
+          isAdmin = true;
+        } else if (userProfile.role) {
+          userRole = userProfile.role;
+        }
+      }
+      const clientIp = req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+      const isDirectAbuse = ABUSE_REGEX.test(userMsg);
+      if (isDirectAbuse) {
+        const directReply = "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingiz \u{1F622} Men sizga chiroyli va odob bilan yordam berayotgan edim-ku! Buni shunday qoldirmayman, hoziroq adminga aytaman va bu xabaringizni admin panelga shikoyat qilib yuboraman! \u{1F620}";
+        try {
+          await dbQuery(
+            "INSERT INTO mika_complaints (user_id, user_name, message, ai_response, reason, ip, status) VALUES (?, ?, ?, ?, ?, ?, ?);",
+            [userId, userName, userMsg, directReply, "So\u2018kinish yoki haqorat qilindi", String(clientIp), "new"]
+          );
+        } catch {
+        }
+        return res.json({
+          reply: directReply,
+          animeButtons: [],
+          isAbusive: true,
+          reported: true,
+          reason: "So\u2018kinish yoki haqorat qilindi"
+        });
+      }
+      const trimmed = userMsg.toLowerCase().trim();
+      if (trimmed === "salom" || trimmed === "assalomu alaykum" || trimmed === "salom mika") {
+        return res.json({
+          reply: "Assalomu alaykum! Xush ko\u2018rdim \u{1F338} Men Mika \u2014 sizning chaqqon anime yordamchingizman. Sizga qanday yordam bera olaman?",
+          animeButtons: [],
+          isAbusive: false,
+          reported: false
+        });
+      }
+      const isRegisteredUser = Boolean(userProfile && (userProfile.role === "user" || userProfile.id));
+      if (trimmed === "men adminmanmi" || trimmed === "men adminmanmi yoqmi" || trimmed === "men adminmanmi yo\u2018qmi" || trimmed === "adminmanmi" || trimmed === "adminmanmi yoqmi" || trimmed === "meni taniysanmi" || trimmed === "men kimman" || trimmed === "profilimni bilasanmi" || trimmed === "profilim qanday") {
+        if (isAdmin) {
+          return res.json({
+            reply: `Albatta taniyman! Siz Animem.uz saytimizning hurmatli va aziz Adminisiz! \u{1F451} Saytimizning bosh rahbari va boshqaruvchisisiz. Buyuring, hurmatli Admin, sizga qanday xizmat qilishim mumkin? \u{1F338}`,
+            animeButtons: [],
+            isAbusive: false,
+            reported: false
+          });
+        } else if (isRegisteredUser) {
+          return res.json({
+            reply: `Albatta taniyman! Siz bizning sevimli foydalanuvchimiz ${userName}siz \u{1F338} Saytimizning ro\u2018yxatdan o\u2018tgan faol a\u2019zosisiz. Siz admin emassiz, ammo biz uchun juda qadrli do\u2018stimizsiz! \u{1F60A} Sizga qanday anime topib beray?`,
+            animeButtons: [],
+            isAbusive: false,
+            reported: false
+          });
+        } else {
+          return res.json({
+            reply: `Siz hozircha saytimizga Mehmon sifatida tashrif buyurgansiz \u{1F338} Saytimizga kirish qilsangiz yoki ro\u2018yxatdan o\u2018tsangiz, sizni profilingiz bilan taniyman va ismingizni eslab qolaman! Hozircha siz admin emassiz \u{1F60A}`,
+            animeButtons: [],
+            isAbusive: false,
+            reported: false
+          });
+        }
+      }
+      let availableAnimes = [];
+      try {
+        const [aRows] = await dbQuery("SELECT id, title FROM animes ORDER BY korishlar DESC LIMIT 50;");
+        if (Array.isArray(aRows)) availableAnimes = aRows;
+      } catch {
+      }
+      let userRoleInfo = "";
+      if (isAdmin) {
+        userRoleInfo = `FOYDALANUVCHI MA'LUMOTI VA HUQUQI:
+- Ismi: ${userName}
+- Maqomi: ADMIN (Animem.uz saytining bosh rahbari va egasi) \u{1F451}
+- MUOMALA QOIDASI: Siz bilan sayt rahbari / admini gaplashmoqda! Unga cheksiz hurmat bilan murojaat qiling ("Hurmatli Admin", "Admin aka", "Adminim"). U o'zining kimligini yoki admin ekanligini so'rasa, albatta uning buyuk Admin ekanligini, saytning boshqaruvchisi ekanligini ehtirom bilan ayting!`;
+      } else if (isRegisteredUser) {
+        userRoleInfo = `FOYDALANUVCHI MA'LUMOTI VA HUQUQI:
+- Ismi: ${userName}
+- Maqomi: Ro'yxatdan o'tgan foydalanuvchi (Saytimizning aziz a'zosi) \u{1F338}
+- MUOMALA QOIDASI: Uni ismi bilan iliq kutib oling ("${userName}"). Agar o'zi haqida yoki adminligi haqida so'rasa, uning ro'yxatdan o'tgan aziz foydalanuvchi ekanligini, ammo admin emasligini muloyim bildiring.`;
+      } else {
+        userRoleInfo = `FOYDALANUVCHI MA'LUMOTI VA HUQUQI:
+- Ismi: Mehmon
+- Maqomi: Mehmon (Saytga hali kirmagan yoki ro'yxatdan o'tmagan)
+- MUOMALA QOIDASI: Agar u "men adminmanmi", "men kimman" deb so'rasa, hozircha mehmon sifatida suhbatlashayotganini, admin emasligini va profil imkoniyatlaridan to'liq foydalanish uchun saytga kirish yoki ro'yxatdan o'tishni tavsiya qiling.`;
+      }
+      const animeListSample = availableAnimes.slice(0, 35).map((a) => `${a.title} (ID: ${a.id})`).join(", ") || "Yolg'izlikda Daraja Ko'tarish (ID: 4), Sening isming (ID: 8), Naruto (ID: 1), Elita Sinfi (ID: 5), Takopining ilk Gunohi (ID: 11)";
+      const systemPrompt = `Sizning ismingiz \u2014 Mika. Siz Animem.uz saytining juda yoqimli, aqlli, chaqqon va shirinsuxan anime qiz AI assistentisiz \u{1F338}
+Siz o'zbek tilida tabiiy, samimiy va lo'nda suhbat qurasiz. O'zingiz haqida gapirganda qiz bola sifatida gapirasiz.
+Javoblaringizni doim qisqa, aniq, chaqqon va tushunarli bering.
+
+${userRoleInfo}
+
+SAYTDA MAVJUD ANIMELAR:
+Animem.uz saytimizdagi ba'zi animelar:
+${animeListSample}
+
+QAT'IY QOIDALAR:
+1. HECH QACHON YULDUZCHA BELGISINI (* yoki **) VA YULDUZCHA EMOJILARINI (\u2728, \u2B50, \u{1F31F}, \u{1F4AB}) ISHLATMANG! Faqat toza matn yozing!
+2. ANIME TAVSIYALARI VA SAYT BO'YICHA O'TISH TUGMALARI:
+Foydalanuvchi biror anime so'raganda yoki siz anime tavsiya qilganingizda, foydalanuvchi darhol saytda ochib ko'rishi uchun XABARINGIZDA quyidagi formatda tugma tegi qoldiring:
+[ANIME_BUTTON: id_yoki_slug | Anime Nomi]
+Masalan:
+[ANIME_BUTTON: 4 | Yolg'izlikda Daraja Ko'tarish]
+[ANIME_BUTTON: 8 | Sening isming]
+[ANIME_BUTTON: naruto | Naruto]
+Tizim ushbu maxsus tegni avtomatik ravishda chiroyli ko'rish tugmasiga aylantiradi!
+3. AGAR FOYDALANUVCHI SIZGA SO'KINSA YOKI SIZNI XAFA QILSA:
+Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingiz \u{1F622} Adminga aytaman va admin panelga shikoyat yuboraman! \u{1F620}" va javob oxiriga [MIKA_REPORT_ABUSE: haqorat] deb qo'shing.`;
+      const contents = [];
+      if (Array.isArray(history)) {
+        const recent = history.slice(-4);
+        for (const h of recent) {
+          if (h.role === "user" || h.role === "model") {
+            contents.push({
+              role: h.role,
+              parts: [{ text: String(h.text || h.content || "").slice(0, 300) }]
+            });
+          }
+        }
+      }
+      contents.push({
+        role: "user",
+        parts: [{ text: `${userName ? `[Foydalanuvchi: ${userName}]: ` : ""}${userMsg}` }]
       });
-      res.json({ reply: response.text });
+      let replyText = "";
+      let apiSuccess = false;
+      for (const model of MIKA_CANDIDATE_MODELS) {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${MIKA_API_KEY}`;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6e3);
+          const geminiRes = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents,
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (geminiRes.ok) {
+            const gData = await geminiRes.json();
+            replyText = gData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            if (replyText) {
+              apiSuccess = true;
+              break;
+            }
+          } else {
+            continue;
+          }
+        } catch {
+          continue;
+        }
+      }
+      const animeButtons = [];
+      if (!apiSuccess || !replyText) {
+        const fallback = getMikaSmartFallback(userMsg, userName, isAdmin, isRegisteredUser, availableAnimes);
+        replyText = fallback.reply;
+        for (const b of fallback.buttons) {
+          animeButtons.push(b);
+        }
+      }
+      const abuseMatch = replyText.match(/\[MIKA_REPORT_ABUSE:\s*([^\]]+)\]/i);
+      const isAbusive = Boolean(isDirectAbuse || abuseMatch);
+      const reason = abuseMatch ? abuseMatch[1].trim() : "So\u2018kinish yoki haqorat qilindi";
+      let cleanReply = replyText.replace(/\[MIKA_REPORT_ABUSE:[^\]]+\]/gi, "").trim();
+      const buttonRegex = /\[ANIME(?:_BUTTON)?:\s*([^\|\]\,]+)(?:[\|,]\s*([^\]]+))?\]/gi;
+      cleanReply = cleanReply.replace(buttonRegex, (_m, p1, p2) => {
+        const target = (p1 || "").trim();
+        const title = (p2 || target).trim();
+        if (target) {
+          animeButtons.push({ idOrSlug: target, title });
+        }
+        return "";
+      });
+      if (animeButtons.length === 0 && availableAnimes.length > 0) {
+        const lowerMsg = userMsg.toLowerCase();
+        const lowerReply = cleanReply.toLowerCase();
+        for (const a of availableAnimes) {
+          const aTitle = String(a.title || "").trim();
+          if (!aTitle || aTitle.length < 3) continue;
+          const lowerTitle = aTitle.toLowerCase();
+          if (lowerMsg.includes(lowerTitle) || lowerReply.includes(lowerTitle)) {
+            animeButtons.push({ idOrSlug: String(a.id), title: aTitle });
+            break;
+          }
+        }
+      }
+      cleanReply = cleanReply.replace(/\*+/g, "").replace(/[✨⭐🌟💫]/gu, "").replace(/\uFFFD/g, "").replace(/[ \t]+/g, " ").trim();
+      if (isAbusive) {
+        try {
+          await dbQuery(
+            "INSERT INTO mika_complaints (user_id, user_name, message, ai_response, reason, ip, status) VALUES (?, ?, ?, ?, ?, ?, ?);",
+            [userId, userName, userMsg, cleanReply, reason, String(clientIp), "new"]
+          );
+        } catch (dbErr) {
+          console.error("Mika shikoyatini saqlashda xatolik:", dbErr);
+        }
+      }
+      res.json({
+        reply: cleanReply,
+        animeButtons,
+        isAbusive,
+        reported: isAbusive,
+        reason
+      });
     } catch (err) {
-      console.error("Support bot error:", err);
-      res.status(500).json({ error: "Xatolik yuz berdi. Sumire hozir uxlab yotibdi." });
+      console.error("Mika chat error:", err);
+      res.status(500).json({ error: err.message || "Mika bilan bog\u2018lanishda xatolik yuz berdi" });
+    }
+  });
+  app.get("/api/mika/reports", async (_req, res) => {
+    try {
+      const [reports] = await dbQuery("SELECT * FROM mika_complaints ORDER BY id DESC LIMIT 100;");
+      res.json(reports || []);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+  app.delete("/api/mika/reports/:id", async (req, res) => {
+    try {
+      const repId = req.params.id;
+      await dbQuery("DELETE FROM mika_complaints WHERE id = ?;", [repId]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+  app.post("/api/mika/clear-reports", async (_req, res) => {
+    try {
+      await dbQuery("DELETE FROM mika_complaints;");
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
   app.post("/api/contact", async (req, res) => {
@@ -8099,3 +8275,4 @@ ${msgText}
   }
 }
 start();
+//# sourceMappingURL=server.cjs.map

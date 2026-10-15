@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import { Anime, Drama, toSlug } from '../types';
+import { Anime, toSlug } from '../types';
 import { Star, PlayCircle, Calendar, Play, Clock, Grid, MessageSquare, ChevronLeft, ChevronRight, TrendingUp, Info, Eye, Film } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AnimeCard from '../components/AnimeCard';
-import DramaCard from '../components/DramaCard';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import UserAvatar from '../components/UserAvatar';
@@ -18,14 +17,6 @@ export default function Home() {
   const [animes, setAnimes] = useState<Anime[]>(() => {
     try {
       const cached = sessionStorage.getItem('cached_home_animes');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [dramas, setDramas] = useState<Drama[]>(() => {
-    try {
-      const cached = sessionStorage.getItem('cached_home_dramas');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
@@ -81,16 +72,6 @@ export default function Home() {
             }
           })
           .catch(() => isMounted && setLoadingComments(false));
-
-        fetch(`${API_BASE}/api/dramas`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
-            if (isMounted && Array.isArray(data)) {
-              setDramas(data);
-              try { sessionStorage.setItem('cached_home_dramas', JSON.stringify(data)); } catch {}
-            }
-          })
-          .catch(() => {});
       } catch (err) {
         console.warn("Home fast fetch note:", err);
         if (isMounted) {
@@ -126,7 +107,6 @@ export default function Home() {
 
   const newAnimes = [...animes].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 10);
   const mostViewedAnimes = [...animes].sort((a, b) => (b.korishlar || 0) - (a.korishlar || 0)).slice(0, 10);
-  const latestDramas = [...dramas].sort((a, b) => (new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) || (Number(b.id) - Number(a.id))).slice(0, 10);
   const mostRatedAnimes = [...animes].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 10);
 
   if (loading) {
@@ -338,34 +318,6 @@ export default function Home() {
               ))}
             </div>
           </section>
-
-          {/* Eng so'nggi dramalar */}
-          {latestDramas.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-4 mt-8">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Film className="w-5 h-5 text-[#ff006a]" />
-                  Eng so'nggi dramalar
-                </h2>
-                <Link to="/dramalar" className="text-xs font-medium text-white/50 hover:text-[#ff006a] transition-colors">
-                  Barchasini ko'rish
-                </Link>
-              </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {latestDramas.map((drama, idx) => (
-                  <motion.div
-                    key={`drama-${drama.id}`}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                  >
-                    <DramaCard drama={drama} />
-                  </motion.div>
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* Eng ko'p baholanganlar */}
           <section>

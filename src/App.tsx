@@ -27,11 +27,6 @@ const AnimeDetails = lazy(() => import('./pages/AnimeDetails'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Chat = lazy(() => import('./pages/Chat'));
 const Animelar = lazy(() => import('./pages/Animelar'));
-const Mangalar = lazy(() => import('./pages/Mangalar'));
-const MangaDetails = lazy(() => import('./pages/MangaDetails'));
-const MangaReader = lazy(() => import('./pages/MangaReader'));
-const Dramas = lazy(() => import('./pages/Dramas'));
-const DramaView = lazy(() => import('./pages/DramaView'));
 const Jadval = lazy(() => import('./pages/Jadval'));
 const YangiChiqishlar = lazy(() => import('./pages/YangiChiqishlar'));
 const Top100 = lazy(() => import('./pages/Top100'));
@@ -233,22 +228,14 @@ export default function App() {
               <Route path="/animelar" element={<Animelar />} />
               <Route path="/:lang/animelar" element={<Animelar />} />
 
-              <Route path="/manga" element={<Mangalar />} />
-              <Route path="/:lang/manga" element={<Mangalar />} />
-              <Route path="/mangalar" element={<Navigate to="/manga" replace />} />
-              <Route path="/:lang/mangalar" element={<Navigate to="/manga" replace />} />
-
-              <Route path="/manga/:id" element={<MangaDetails />} />
-              <Route path="/:lang/manga/:id" element={<MangaDetails />} />
-
-              <Route path="/manga/:id/read/:chapterNumber" element={<MangaReader />} />
-              <Route path="/:lang/manga/:id/read/:chapterNumber" element={<MangaReader />} />
-
-              {/* Drama Routes */}
-              <Route path="/dramalar" element={<Dramas />} />
-              <Route path="/:lang/dramalar" element={<Dramas />} />
-              <Route path="/drama/:id" element={<DramaView />} />
-              <Route path="/:lang/drama/:id" element={<DramaView />} />
+              <Route path="/manga/*" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/manga/*" element={<Navigate to="/" replace />} />
+              <Route path="/mangalar" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/mangalar" element={<Navigate to="/" replace />} />
+              <Route path="/dramalar" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/dramalar" element={<Navigate to="/" replace />} />
+              <Route path="/drama/*" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/drama/*" element={<Navigate to="/" replace />} />
 
               <Route path="/reels" element={<Navigate to="/" replace />} />
               <Route path="/:lang/reels" element={<Navigate to="/" replace />} />

@@ -13,7 +13,7 @@ import {
 import { Language } from '../i18n/translations';
 import UserAvatar from './UserAvatar';
 
-const logoImg = "https://files.catbox.moe/45hoi6.png";
+const logoImg = "/logo.png";
 
 interface NavbarProps {
   onToggleSidebar: () => void;

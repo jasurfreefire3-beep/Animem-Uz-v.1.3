@@ -41,50 +41,6 @@ export default function Login() {
   const [resetSuccessMsg, setResetSuccessMsg] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Check for Google Auth redirect result
-  useEffect(() => {
-    let isMounted = true;
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (!result || !isMounted) return;
-        const user = result.user;
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-        const res = await fetch(`${API_BASE}/api/auth/google`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            email: user.email, 
-            name: user.displayName || 'Google User', 
-            uid: user.uid,
-            avatar_url: user.photoURL
-          }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Google login failed');
-        }
-
-        login(data.token, data.user);
-        navigate('/');
-      })
-      .catch((err: any) => {
-        if (!isMounted) return;
-        console.error("Redirect auth error:", err);
-        if (err.code === 'auth/unauthorized-domain') {
-          setError(
-            `Google tizimiga kirish xatosi (unauthorized domain): Ushbu domen Firebase ruxsat etilgan domenlar ro'yxatida yo'q.`
-          );
-        } else if (err.code !== 'auth/popup-closed-by-user') {
-          setError(err.message || 'Google orqali kirishda xatolik');
-        }
-      });
-
-    return () => { isMounted = false; };
-  }, [login, navigate]);
-
   // Telegram Bot Login State
   const [tgLoading, setTgLoading] = useState(false);
   const [isTgModalOpen, setIsTgModalOpen] = useState(false);
@@ -243,38 +199,62 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const GOOGLE_CLIENT_ID = "1045938197563-q078ssunbfut19gl87jti0ti5svighqt.apps.googleusercontent.com";
+
+  const handleGoogleLogin = () => {
     try {
       setError('');
-      googleProvider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(auth, googleProvider);
-
-      if (!result || !result.user) {
-        throw new Error('Google foydalanuvchi ma\'lumotlari olinmadi');
+      if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
+        setLoading(true);
+        const client = (window as any).google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: 'email profile openid',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              try {
+                const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                });
+                const profile = await userRes.json();
+                const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+                const res = await fetch(`${API_BASE}/api/auth/google`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    email: profile.email,
+                    name: profile.name || profile.given_name || 'Google User',
+                    avatar_url: profile.picture,
+                    google_id: profile.sub,
+                    access_token: tokenResponse.access_token,
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Google login failed');
+                login(data.token, data.user);
+                navigate('/');
+              } catch (err: any) {
+                console.error('Google profile fetch error:', err);
+                setError(err.message || "Google ma'lumotlarini olishda xatolik");
+              } finally {
+                setLoading(false);
+              }
+            } else {
+              setLoading(false);
+            }
+          },
+          error_callback: (err: any) => {
+            setLoading(false);
+            console.error('Google oauth error:', err);
+            setError('Google orqali kirish bekor qilindi yoki xatolik yuz berdi');
+          }
+        });
+        client.requestAccessToken();
+      } else {
+        setError("Google xizmati yuklanmadi. Iltimos, sahifani yangilang.");
       }
-
-      const user = result.user;
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-      const res = await fetch(`${API_BASE}/api/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: user.email,
-          name: user.displayName || 'Google User',
-          uid: user.uid,
-          avatar_url: user.photoURL,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Google login failed');
-      }
-
-      login(data.token, data.user);
-      navigate('/');
     } catch (err: any) {
-      console.error('Google login popup error:', err);
+      setLoading(false);
+      console.error('Google login error:', err);
       setError(err.message || 'Google orqali kirishda xatolik');
     }
   };

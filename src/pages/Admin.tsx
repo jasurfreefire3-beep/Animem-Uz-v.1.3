@@ -10,8 +10,6 @@ import {
 import { motion } from 'motion/react';
 import { Anime, GENRE_MAP, translateGenre } from '../types';
 import AdminNotifications from '../components/AdminNotifications';
-import AdminMangalar from '../components/AdminMangalar';
-import AdminDramalar from '../components/AdminDramalar';
 import AdminUsers from '../components/AdminUsers';
 import AdminGifs from '../components/AdminGifs';
 import AdminShop from '../components/AdminShop';
@@ -22,7 +20,7 @@ import AdminMikaReports from '../components/AdminMikaReports';
 export default function Admin() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'mangas' | 'dramas' | 'users' | 'gifs' | 'shop' | 'mika_reports'>('manage_animes');
+  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports'>('manage_animes');
   
   // Anime Form States
   const [title, setTitle] = useState('');
@@ -857,30 +855,6 @@ export default function Admin() {
         >
           <Bell size={16} />
           <span>Bildirishnomalar</span>
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('mangas');
-            setMessage({ type: '', text: '' });
-          }}
-          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
-            activeTab === 'mangas' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
-          }`}
-        >
-          <BookOpen size={16} />
-          <span>Mangalar</span>
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('dramas');
-            setMessage({ type: '', text: '' });
-          }}
-          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
-            activeTab === 'dramas' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
-          }`}
-        >
-          <Film size={16} />
-          <span>Dramalar</span>
         </button>
         <button
           onClick={() => {
@@ -1930,25 +1904,6 @@ export default function Admin() {
         </motion.div>
       )}
 
-      {/* Tab 5: Mangalar */}
-      {activeTab === 'mangas' && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <AdminMangalar token={token || ''} />
-        </motion.div>
-      )}
-
-      {/* Tab: Dramalar */}
-      {activeTab === 'dramas' && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <AdminDramalar token={token || ''} />
-        </motion.div>
-      )}
 
       {/* Tab 6: Foydalanuvchilar */}
       {activeTab === 'users' && (

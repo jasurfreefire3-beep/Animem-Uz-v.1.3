@@ -22,7 +22,7 @@ import {
 import { useState, useEffect } from 'react';
 import { translateGenre } from '../types';
 
-const logoImg = "https://files.catbox.moe/45hoi6.png";
+const logoImg = "/logo.png";
 
 interface SidebarProps {
   onClose?: () => void;
@@ -72,8 +72,6 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
   const menuItems = [
     { name: t.navHome, path: '/', icon: Home },
     { name: t.navAnimes, path: '/animelar', icon: Tv },
-    { name: t.navManga, path: '/manga', icon: BookOpen },
-    { name: t.navDramas, path: '/dramalar', icon: Film },
     { name: t.navSchedule, path: '/jadval', icon: Calendar },
     { name: t.navNewReleases, path: '/yangi-chiqishlar', icon: Clock },
     { name: t.navTop100, path: '/top100', icon: Star },
