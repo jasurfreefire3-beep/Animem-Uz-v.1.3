@@ -1469,19 +1469,36 @@ export default function AnimeDetails() {
                            key={comment.id} 
                            className="bg-[#1a1a1a] p-4 rounded-sm border border-[#222] flex gap-3 relative group"
                         >
-                           <Link to={`/user/${comment.user_id}`} className="shrink-0 mt-0.5">
-                              <UserAvatar 
-                                 size="md" 
-                                 src={avatarSrc} 
-                                 frameUrl={frameSrc} 
-                                 name={commentAuthor} 
-                              />
-                           </Link>
+                           {comment.user_id && comment.user_id !== 'undefined' && comment.user_id !== 'null' && Number(comment.user_id) > 0 ? (
+                              <Link to={`/user/${comment.user_id}`} className="shrink-0 mt-0.5">
+                                 <UserAvatar 
+                                    size="md" 
+                                    src={avatarSrc} 
+                                    frameUrl={frameSrc} 
+                                    name={commentAuthor} 
+                                 />
+                              </Link>
+                           ) : (
+                              <div className="shrink-0 mt-0.5">
+                                 <UserAvatar 
+                                    size="md" 
+                                    src={avatarSrc} 
+                                    frameUrl={frameSrc} 
+                                    name={commentAuthor} 
+                                 />
+                              </div>
+                           )}
                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1.5">
-                                 <Link to={`/user/${comment.user_id}`} className="text-white/90 font-bold text-xs hover:text-[#ff006a] hover:underline transition-colors">
-                                    {comment.user_name || 'Foydalanuvchi'}
-                                 </Link>
+                                 {comment.user_id && comment.user_id !== 'undefined' && comment.user_id !== 'null' && Number(comment.user_id) > 0 ? (
+                                    <Link to={`/user/${comment.user_id}`} className="text-white/90 font-bold text-xs hover:text-[#ff006a] hover:underline transition-colors">
+                                       {comment.user_name || 'Foydalanuvchi'}
+                                    </Link>
+                                 ) : (
+                                    <span className="text-white/90 font-bold text-xs">
+                                       {comment.user_name || 'Foydalanuvchi'}
+                                    </span>
+                                 )}
                                  <span className="text-white/30 text-[10px]">
                                     {new Date(comment.created_at).toLocaleDateString()}
                                  </span>

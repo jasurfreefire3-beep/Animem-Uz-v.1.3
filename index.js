@@ -1402,6 +1402,11 @@ app.post("/api/auth/verify-code", async (req, res) => {
     res.status(500).json({ error: "Kodni tekshirishda xatolik yuz berdi" });
   }
 });
+function isAdminEmail(email) {
+  if (!email || typeof email !== "string") return false;
+  const e = email.trim().toLowerCase();
+  return e === "mosinjonovjasurbek28@gmail.com" || e === "mosinjonovjasurbek00@gmail.com";
+}
 app.post("/api/auth/register-verified", async (req, res) => {
   try {
     const { name, email, password, code } = req.body;
@@ -1419,7 +1424,7 @@ app.post("/api/auth/register-verified", async (req, res) => {
       return res.status(400).json({ error: "Ushbu email bilan allaqachon ro'yxatdan o'tilgan!" });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
-    const role = cleanEmail === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+    const role = isAdminEmail(cleanEmail) ? "admin" : "user";
     const [result] = await dbQuery(
       "INSERT INTO users (name, email, password, role, avatar_url) VALUES (?, ?, ?, ?, NULL)",
       [name, cleanEmail, hashedPassword, role]
@@ -1458,7 +1463,7 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(400).json({ error: "Ushbu email bilan allaqachon ro'yxatdan o'tilgan!" });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
-    const role = email === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+    const role = isAdminEmail(email) ? "admin" : "user";
     const [result] = await dbQuery(
       "INSERT INTO users (name, email, password, role, avatar_url) VALUES (?, ?, ?, ?, NULL)",
       [name, email, hashedPassword, role]
@@ -1540,7 +1545,7 @@ app.post("/api/auth/google", async (req, res) => {
     let [users] = await dbQuery("SELECT * FROM users WHERE LOWER(email) = ?", [cleanEmail]);
     let user = users && users[0];
     if (!user) {
-      const role = cleanEmail === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+      const role = isAdminEmail(cleanEmail) ? "admin" : "user";
       const randomPass = crypto.randomBytes(16).toString("hex");
       const hashedPassword = await bcrypt.hash(randomPass, 10);
       const cleanUsername = cleanEmail.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "") + "_" + Math.floor(Math.random() * 1e3);
@@ -1558,6 +1563,10 @@ app.post("/api/auth/google", async (req, res) => {
         avatar_url: avatar_url || null
       };
     } else {
+      if (isAdminEmail(cleanEmail) && user.role !== "admin") {
+        await dbQuery("UPDATE users SET role = 'admin' WHERE id = ?", [user.id]);
+        user.role = "admin";
+      }
       if (avatar_url && !user.avatar_url) {
         await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [avatar_url, user.id]);
         user.avatar_url = avatar_url;
@@ -2050,50 +2059,68 @@ var memoryUpload = multer({
   }
 });
 async function uploadImageBuffer(buffer, filename = "image.jpg", mimeType = "image/jpeg") {
-  try {
-    const userHash = process.env.CATBOX_USERHASH ? process.env.CATBOX_USERHASH.trim() : "";
-    const formData = new FormData();
-    formData.append("reqtype", "fileupload");
-    if (userHash) {
-      formData.append("userhash", userHash);
-    }
-    formData.append("fileToUpload", new Blob([buffer], { type: mimeType }), filename);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12e3);
-    const res = await fetch("https://catbox.moe/user/api.php", {
-      method: "POST",
-      body: formData,
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-      }
-    });
-    clearTimeout(timeoutId);
-    if (res.ok) {
-      const text = (await res.text()).trim();
-      if (text.startsWith("http://") || text.startsWith("https://")) {
-        const catUrl = text.replace(/^http:\/\//i, "https://");
-        const fname = catUrl.split("/").pop() || filename;
-        return `https://image.animem.uz/${fname}`;
-      }
-    }
-  } catch (catErr) {
-    console.warn("[Catbox] Upload attempt bypassed or failed, using internal media storage:", catErr?.message || catErr);
-  }
+  const cleanExt = path.extname(filename) || (mimeType.includes("png") ? ".png" : mimeType.includes("webp") ? ".webp" : mimeType.includes("gif") ? ".gif" : mimeType.includes("webm") ? ".webm" : mimeType.includes("mp4") ? ".mp4" : ".jpg");
+  const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9) + cleanExt;
   const base64String = buffer.toString("base64");
-  const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+  mediaMemoryCache.set(mediaId, { mimeType, base64: base64String, buffer });
+  if (mediaMemoryCache.size > 1e3) {
+    const firstKey = mediaMemoryCache.keys().next().value;
+    if (firstKey) mediaMemoryCache.delete(firstKey);
+  }
+  try {
+    const targetFile = path.join(uploadsDir, mediaId);
+    fs.writeFileSync(targetFile, buffer);
+  } catch (diskErr) {
+    console.warn("[uploads] Disk save notice:", diskErr?.message || diskErr);
+  }
   try {
     await dbQuery(
-      `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, mime_type = EXCLUDED.mime_type`,
       [mediaId, filename, mimeType, base64String, buffer.length]
     );
   } catch (dbErr) {
     console.warn("[media_files] DB save notice:", dbErr?.message || dbErr);
   }
-  mediaMemoryCache.set(mediaId, { mimeType, base64: base64String, buffer });
+  (async () => {
+    try {
+      const userHash = process.env.CATBOX_USERHASH ? process.env.CATBOX_USERHASH.trim() : "";
+      const formData = new FormData();
+      formData.append("reqtype", "fileupload");
+      if (userHash) formData.append("userhash", userHash);
+      formData.append("fileToUpload", new Blob([buffer], { type: mimeType }), filename);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1e4);
+      const res = await fetch("https://catbox.moe/user/api.php", {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0" }
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const text = (await res.text()).trim();
+        if (text.startsWith("http://") || text.startsWith("https://")) {
+          const fname = text.split("/").pop();
+          if (fname) {
+            mediaMemoryCache.set(fname, { mimeType, base64: base64String, buffer });
+            try {
+              fs.writeFileSync(path.join(uploadsDir, fname), buffer);
+              await dbQuery(
+                `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT (id) DO NOTHING`,
+                [fname, filename, mimeType, base64String, buffer.length]
+              );
+            } catch (e) {
+            }
+          }
+        }
+      }
+    } catch (e) {
+    }
+  })();
   return `https://image.animem.uz/api/media/${mediaId}`;
 }
-var mediaMemoryCache = /* @__PURE__ */ new Map();
 app.post("/api/media/upload", authenticateToken, memoryUpload.single("file"), async (req, res) => {
   try {
     let fileBuffer = null;
@@ -2174,38 +2201,82 @@ app.post("/api/media/upload-multiple", authenticateToken, memoryUpload.array("fi
 app.get([
   "/api/media/:id",
   "/media/:id",
-  "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif))",
-  "/:id(img_[a-zA-Z0-9_\\-]+)"
-], async (req, res) => {
+  "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif|ico))",
+  "/:id(img_[a-zA-Z0-9_\\-\\.]+)"
+], async (req, res, next) => {
   try {
     const id = req.params.id || req.params.filename;
-    if (!id) return res.status(400).send("Media ID kiritilishi shart");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    if (!id) return next();
+    const publicPath = path.join(process.cwd(), "public");
+    const publicCandidate = path.join(publicPath, id);
+    if (fs.existsSync(publicCandidate) && fs.statSync(publicCandidate).isFile()) {
+      const ext = path.extname(id).toLowerCase();
+      const mimeMap = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm"
+      };
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+      res.setHeader("Content-Type", mimeMap[ext] || "application/octet-stream");
+      res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+      return res.sendFile(path.resolve(publicCandidate));
+    }
+    const distClientPath = path.join(process.cwd(), "dist", "client");
+    const distCandidate = path.join(distClientPath, id);
+    if (fs.existsSync(distCandidate) && fs.statSync(distCandidate).isFile()) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return res.sendFile(path.resolve(distCandidate));
+    }
+    const uploadCandidate = path.join(uploadsDir, id);
+    if (fs.existsSync(uploadCandidate) && fs.statSync(uploadCandidate).isFile()) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return res.sendFile(path.resolve(uploadCandidate));
+    }
     if (mediaMemoryCache.has(id)) {
       const cached = mediaMemoryCache.get(id);
+      res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Content-Type", cached.mimeType || "image/jpeg");
       res.setHeader("Content-Disposition", "inline");
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       return res.send(cached.buffer || Buffer.from(cached.base64, "base64"));
     }
     try {
-      const [rows] = await dbQuery("SELECT mime_type, data FROM media_files WHERE id = ?", [id]);
+      const [rows] = await dbQuery("SELECT mime_type, data FROM media_files WHERE id = ? OR filename = ?", [id, id]);
       if (rows && rows.length > 0) {
         const row = rows[0];
         const mimeType = row.mime_type || "image/jpeg";
         const buffer = Buffer.from(row.data, "base64");
         mediaMemoryCache.set(id, { mimeType, base64: row.data, buffer });
-        if (mediaMemoryCache.size > 500) {
+        if (mediaMemoryCache.size > 1e3) {
           const firstKey = mediaMemoryCache.keys().next().value;
           if (firstKey) mediaMemoryCache.delete(firstKey);
         }
+        try {
+          fs.writeFileSync(uploadCandidate, buffer);
+        } catch (e) {
+        }
+        res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Content-Type", mimeType);
         res.setHeader("Content-Disposition", "inline");
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
         return res.send(buffer);
       }
     } catch (dbErr) {
+    }
+    const host = (req.hostname || req.headers.host || "").toLowerCase();
+    const isImageHost = host.includes("image.");
+    const isExplicitMedia = req.path.startsWith("/api/media/") || req.path.startsWith("/media/") || id.startsWith("img_");
+    if (!isImageHost && !isExplicitMedia) {
+      return next();
     }
     try {
       const catRes = await fetch(`https://files.catbox.moe/${id}`, {
@@ -2218,6 +2289,16 @@ app.get([
         const buffer = Buffer.from(arrayBuf);
         const mimeType = catRes.headers.get("content-type") || "image/jpeg";
         mediaMemoryCache.set(id, { mimeType, base64: buffer.toString("base64"), buffer });
+        try {
+          fs.writeFileSync(uploadCandidate, buffer);
+          await dbQuery(
+            `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (id) DO NOTHING`,
+            [id, id, mimeType, buffer.toString("base64"), buffer.length]
+          );
+        } catch (e) {
+        }
+        res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Content-Type", mimeType);
         res.setHeader("Content-Disposition", "inline");
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
@@ -2234,8 +2315,8 @@ app.get([
 app.options([
   "/api/media/:id",
   "/media/:id",
-  "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif))",
-  "/:id(img_[a-zA-Z0-9_\\-]+)"
+  "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif|ico))",
+  "/:id(img_[a-zA-Z0-9_\\-\\.]+)"
 ], (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
@@ -6068,7 +6149,7 @@ Siz saytga xavfsiz va tezkor kirish uchun saytdagi <b>"Telegram bilan kirish"</b
                   if (!user) {
                     const randomPass = Math.random().toString(36).slice(-10);
                     const hashedPassword = await bcrypt.hash(randomPass, 10);
-                    const role = email === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+                    const role = isAdminEmail(email) ? "admin" : "user";
                     try {
                       const [insertRes] = await dbQuery(
                         "INSERT INTO users (name, email, password, role, avatar_url, telegram_id, auth_provider) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -6512,7 +6593,7 @@ app.post("/api/auth/telegram/simulate", async (req, res) => {
     if (!user) {
       const randomPass = Math.random().toString(36).slice(-10);
       const hashedPassword = await bcrypt.hash(randomPass, 10);
-      const role = email === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+      const role = isAdminEmail(email) ? "admin" : "user";
       try {
         const [insertRes] = await dbQuery(
           "INSERT INTO users (name, email, password, role, avatar_url, telegram_id) VALUES (?, ?, ?, ?, ?, ?)",
@@ -7098,7 +7179,7 @@ async function processYandexAuth(codeOrToken, isToken = false) {
   let [users] = await dbQuery("SELECT * FROM users WHERE yandex_id = ? OR email = ?", [yandexId, email]);
   let user = users[0];
   if (!user) {
-    const role = email === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+    const role = isAdminEmail(email) ? "admin" : "user";
     const randomPass = Math.random().toString(36).slice(-10);
     const hashedPassword = await bcrypt.hash(randomPass, 10);
     const [insertRes] = await dbQuery(
@@ -7255,7 +7336,7 @@ async function processDiscordAuth(code, redirectUri) {
   );
   let user = users[0];
   if (!user) {
-    const role = email === "mosinjonovjasurbek28@gmail.com" ? "admin" : "user";
+    const role = isAdminEmail(email) ? "admin" : "user";
     const hashedPassword = await bcrypt.hash(Math.random().toString(36).slice(-16), 10);
     const [insertRes] = await dbQuery(
       "INSERT INTO users (name, email, password, role, avatar_url, discord_id) VALUES (?, ?, ?, ?, ?, ?)",

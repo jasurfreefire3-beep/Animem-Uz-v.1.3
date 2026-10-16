@@ -99,7 +99,7 @@ export default function Profil() {
     setLoading(true);
     setError('');
     const idToFetch = targetId || currentUser?.id;
-    if (!idToFetch) {
+    if (!idToFetch || idToFetch === 'undefined' || idToFetch === 'null') {
       setLoading(false);
       return;
     }
@@ -118,6 +118,12 @@ export default function Profil() {
         const res = await fetch(`${API_BASE}/api/user/${idToFetch}`, { headers });
         const contentType = res.headers.get("content-type");
         
+        if (res.status === 404) {
+          setError("Foydalanuvchi topilmadi");
+          setLoading(false);
+          return;
+        }
+
         if (!res.ok) {
           if (contentType && contentType.includes("application/json")) {
             const errData = await res.json();
@@ -131,8 +137,13 @@ export default function Profil() {
         }
 
         const data = await res.json();
+        if (!data || !data.user) {
+          setError("Foydalanuvchi topilmadi");
+          setLoading(false);
+          return;
+        }
 
-        const isUserOwner = Boolean(data.isOwner || (currentUser && String(currentUser.id) === String(data.user.id)));
+        const isUserOwner = Boolean(data.isOwner || (currentUser && String(currentUser.id) === String(data.user?.id)));
         setIsOwner(isUserOwner);
 
         // Auto-sync owner's local favorites and watch history to server if needed
@@ -384,9 +395,10 @@ export default function Profil() {
   };
 
   // Format social link for external redirect
-  const formatSocialUrl = (platform: string, handleOrUrl: string) => {
-    if (!handleOrUrl) return '#';
+  const formatSocialUrl = (platform: string, handleOrUrl: any) => {
+    if (!handleOrUrl || typeof handleOrUrl !== 'string') return '#';
     const trimmed = handleOrUrl.trim();
+    if (!trimmed) return '#';
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed;
     }
@@ -573,7 +585,7 @@ export default function Profil() {
                     <img loading="lazy" decoding="async" src={profileUser.avatar_url} alt={profileUser.name} className="w-full h-full object-cover" />
                   )
                 ) : (
-                  profileUser.name.charAt(0)
+                  (profileUser?.name || 'U').charAt(0)
                 )}
 
                 {uploadingAvatar && (

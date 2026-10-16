@@ -83,6 +83,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             headers: { 'Authorization': `Bearer ${storedToken}` }
           })
             .then(res => {
+              if (res.status === 401 || res.status === 404) {
+                // User deleted/wiped or token invalid
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                setUser(null);
+                setToken(null);
+                return null;
+              }
               const contentType = res.headers.get('content-type');
               if (res.ok && contentType && contentType.includes('application/json')) {
                 return res.json();

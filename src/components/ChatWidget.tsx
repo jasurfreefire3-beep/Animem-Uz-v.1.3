@@ -33,6 +33,7 @@ const MemoizedMessage = memo(({
   const isActive = activeMsgId === msg.id;
   const parsedContent = parseMessageContent(msg.content);
   const parsedReply = msg.reply_to_content ? parseMessageContent(msg.reply_to_content) : null;
+  const hasValidUserId = Boolean(msg.user_id && msg.user_id !== 'undefined' && msg.user_id !== 'null' && Number(msg.user_id) > 0);
 
   return (
     <div 
@@ -43,20 +44,37 @@ const MemoizedMessage = memo(({
       onTouchMove={handleTouchEnd}
       className="flex items-start gap-2.5 group my-1 cursor-pointer select-none"
     >
-      <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 mt-0.5">
-        <UserAvatar
-          size="md"
-          src={avatarSrc}
-          frameUrl={frameSrc}
-          name={displayName}
-        />
-      </Link>
+      {hasValidUserId ? (
+        <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 mt-0.5">
+          <UserAvatar
+            size="md"
+            src={avatarSrc}
+            frameUrl={frameSrc}
+            name={displayName}
+          />
+        </Link>
+      ) : (
+        <div className="shrink-0 mt-0.5">
+          <UserAvatar
+            size="md"
+            src={avatarSrc}
+            frameUrl={frameSrc}
+            name={displayName}
+          />
+        </div>
+      )}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-1">
-          <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className={`font-bold text-xs hover:underline ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}>
-            {msg.user_name}
-          </Link>
+          {hasValidUserId ? (
+            <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className={`font-bold text-xs hover:underline ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}>
+              {msg.user_name}
+            </Link>
+          ) : (
+            <span className={`font-bold text-xs ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}>
+              {msg.user_name}
+            </span>
+          )}
           <span className="text-white/40 text-[9px]">
             {format(new Date(msg.created_at), 'HH:mm')}
           </span>
