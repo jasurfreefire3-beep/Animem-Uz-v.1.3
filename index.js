@@ -1145,9 +1145,12 @@ ${note}
 
 Ushbu xat avtomatik tarzda yuborilgan bir martalik tranzaksion xabardir.
 \xA9 ${(/* @__PURE__ */ new Date()).getFullYear()} Animem.uz | support@animem.uz`;
-  const defaultFrom = (process.env.SMTP_FROM || '"Animem.uz" <support@animem.uz>').trim();
-  const smtpUser = (process.env.GMAIL_USER || process.env.SMTP_USER || "").trim();
-  const smtpPass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.SMTP_PASS || "").replace(/\s+/g, "").trim();
+  let defaultFrom = (process.env.SMTP_FROM || "support@animem.uz").trim();
+  if (!defaultFrom.includes("<")) {
+    defaultFrom = `"Animem.uz" <${defaultFrom}>`;
+  }
+  const smtpUser = (process.env.GMAIL_USER || process.env.SMTP_USER || "mosinjonovjasurbek00@gmail.com").trim();
+  const smtpPass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.SMTP_PASS || "kkyn suvl pdlm kdcd").replace(/\s+/g, "").trim();
   if (smtpUser && smtpPass) {
     try {
       const isGmail = !process.env.SMTP_HOST || process.env.SMTP_HOST.includes("gmail");
