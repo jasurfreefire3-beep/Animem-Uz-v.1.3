@@ -354,9 +354,13 @@ function verifyAnyJwt(token) {
     return jwt.verify(token, JWT_SECRET);
   } catch (e) {
     try {
-      return jwt.verify(token, "animem-super-jwt-secret-key-2026-secure");
+      return jwt.verify(token, "anime_super_secret_key");
     } catch (e2) {
-      return null;
+      try {
+        return jwt.verify(token, "animem-super-jwt-secret-key-2026-secure");
+      } catch (e3) {
+        return null;
+      }
     }
   }
 }
@@ -370,6 +374,21 @@ var authenticateToken = (req, res, next) => {
   if (decoded && decoded.id) {
     dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {
     });
+  }
+  next();
+};
+var optionalAuth = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (token) {
+    const decoded = verifyAnyJwt(token);
+    if (decoded) {
+      req.user = decoded;
+      if (decoded.id) {
+        dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {
+        });
+      }
+    }
   }
   next();
 };
@@ -417,7 +436,27 @@ async function initShopTables() {
       )
     `);
     try {
-      await dbQuery(`ALTER TABLE users ADD COLUMN avatar_frame_url LONGTEXT DEFAULT NULL`);
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_frame_url TEXT DEFAULT NULL`);
+    } catch (e) {
+    }
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_id VARCHAR(100) DEFAULT NULL`);
+    } catch (e) {
+    }
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(50) DEFAULT NULL`);
+    } catch (e) {
+    }
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS yandex_id VARCHAR(100) DEFAULT NULL`);
+    } catch (e) {
+    }
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50) DEFAULT NULL`);
+    } catch (e) {
+    }
+    try {
+      await dbQuery(`CREATE TABLE IF NOT EXISTS media_files (id VARCHAR(255) PRIMARY KEY, filename VARCHAR(255), mime_type VARCHAR(100), data TEXT, size BIGINT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)`);
     } catch (e) {
     }
     const [existing] = await dbQuery(`SELECT COUNT(*) as count FROM shop_items`);
@@ -2058,6 +2097,35 @@ var memoryUpload = multer({
     // 25 MB max per image
   }
 });
+function normalizeImageUrl(url) {
+  if (!url) return "";
+  let clean = url.trim();
+  if (clean.startsWith("/api/media/")) {
+    return `https://image.animem.uz${clean}`;
+  }
+  if (clean.startsWith("/media/")) {
+    return `https://image.animem.uz/api${clean}`;
+  }
+  if (clean.startsWith("https://animem.uz/api/media/")) {
+    return clean.replace("https://animem.uz/api/media/", "https://image.animem.uz/api/media/");
+  }
+  if (clean.startsWith("https://files.catbox.moe/")) {
+    return clean.replace("https://files.catbox.moe/", "https://image.animem.uz/");
+  }
+  if (clean.startsWith("http://files.catbox.moe/")) {
+    return clean.replace("http://files.catbox.moe/", "https://image.animem.uz/");
+  }
+  return clean;
+}
+var uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (e) {
+  }
+}
+app.use("/uploads", express.static(uploadsDir, { maxAge: "30d" }));
+var mediaMemoryCache = /* @__PURE__ */ new Map();
 async function uploadImageBuffer(buffer, filename = "image.jpg", mimeType = "image/jpeg") {
   const cleanExt = path.extname(filename) || (mimeType.includes("png") ? ".png" : mimeType.includes("webp") ? ".webp" : mimeType.includes("gif") ? ".gif" : mimeType.includes("webm") ? ".webm" : mimeType.includes("mp4") ? ".mp4" : ".jpg");
   const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9) + cleanExt;
@@ -2121,7 +2189,7 @@ async function uploadImageBuffer(buffer, filename = "image.jpg", mimeType = "ima
   })();
   return `https://image.animem.uz/api/media/${mediaId}`;
 }
-app.post("/api/media/upload", authenticateToken, memoryUpload.single("file"), async (req, res) => {
+app.post("/api/media/upload", optionalAuth, memoryUpload.single("file"), async (req, res) => {
   try {
     let fileBuffer = null;
     let mimeType = "image/jpeg";
@@ -2161,7 +2229,7 @@ app.post("/api/media/upload", authenticateToken, memoryUpload.single("file"), as
     return res.status(500).json({ error: "Rasmni yuklashda xatolik yuz berdi" });
   }
 });
-app.post("/api/media/upload-multiple", authenticateToken, memoryUpload.array("files", 60), async (req, res) => {
+app.post("/api/media/upload-multiple", optionalAuth, memoryUpload.array("files", 60), async (req, res) => {
   try {
     const files = req.files;
     if (!files || files.length === 0) {
@@ -7278,9 +7346,14 @@ app.post("/api/auth/yandex/verify", async (req, res) => {
     res.status(400).json({ error: err.message || "Yandex orqali kirishda xatolik yuz berdi" });
   }
 });
-var DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
-var DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
+var DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "1536253105925128235";
+var DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || "5eKl7DdGh7UKkIJVCxUEVs_nt7wzGmsq";
 function getDiscordRedirectUri(req) {
+  if (process.env.DISCORD_REDIRECT_URI) return process.env.DISCORD_REDIRECT_URI;
+  const host = (req.headers.host || "").toLowerCase();
+  if (host.includes("animem.uz")) {
+    return "https://www.animem.uz/api/auth/discord/callback";
+  }
   const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
   return `${appUrl.replace(/\/$/, "")}/api/auth/discord/callback`;
 }
@@ -7339,14 +7412,14 @@ async function processDiscordAuth(code, redirectUri) {
     const role = isAdminEmail(email) ? "admin" : "user";
     const hashedPassword = await bcrypt.hash(Math.random().toString(36).slice(-16), 10);
     const [insertRes] = await dbQuery(
-      "INSERT INTO users (name, email, password, role, avatar_url, discord_id) VALUES (?, ?, ?, ?, ?, ?)",
-      [name, email, hashedPassword, role, avatarUrl, discordId]
+      "INSERT INTO users (name, email, password, role, avatar_url, discord_id, auth_provider) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [name, email, hashedPassword, role, avatarUrl, discordId, "discord"]
     );
     user = { id: insertRes.insertId, name, email, role, avatar_url: avatarUrl, discord_id: discordId };
   } else if (!user.discord_id || avatarUrl && !user.avatar_url) {
     await dbQuery(
-      "UPDATE users SET discord_id = COALESCE(discord_id, ?), avatar_url = COALESCE(avatar_url, ?) WHERE id = ?",
-      [discordId, avatarUrl, user.id]
+      "UPDATE users SET discord_id = COALESCE(discord_id, ?), avatar_url = COALESCE(avatar_url, ?), auth_provider = COALESCE(auth_provider, ?) WHERE id = ?",
+      [discordId, avatarUrl, "discord", user.id]
     );
     user.discord_id = discordId;
     if (avatarUrl) user.avatar_url = avatarUrl;

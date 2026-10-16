@@ -16,6 +16,7 @@ public/animebot/kawaii.db
 .wrangler/
 data/
 *.mp4
-*.m4a
 *.webm
+uploads/
+check_media.cjs
 

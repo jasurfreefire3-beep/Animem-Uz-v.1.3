@@ -444,9 +444,13 @@ function verifyAnyJwt(token: string): any {
     return jwt.verify(token, JWT_SECRET);
   } catch (e) {
     try {
-      return jwt.verify(token, "animem-super-jwt-secret-key-2026-secure");
+      return jwt.verify(token, "anime_super_secret_key");
     } catch (e2) {
-      return null;
+      try {
+        return jwt.verify(token, "animem-super-jwt-secret-key-2026-secure");
+      } catch (e3) {
+        return null;
+      }
     }
   }
 }
@@ -462,6 +466,22 @@ const authenticateToken = (req: any, res: any, next: any) => {
   req.user = decoded;
   if (decoded && decoded.id) {
     dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {});
+  }
+  next();
+};
+
+// Optional / Lenient token authentication (does not reject unauthenticated or expired requests)
+const optionalAuth = (req: any, res: any, next: any) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (token) {
+    const decoded = verifyAnyJwt(token);
+    if (decoded) {
+      req.user = decoded;
+      if (decoded.id) {
+        dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {});
+      }
+    }
   }
   next();
 };
@@ -516,7 +536,22 @@ async function initShopTables() {
     `);
 
     try {
-      await dbQuery(`ALTER TABLE users ADD COLUMN avatar_frame_url LONGTEXT DEFAULT NULL`);
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_frame_url TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_id VARCHAR(100) DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(50) DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS yandex_id VARCHAR(100) DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50) DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`CREATE TABLE IF NOT EXISTS media_files (id VARCHAR(255) PRIMARY KEY, filename VARCHAR(255), mime_type VARCHAR(100), data TEXT, size BIGINT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)`);
     } catch (e) {}
 
     // Seed sample anime items if shop_items is empty
@@ -2526,7 +2561,8 @@ const memoryUpload = multer({
 });
 
 /**
- * Direct in-memory buffer upload for images (Catbox CDN with MySQL fallback).
+ * Normalize image URL helper
+ */
 function normalizeImageUrl(url: string | null | undefined): string {
   if (!url) return "";
   let clean = url.trim();
@@ -2646,7 +2682,7 @@ async function uploadImageBuffer(
   return `https://image.animem.uz/api/media/${mediaId}`;
 }
 
-app.post("/api/media/upload", authenticateToken, memoryUpload.single("file"), async (req: any, res: any) => {
+app.post("/api/media/upload", optionalAuth, memoryUpload.single("file"), async (req: any, res: any) => {
   try {
     let fileBuffer: Buffer | null = null;
     let mimeType = "image/jpeg";
@@ -2691,7 +2727,7 @@ app.post("/api/media/upload", authenticateToken, memoryUpload.single("file"), as
 });
 
 // Upload multiple images from device directly
-app.post("/api/media/upload-multiple", authenticateToken, memoryUpload.array("files", 60), async (req: any, res: any) => {
+app.post("/api/media/upload-multiple", optionalAuth, memoryUpload.array("files", 60), async (req: any, res: any) => {
   try {
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) {
@@ -8677,10 +8713,15 @@ app.post("/api/auth/yandex/verify", async (req, res) => {
 });
 
 // ==================== DISCORD OAUTH ENDPOINTS ====================
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "1536253105925128235";
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || "5eKl7DdGh7UKkIJVCxUEVs_nt7wzGmsq";
 
 function getDiscordRedirectUri(req: express.Request): string {
+  if (process.env.DISCORD_REDIRECT_URI) return process.env.DISCORD_REDIRECT_URI;
+  const host = (req.headers.host || "").toLowerCase();
+  if (host.includes("animem.uz")) {
+    return "https://www.animem.uz/api/auth/discord/callback";
+  }
   const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
   return `${appUrl.replace(/\/$/, "")}/api/auth/discord/callback`;
 }
@@ -8750,14 +8791,14 @@ async function processDiscordAuth(code: string, redirectUri: string) {
     const role = isAdminEmail(email) ? "admin" : "user";
     const hashedPassword = await bcrypt.hash(Math.random().toString(36).slice(-16), 10);
     const [insertRes]: any = await dbQuery(
-      "INSERT INTO users (name, email, password, role, avatar_url, discord_id) VALUES (?, ?, ?, ?, ?, ?)",
-      [name, email, hashedPassword, role, avatarUrl, discordId]
+      "INSERT INTO users (name, email, password, role, avatar_url, discord_id, auth_provider) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [name, email, hashedPassword, role, avatarUrl, discordId, "discord"]
     );
     user = { id: insertRes.insertId, name, email, role, avatar_url: avatarUrl, discord_id: discordId };
   } else if (!user.discord_id || (avatarUrl && !user.avatar_url)) {
     await dbQuery(
-      "UPDATE users SET discord_id = COALESCE(discord_id, ?), avatar_url = COALESCE(avatar_url, ?) WHERE id = ?",
-      [discordId, avatarUrl, user.id]
+      "UPDATE users SET discord_id = COALESCE(discord_id, ?), avatar_url = COALESCE(avatar_url, ?), auth_provider = COALESCE(auth_provider, ?) WHERE id = ?",
+      [discordId, avatarUrl, "discord", user.id]
     );
     user.discord_id = discordId;
     if (avatarUrl) user.avatar_url = avatarUrl;

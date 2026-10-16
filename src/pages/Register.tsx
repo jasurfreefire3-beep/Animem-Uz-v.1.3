@@ -705,10 +705,10 @@ export default function Register() {
               </div>
             </button> */}
 
-            {/* Option: Discord (Vaqtincha yashirilgan) */}
-            {/* <button
+            {/* Option: Discord */}
+            <button
               onClick={handleDiscordLoginStart}
-              className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-pointer"
+              className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-pointer shadow-lg shadow-[#5865F2]/20"
             >
               <div className="w-10 h-10 bg-white/10 rounded-sm flex items-center justify-center">
                 <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current" aria-hidden="true">
@@ -719,34 +719,29 @@ export default function Register() {
                 <div className="text-sm font-black text-white">Discord bilan kirish</div>
                 <div className="text-[11px] text-white/70">Discord akkauntingiz orqali bir bosishda</div>
               </div>
-            </button> */}
+            </button>
 
-            {/* Option 3: Telegram (Tavsiya) */}
+            {/* Option 3: Telegram (Hozircha ishlamaydi) */}
             <button
-              disabled={tgLoading}
-              onClick={handleTelegramLoginStart}
-              className="w-full bg-[#0088cc] hover:bg-[#0077b5] text-white p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-pointer relative shadow-lg shadow-[#0088cc]/20 disabled:opacity-60"
+              disabled
+              className="w-full bg-[#0088cc]/30 text-white/50 p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-not-allowed relative border border-white/10"
             >
               <div className="absolute top-3 right-3">
-                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                  Tavsiya
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                  Hozircha ishlamaydi
                 </span>
               </div>
-              <div className="w-10 h-10 bg-white/10 rounded-sm flex items-center justify-center">
-                {tgLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-white" />
-                ) : (
-                  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-white">
-                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
-                  </svg>
-                )}
+              <div className="w-10 h-10 bg-white/5 rounded-sm flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-white/40">
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
+                </svg>
               </div>
-              <div className="flex-1 pr-16">
-                <div className="text-sm font-black text-white">
-                  {tgLoading ? "Telegram botga o'tilmoqda..." : "Telegram bilan kirish"}
+              <div className="flex-1 pr-24">
+                <div className="text-sm font-black text-white/70">
+                  Telegram bilan kirish
                 </div>
-                <div className="text-[11px] text-white/70">
-                  {tgLoading ? "Iltimos kuting..." : "Telegram bot (@animem_auth_bot) orqali tezkor kirish"}
+                <div className="text-[11px] text-white/40">
+                  Hozircha ishlamaydi (Tez kunda)
                 </div>
               </div>
             </button>

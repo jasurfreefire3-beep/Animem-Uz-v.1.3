@@ -704,42 +704,33 @@ export default function Login() {
                 Facebook bilan kirish
               </button> */}
 
-              {/* Vaqtincha yashirilgan: Discord bilan kirish */}
-              {/* <button
+              {/* Discord bilan kirish */}
+              <button
                 type="button"
                 onClick={handleDiscordLoginStart}
-                className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3 px-4 rounded-sm transition-colors mt-3 flex items-center justify-center gap-3 cursor-pointer"
+                className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3 px-4 rounded-sm transition-colors mt-3 flex items-center justify-center gap-3 cursor-pointer shadow-lg shadow-[#5865F2]/20"
               >
                 <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current" aria-hidden="true">
                   <path d="M20.32 4.37A19.8 19.8 0 0015.55 3l-.6 1.22a18.27 18.27 0 00-5.9 0L8.45 3a19.7 19.7 0 00-4.77 1.37C.66 8.9-.16 13.3.25 17.63A19.9 19.9 0 006.1 20.6l1.42-1.95a12.2 12.2 0 01-2.24-1.08l.54-.42c4.32 2 9 2 13.27 0l.54.42c-.72.43-1.47.79-2.24 1.08l1.42 1.95a19.8 19.8 0 005.85-2.97c.48-5.02-.82-9.38-3.34-13.26zM8.4 15.02c-1.15 0-2.1-1.05-2.1-2.34s.92-2.34 2.1-2.34c1.19 0 2.12 1.06 2.1 2.34.01 1.29-.91 2.34-2.1 2.34zm7.2 0c-1.15 0-2.1-1.05-2.1-2.34s.92-2.34 2.1-2.34c1.19 0 2.12 1.06 2.1 2.34.01 1.29-.91 2.34-2.1 2.34z" />
                 </svg>
-                Discord bilan kirish
-              </button> */}
+                <span>Discord bilan kirish</span>
+              </button>
 
+              {/* Telegram bilan kirish (Vaqtincha o'chirilgan) */}
               <button
                 type="button"
-                disabled={tgLoading}
-                onClick={handleTelegramLoginStart}
-                className="w-full bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold py-3 px-4 rounded-sm transition-colors mt-3 flex items-center justify-center gap-3 cursor-pointer relative shadow-lg shadow-[#0088cc]/20 disabled:opacity-60"
+                disabled
+                className="w-full bg-[#0088cc]/30 text-white/50 font-bold py-3 px-4 rounded-sm transition-colors mt-3 flex items-center justify-center gap-3 cursor-not-allowed relative border border-white/10"
               >
                 <div className="absolute top-2 right-2">
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                    Tavsiya
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                    Hozircha ishlamaydi
                   </span>
                 </div>
-                {tgLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Telegram botga o'tilmoqda...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
-                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
-                    </svg>
-                    <span>Telegram bilan kirish</span>
-                  </>
-                )}
+                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current opacity-40">
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
+                </svg>
+                <span className="opacity-50">Telegram bilan kirish</span>
               </button>
             </div>
 
