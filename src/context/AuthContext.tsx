@@ -55,18 +55,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const urlToken = urlParams.get('token');
     const urlUser = urlParams.get('user');
 
-    if (urlToken && urlUser) {
-      try {
-        const parsedUser = JSON.parse(decodeURIComponent(urlUser));
-        setToken(urlToken);
-        setUser(parsedUser);
-        localStorage.setItem('token', urlToken);
-        localStorage.setItem('user', JSON.stringify(parsedUser));
-        window.history.replaceState({}, '', window.location.pathname);
-        return;
-      } catch (e) {
-        console.error("URL user parsing error:", e);
+    if (urlToken) {
+      localStorage.setItem('token', urlToken);
+      setToken(urlToken);
+
+      if (urlUser) {
+        try {
+          let parsedUser: any = null;
+          try {
+            parsedUser = JSON.parse(urlUser);
+          } catch {
+            parsedUser = JSON.parse(decodeURIComponent(urlUser));
+          }
+          if (parsedUser) {
+            setUser(parsedUser);
+            localStorage.setItem('user', JSON.stringify(parsedUser));
+          }
+        } catch (e) {
+          console.error("URL user parsing error:", e);
+        }
       }
+
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
     }
 
     const storedToken = localStorage.getItem('token');

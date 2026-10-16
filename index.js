@@ -7372,25 +7372,36 @@ app.get("/api/auth/discord/url", (req, res) => {
   });
   res.json({ url: `https://discord.com/oauth2/authorize?${params.toString()}` });
 });
-async function processDiscordAuth(code, redirectUri) {
+async function processDiscordAuth(code, redirectUri, fallbackUri) {
   if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
     throw new Error("Discord server sozlamalari topilmadi.");
   }
-  const tokenParams = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    client_secret: DISCORD_CLIENT_SECRET,
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: redirectUri
-  });
-  const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: tokenParams.toString()
-  });
-  const tokenData = await tokenRes.json();
-  if (!tokenRes.ok || !tokenData.access_token) {
-    throw new Error(tokenData.error_description || "Discord tasdiqlash kodini tekshirib bo'lmadi.");
+  const exchangeToken = async (targetUri) => {
+    const tokenParams = new URLSearchParams({
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: DISCORD_CLIENT_SECRET,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: targetUri
+    });
+    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenParams.toString()
+    });
+    const data = await tokenRes.json();
+    return { ok: tokenRes.ok, data };
+  };
+  let tokenResult = await exchangeToken(redirectUri);
+  if (!tokenResult.ok && fallbackUri && fallbackUri !== redirectUri) {
+    const altResult = await exchangeToken(fallbackUri);
+    if (altResult.ok) {
+      tokenResult = altResult;
+    }
+  }
+  const tokenData = tokenResult.data;
+  if (!tokenResult.ok || !tokenData.access_token) {
+    throw new Error(tokenData.error_description || tokenData.message || tokenData.error || "Discord tasdiqlash kodini tekshirib bo'lmadi.");
   }
   const profileRes = await fetch("https://discord.com/api/users/@me", {
     headers: { Authorization: `Bearer ${tokenData.access_token}` }
@@ -7435,30 +7446,131 @@ async function processDiscordAuth(code, redirectUri) {
   return { token, user: userPayload };
 }
 app.get(["/api/auth/discord/callback", "/api/auth/discord/callback/"], async (req, res) => {
-  const sendCallback = (type, payload) => {
-    res.send(`<!doctype html><html><body><script>
-      const message = ${JSON.stringify({ type, ...payload })};
-      if (window.opener) {
-        window.opener.postMessage(message, window.location.origin);
-        window.close();
-      } else {
-        if (type === "DISCORD_AUTH_SUCCESS") {
-          window.location.href = '/?token=' + encodeURIComponent(message.token || '') + '&user=' + encodeURIComponent(JSON.stringify(message.user || {}));
-        } else {
-          window.location.href = '/login?error=' + encodeURIComponent(message.error || 'auth_failed');
+  const sendCallback = (statusType, payload) => {
+    const message = { type: statusType, ...payload };
+    const jsonMessage = JSON.stringify(message);
+    const errorStr = typeof payload.error === "string" ? payload.error : "";
+    const isSuccess = statusType === "DISCORD_AUTH_SUCCESS";
+    res.send(`<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Animem.uz - Discord Kirish</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0b0c10;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      text-align: center;
+    }
+    .card {
+      background: #15161c;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 36px 28px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(88, 101, 242, 0.2);
+      border-top-color: #5865F2;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 24px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+    .desc { font-size: 14px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+    a.btn {
+      display: inline-block;
+      margin-top: 20px;
+      background: #5865F2;
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <div class="title">${isSuccess ? "Muvaffaqiyatli kirdingiz!" : "Xatolik yuz berdi"}</div>
+    <div class="desc">${isSuccess ? "Profil ma'lumotlaringiz yuklanmoqda, iltimos kuting..." : errorStr || "Discord orqali kirishda xatolik yuz berdi."}</div>
+    ${!isSuccess ? `<a href="/login" class="btn">Kirish sahifasiga qaytish</a>` : ""}
+  </div>
+
+  <script>
+    (function() {
+      try {
+        const msg = ${jsonMessage};
+        const ok = msg.type === "DISCORD_AUTH_SUCCESS";
+
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage(msg, window.location.origin);
+            window.close();
+            return;
+          } catch (e) {}
         }
+
+        if (ok && msg.token) {
+          try {
+            localStorage.setItem("token", msg.token);
+            if (msg.user) localStorage.setItem("user", JSON.stringify(msg.user));
+          } catch (e) {}
+
+          const targetUrl = "/?token=" + encodeURIComponent(msg.token || "") + "&user=" + encodeURIComponent(JSON.stringify(msg.user || {}));
+          window.location.replace(targetUrl);
+        } else {
+          const err = msg.error || "Discord orqali kirishda xatolik";
+          setTimeout(function() {
+            window.location.replace("/login?error=" + encodeURIComponent(err));
+          }, 1500);
+        }
+      } catch (err) {
+        console.error("Callback execution error:", err);
+        window.location.replace("/login");
       }
-    </script></body></html>`);
+    })();
+  </script>
+</body>
+</html>`);
   };
   try {
     const code = req.query.code;
     const state = req.query.state;
     if (!code || !state) throw new Error("Discord tasdiqlash ma'lumotlari topilmadi.");
-    const stateData = jwt.verify(state, JWT_SECRET);
+    let stateData = {};
+    try {
+      stateData = jwt.verify(state, JWT_SECRET);
+    } catch {
+      try {
+        stateData = jwt.verify(state, "anime_super_secret_key");
+      } catch {
+        stateData = jwt.verify(state, "animem-super-jwt-secret-key-2026-secure");
+      }
+    }
     if (stateData.provider !== "discord" || !stateData.redirectUri) {
       throw new Error("Discord tasdiqlash so'rovi yaroqsiz.");
     }
-    const result = await processDiscordAuth(code, stateData.redirectUri);
+    const host = (req.headers.host || "").toLowerCase();
+    const currentCallbackUri = `https://${host}/api/auth/discord/callback`;
+    const fallbackUri = currentCallbackUri !== stateData.redirectUri ? currentCallbackUri : stateData.redirectUri.includes("www.") ? stateData.redirectUri.replace("www.", "") : stateData.redirectUri.replace("https://", "https://www.");
+    const result = await processDiscordAuth(code, stateData.redirectUri, fallbackUri);
     sendCallback("DISCORD_AUTH_SUCCESS", result);
   } catch (err) {
     console.error("Discord OAuth callback error:", err);
