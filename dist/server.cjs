@@ -286,6 +286,10 @@ function queryLocalStore(sql, params = []) {
     return [];
   }
 }
+function toSlugLocal(text) {
+  if (!text) return "";
+  return String(text).toLowerCase().replace(/o['’`‘ʻʼ]/g, "o").replace(/g['’`‘ʻʼ]/g, "g").replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-").replace(/^-+|-+$/g, "");
+}
 async function dbQuery(sql, params, retries = 3) {
   try {
     return await d1ExecuteQuery(sql, params);
@@ -524,9 +528,177 @@ async function initShopTables() {
     console.error("Failed to initialize Shop tables:", err);
   }
 }
+async function initAnimeTables() {
+  try {
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS telegram_url TEXT DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS video_url TEXT DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS is_adult INTEGER DEFAULT 0`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS is_banner INTEGER DEFAULT 0`);
+    await pgPool.query(`ALTER TABLE episodes ADD COLUMN IF NOT EXISTS is_filler INTEGER DEFAULT 0`);
+    await pgPool.query(`ALTER TABLE episodes ALTER COLUMN video_url DROP NOT NULL`).catch(() => {
+    });
+    await pgPool.query(`ALTER TABLE episodes ALTER COLUMN video_url SET DEFAULT ''`).catch(() => {
+    });
+    await pgPool.query(`DROP VIEW IF EXISTS animes CASCADE`);
+    await pgPool.query(`
+      CREATE VIEW animes AS
+      SELECT 
+        id,
+        COALESCE(title_uz, title_orig, title_en, 'Anime'::character varying) AS title,
+        title_uz,
+        title_orig,
+        title_en,
+        slug,
+        description,
+        COALESCE(poster_url, banner_url, ''::text) AS image_url,
+        poster_url,
+        banner_url,
+        season,
+        COALESCE(status, 'Faol'::character varying) AS holati,
+        status,
+        COALESCE(release_year, 2024) AS yil,
+        release_year,
+        COALESCE(episodes_count, 12) AS qismlar_soni,
+        episodes_count,
+        COALESCE(current_episodes, 1) AS current_episodes,
+        COALESCE(rating, 9.0) AS rating,
+        COALESCE(rating_count, 0) AS rating_count,
+        COALESCE(views, 0) AS korishlar,
+        views,
+        COALESCE(is_featured, 0) AS tavsiya,
+        is_featured,
+        COALESCE(is_banner, 0) AS is_banner,
+        COALESCE(type, 'TV'::character varying) AS type,
+        COALESCE(age_rating, '16+'::character varying) AS age_rating,
+        COALESCE(genres, 'Sarguzasht'::text) AS janrlar,
+        genres,
+        COALESCE(studio, 'Animem'::character varying) AS studiyasi,
+        studio,
+        duration,
+        dub_studio,
+        COALESCE(telegram_url, ''::text) AS telegram_url,
+        COALESCE(video_url, ''::text) AS video_url,
+        COALESCE(tags, ''::text) AS tags,
+        COALESCE(is_adult, 0) AS is_adult,
+        created_at,
+        updated_at
+      FROM anime;
+    `);
+    await pgPool.query(`
+      CREATE OR REPLACE FUNCTION animes_insert_trigger()
+      RETURNS TRIGGER AS $$
+      DECLARE
+        v_title text;
+        v_slug text;
+        v_id int;
+      BEGIN
+        v_title := COALESCE(NEW.title, NEW.title_uz, 'Anime');
+        v_slug := COALESCE(NEW.slug, LOWER(REGEXP_REPLACE(v_title, '[^a-zA-Z0-9]+', '-', 'g')));
+        IF v_slug = '' OR v_slug = '-' THEN v_slug := 'anime-' || EXTRACT(EPOCH FROM NOW())::int; END IF;
+
+        INSERT INTO anime (
+          title_uz, title_orig, title_en, slug, description,
+          poster_url, banner_url, season, status, release_year,
+          episodes_count, rating, views, is_featured, is_banner,
+          type, age_rating, genres, studio, rating_count,
+          telegram_url, video_url, tags, is_adult, updated_at
+        ) VALUES (
+          v_title,
+          COALESCE(NEW.title_orig, v_title),
+          COALESCE(NEW.title_en, v_title),
+          v_slug,
+          COALESCE(NEW.description, ''),
+          COALESCE(NEW.image_url, NEW.poster_url, ''),
+          COALESCE(NEW.banner_url, ''),
+          COALESCE(NEW.season, '2024'),
+          COALESCE(NEW.holati, NEW.status, 'Faol'),
+          COALESCE(NEW.yil, NEW.release_year, 2024),
+          COALESCE(NEW.qismlar_soni, NEW.episodes_count, 12),
+          COALESCE(NEW.rating, 9.0),
+          COALESCE(NEW.korishlar, NEW.views, 0),
+          COALESCE(NEW.tavsiya, NEW.is_featured, 0),
+          COALESCE(NEW.is_banner, 0),
+          COALESCE(NEW.type, 'TV'),
+          COALESCE(NEW.age_rating, '16+'),
+          COALESCE(NEW.janrlar, NEW.genres, ''),
+          COALESCE(NEW.studiyasi, NEW.studio, ''),
+          COALESCE(NEW.rating_count, 0),
+          COALESCE(NEW.telegram_url, ''),
+          COALESCE(NEW.video_url, ''),
+          COALESCE(NEW.tags, ''),
+          COALESCE(NEW.is_adult, 0),
+          CURRENT_TIMESTAMP
+        ) RETURNING id INTO v_id;
+
+        NEW.id := v_id;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_animes_insert ON animes;
+      CREATE TRIGGER trg_animes_insert
+      INSTEAD OF INSERT ON animes
+      FOR EACH ROW EXECUTE FUNCTION animes_insert_trigger();
+
+      CREATE OR REPLACE FUNCTION animes_update_trigger()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        UPDATE anime SET
+          title_uz = COALESCE(NEW.title, NEW.title_uz, title_uz),
+          description = COALESCE(NEW.description, description),
+          poster_url = COALESCE(NEW.image_url, NEW.poster_url, poster_url),
+          banner_url = COALESCE(NEW.banner_url, banner_url),
+          rating = COALESCE(NEW.rating, rating),
+          rating_count = COALESCE(NEW.rating_count, rating_count),
+          status = COALESCE(NEW.holati, NEW.status, status),
+          release_year = COALESCE(NEW.yil, NEW.release_year, release_year),
+          episodes_count = COALESCE(NEW.qismlar_soni, NEW.episodes_count, episodes_count),
+          views = COALESCE(NEW.korishlar, NEW.views, views),
+          genres = COALESCE(NEW.janrlar, NEW.genres, genres),
+          studio = COALESCE(NEW.studiyasi, NEW.studio, studio),
+          is_featured = COALESCE(NEW.tavsiya, NEW.is_featured, is_featured),
+          is_banner = COALESCE(NEW.is_banner, is_banner),
+          telegram_url = COALESCE(NEW.telegram_url, telegram_url),
+          video_url = COALESCE(NEW.video_url, video_url),
+          tags = COALESCE(NEW.tags, tags),
+          is_adult = COALESCE(NEW.is_adult, is_adult),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = OLD.id;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_animes_update ON animes;
+      CREATE TRIGGER trg_animes_update
+      INSTEAD OF UPDATE ON animes
+      FOR EACH ROW EXECUTE FUNCTION animes_update_trigger();
+
+      CREATE OR REPLACE FUNCTION animes_delete_trigger()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        DELETE FROM episodes WHERE anime_id = OLD.id;
+        DELETE FROM comments WHERE anime_id = OLD.id;
+        DELETE FROM anime WHERE id = OLD.id;
+        RETURN OLD;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_animes_delete ON animes;
+      CREATE TRIGGER trg_animes_delete
+      INSTEAD OF DELETE ON animes
+      FOR EACH ROW EXECUTE FUNCTION animes_delete_trigger();
+    `);
+    console.log("Verified and initialized Anime & Episode tables and view triggers in PostgreSQL.");
+  } catch (err) {
+    console.error("Failed to initialize Anime tables:", err);
+  }
+}
 setTimeout(() => {
   initShopTables();
-}, 1e3);
+  initAnimeTables();
+}, 500);
 var watchRooms = /* @__PURE__ */ new Map();
 var socketToWatchRoom = /* @__PURE__ */ new Map();
 io.on("connection", (socket) => {
@@ -3188,7 +3360,7 @@ app.get("/api/animes/:id", async (req, res) => {
     });
     return res.json(cached);
   }
-  const toSlugLocal = (text) => {
+  const toSlugLocal2 = (text) => {
     if (!text) return "";
     return text.toLowerCase().replace(/o['’`‘ʻʼ]/g, "o").replace(/g['’`‘ʻʼ]/g, "g").replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-").replace(/^-+|-+$/g, "");
   };
@@ -3204,7 +3376,7 @@ app.get("/api/animes/:id", async (req, res) => {
     }
     const [allRows] = await dbQuery("SELECT * FROM animes");
     if (Array.isArray(allRows) && allRows.length > 0) {
-      const match = allRows.find((r) => toSlugLocal(r.title) === id || String(r.id) === String(id));
+      const match = allRows.find((r) => toSlugLocal2(r.title) === id || String(r.id) === String(id));
       if (match) {
         dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [match.id]).catch(() => {
         });
@@ -3218,7 +3390,7 @@ app.get("/api/animes/:id", async (req, res) => {
     console.warn("Single anime fetch falling back to local store:", err?.message);
   }
   const store = loadLocalStore();
-  const anime = (store.animes || []).find((a) => String(a.id) === String(id) || toSlugLocal(a.title) === id);
+  const anime = (store.animes || []).find((a) => String(a.id) === String(id) || toSlugLocal2(a.title) === id);
   if (!anime) {
     return res.status(404).json({ error: "Anime topilmadi" });
   }
@@ -3239,14 +3411,14 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
     cached.korishlar = (cached.korishlar || 0) + 1;
     return res.json(cached);
   }
-  const toSlugLocal = (text) => {
+  const toSlugLocal2 = (text) => {
     if (!text) return "";
     return text.toLowerCase().replace(/o['’`‘ʻʼ]/g, "o").replace(/g['’`‘ʻʼ]/g, "g").replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-").replace(/^-+|-+$/g, "");
   };
   try {
     const [rows] = await dbQuery("SELECT * FROM animes");
     if (Array.isArray(rows) && rows.length > 0) {
-      const anime2 = rows.find((r) => toSlugLocal(r.title) === slug || String(r.id) === String(slug));
+      const anime2 = rows.find((r) => toSlugLocal2(r.title) === slug || String(r.id) === String(slug));
       if (anime2) {
         dbQuery("UPDATE animes SET korishlar = COALESCE(korishlar, 0) + 1 WHERE id = ?", [anime2.id]).catch(() => {
         });
@@ -3260,7 +3432,7 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
     console.warn("Anime by slug fetch falling back to local store:", err?.message);
   }
   const store = loadLocalStore();
-  const anime = (store.animes || []).find((a) => toSlugLocal(a.title) === slug || String(a.id) === String(slug));
+  const anime = (store.animes || []).find((a) => toSlugLocal2(a.title) === slug || String(a.id) === String(slug));
   if (!anime) {
     return res.status(404).json({ error: "Anime topilmadi" });
   }
@@ -3321,11 +3493,11 @@ async function notifyTelegramNewAnime(animeId, episodeNumber = null) {
       console.error("Could not find animeData for notification:", animeId);
       return;
     }
-    const toSlugLocal = (text) => {
+    const toSlugLocal2 = (text) => {
       if (!text) return "";
       return text.toLowerCase().replace(/o['’`‘]/g, "o").replace(/g['’`‘]/g, "g").replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-").replace(/^-+|-+$/g, "");
     };
-    const slug = toSlugLocal(animeData.title);
+    const slug = toSlugLocal2(animeData.title);
     const link = `https://animem.uz/anime/${slug}`;
     const epString = episodeNumber ? `\u{1F522}Qism: ${episodeNumber}` : `\u{1F522}Qism: ${animeData.qismlar_soni || 1}`;
     const safeTitle = animeData.title.replace(/[_*`\[\]]/g, "");
@@ -3945,26 +4117,30 @@ app.post("/api/animes", authenticateToken, async (req, res) => {
       tags,
       is_adult
     } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "Anime nomi kiritilishi shart!" });
+    }
+    const cleanTitle = title.trim();
     const cleanImageUrl = normalizeImageUrl(image_url);
     const cleanBannerUrl = normalizeImageUrl(banner_url);
-    let insertId = Date.now();
+    let insertId = 0;
     try {
       const [result] = await dbQuery(
         `INSERT INTO animes 
         (title, description, image_url, banner_url, rating, rating_count, holati, yil, studiyasi, qismlar_soni, korishlar, janrlar, telegram_url, video_url, tavsiya, is_banner, tags, is_adult) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          title || "",
+          cleanTitle,
           description || "",
           cleanImageUrl,
           cleanBannerUrl,
-          rating || 0,
-          rating_count || 0,
+          Number(rating) || 9,
+          Number(rating_count) || 0,
           holati || "Faol",
-          yil || null,
+          yil ? Number(yil) : 2024,
           studiyasi || "",
-          qismlar_soni || 0,
-          korishlar || 0,
+          qismlar_soni ? Number(qismlar_soni) : 12,
+          korishlar ? Number(korishlar) : 0,
           janrlar || "",
           telegram_url || "",
           video_url || "",
@@ -3976,23 +4152,32 @@ app.post("/api/animes", authenticateToken, async (req, res) => {
       );
       if (result && result.insertId) {
         insertId = result.insertId;
+      } else {
+        const [lookup] = await dbQuery("SELECT id FROM animes WHERE title = ? ORDER BY id DESC LIMIT 1", [cleanTitle]);
+        if (lookup && lookup[0]) {
+          insertId = lookup[0].id;
+        }
       }
     } catch (dbErr) {
-      console.warn("DB insert anime failed, using local store:", dbErr?.message);
+      console.error("DB insert anime failed:", dbErr?.message || dbErr);
+      return res.status(500).json({ error: "Anime bazaga saqlanmadi: " + (dbErr?.message || "Xatolik yuz berdi") });
+    }
+    if (!insertId) {
+      return res.status(500).json({ error: "Anime bazaga saqlanmadi (ID olinmadi)" });
     }
     const store = loadLocalStore();
     const newObj = {
       id: insertId,
-      title: title || "",
+      title: cleanTitle,
       description: description || "",
-      image_url: image_url || "",
-      banner_url: banner_url || "",
-      rating: rating || 0,
-      rating_count: rating_count || 0,
+      image_url: cleanImageUrl,
+      banner_url: cleanBannerUrl,
+      rating: Number(rating) || 9,
+      rating_count: Number(rating_count) || 0,
       holati: holati || "Faol",
-      yil: yil ? Number(yil) : null,
+      yil: yil ? Number(yil) : 2024,
       studiyasi: studiyasi || "",
-      qismlar_soni: qismlar_soni ? Number(qismlar_soni) : 0,
+      qismlar_soni: qismlar_soni ? Number(qismlar_soni) : 12,
       korishlar: korishlar ? Number(korishlar) : 0,
       janrlar: janrlar || "",
       telegram_url: telegram_url || "",
@@ -4005,20 +4190,22 @@ app.post("/api/animes", authenticateToken, async (req, res) => {
     store.animes = store.animes || [];
     store.animes.unshift(newObj);
     saveLocalStore(store);
+    invalidateServerCache("api_all_animes");
+    invalidateServerCache("api_anime_");
     notifyTelegramNewAnime(insertId, qismlar_soni ? Number(qismlar_soni) : null);
     broadcastPushNotification({
       title: "Animem.uz | Yangi Anime Qo'shildi! \u{1F3AC}",
-      body: `"${title}" o'zbek tilida joylandi (${qismlar_soni ? `${qismlar_soni} qism` : "Film"}). Hoziroq tomosha qiling!`,
-      image: image_url || banner_url || void 0,
-      url: `/anime/${(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`,
+      body: `"${cleanTitle}" o'zbek tilida joylandi (${qismlar_soni ? `${qismlar_soni} qism` : "Film"}). Hoziroq tomosha qiling!`,
+      image: cleanImageUrl || cleanBannerUrl || void 0,
+      url: `/anime/${toSlugLocal(cleanTitle)}`,
       tag: `anime-${insertId}`
     }).catch(() => {
     });
     notifyContentUpdate("anime");
-    res.status(201).json({ id: insertId });
+    res.status(201).json({ id: insertId, success: true, message: "Yangi anime muvaffaqiyatli qo'shildi!" });
   } catch (err) {
     console.error("Add anime error:", err);
-    res.status(500).json({ error: "Failed to create anime" });
+    res.status(500).json({ error: "Failed to create anime: " + (err?.message || err) });
   }
 });
 app.put("/api/animes/:id", authenticateToken, async (req, res) => {
@@ -4102,7 +4289,8 @@ app.put("/api/animes/:id", authenticateToken, async (req, res) => {
         ]
       );
     } catch (dbErr) {
-      console.warn("DB update anime failed, relying on local store:", dbErr?.message);
+      console.error("DB update anime failed:", dbErr?.message || dbErr);
+      return res.status(500).json({ error: "Anime tahrirlanmadi: " + (dbErr?.message || "Xatolik yuz berdi") });
     }
     const store = loadLocalStore();
     const idx = (store.animes || []).findIndex((a) => String(a.id) === String(id));
@@ -4166,7 +4354,7 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req, res) =>
     const { episode_number, video_url, is_filler } = req.body;
     const epNum = parseInt(episode_number);
     const fillerVal = is_filler ? 1 : 0;
-    let epId = Date.now();
+    let epId = 0;
     try {
       const [existing] = await dbQuery(
         "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ?",
@@ -4176,18 +4364,27 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req, res) =>
         epId = existing[0].id;
         await dbQuery(
           "UPDATE episodes SET video_url = ?, is_filler = ? WHERE anime_id = ? AND episode_number = ?",
-          [video_url, fillerVal, anime_id, epNum]
+          [video_url || "", fillerVal, anime_id, epNum]
         );
       } else {
         const [result] = await dbQuery(
           "INSERT INTO episodes (anime_id, episode_number, video_url, is_filler) VALUES (?, ?, ?, ?)",
-          [anime_id, epNum, video_url, fillerVal]
+          [anime_id, epNum, video_url || "", fillerVal]
         );
-        if (result && result.insertId) epId = result.insertId;
+        if (result && result.insertId) {
+          epId = result.insertId;
+        } else {
+          const [lookup] = await dbQuery(
+            "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ? ORDER BY id DESC LIMIT 1",
+            [anime_id, epNum]
+          );
+          if (lookup && lookup[0]) epId = lookup[0].id;
+        }
         notifyTelegramNewAnime(anime_id, epNum);
       }
     } catch (dbErr) {
-      console.warn("DB save episode failed, relying on local store:", dbErr?.message);
+      console.error("DB save episode failed:", dbErr?.message || dbErr);
+      return res.status(500).json({ error: "Qism bazaga saqlanmadi: " + (dbErr?.message || "Xatolik") });
     }
     const store = loadLocalStore();
     store.episodes = store.episodes || [];
@@ -4195,22 +4392,22 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req, res) =>
       (e) => String(e.anime_id) === String(anime_id) && Number(e.episode_number) === epNum
     );
     if (idx >= 0) {
-      store.episodes[idx] = { ...store.episodes[idx], video_url, is_filler: fillerVal };
+      store.episodes[idx] = { ...store.episodes[idx], video_url: video_url || "", is_filler: fillerVal };
     } else {
       store.episodes.push({
         id: epId,
         anime_id,
         episode_number: epNum,
-        video_url,
+        video_url: video_url || "",
         is_filler: fillerVal
       });
     }
     saveLocalStore(store);
     notifyContentUpdate("anime");
-    res.json({ message: "Qism saqlandi", id: epId });
+    res.json({ success: true, message: "Qism muvaffaqiyatli saqlandi", id: epId });
   } catch (err) {
     console.error("Save episode error:", err);
-    res.status(500).json({ error: "Failed to save episode" });
+    res.status(500).json({ error: "Qismni saqlashda xatolik: " + (err?.message || err) });
   }
 });
 app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req, res) => {
@@ -4228,7 +4425,7 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req, re
       if (isNaN(epNum)) continue;
       const video_url = ep.video_url || "";
       const fillerVal = ep.is_filler ? 1 : 0;
-      let epId = Date.now();
+      let epId = 0;
       try {
         const [existing] = await dbQuery(
           "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ?",
@@ -4248,6 +4445,7 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req, re
           if (result && result.insertId) epId = result.insertId;
         }
       } catch (dbErr) {
+        console.error(`Bulk save ep #${epNum} failed:`, dbErr?.message || dbErr);
       }
       const idx = store.episodes.findIndex(
         (e) => String(e.anime_id) === String(anime_id) && Number(e.episode_number) === epNum
@@ -4256,7 +4454,7 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req, re
         store.episodes[idx] = { ...store.episodes[idx], video_url, is_filler: fillerVal };
       } else {
         store.episodes.push({
-          id: epId,
+          id: epId || Date.now(),
           anime_id,
           episode_number: epNum,
           video_url,
@@ -4266,10 +4464,10 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req, re
     }
     saveLocalStore(store);
     notifyContentUpdate("anime");
-    res.json({ message: "Barcha qismlar saqlandi", count: episodes.length });
+    res.json({ success: true, message: "Barcha qismlar muvaffaqiyatli saqlandi", count: episodes.length });
   } catch (err) {
     console.error("Bulk save episodes error:", err);
-    res.status(500).json({ error: "Failed to bulk save episodes" });
+    res.status(500).json({ error: "Qismlarni ommaviy saqlashda xatolik: " + (err?.message || err) });
   }
 });
 app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, async (req, res) => {
@@ -4282,6 +4480,7 @@ app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, as
         [animeId, episodeNumber]
       );
     } catch (e) {
+      console.error("Delete episode DB error:", e?.message || e);
     }
     const store = loadLocalStore();
     store.episodes = (store.episodes || []).filter(
@@ -4289,10 +4488,10 @@ app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, as
     );
     saveLocalStore(store);
     notifyContentUpdate("anime");
-    res.json({ message: "Qism o'chirildi" });
+    res.json({ success: true, message: "Qism muvaffaqiyatli o'chirildi" });
   } catch (err) {
     console.error("Delete episode error:", err);
-    res.status(500).json({ error: "Failed to delete episode" });
+    res.status(500).json({ error: "Qismni o'chirishda xatolik: " + (err?.message || err) });
   }
 });
 app.get("/api/mangas", async (req, res) => {
@@ -6160,7 +6359,7 @@ Siz <b>ANIMEUZ</b> saytiga kirish jarayonini boshladingiz. Kirishni tasdiqlash u
                   }
                 );
               } else if (startParam) {
-                const toSlugLocal = (text2) => {
+                const toSlugLocal2 = (text2) => {
                   if (!text2) return "";
                   return text2.toLowerCase().replace(/o['’`‘]/g, "o").replace(/g['’`‘]/g, "g").replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-").replace(/^-+|-+$/g, "");
                 };
@@ -6168,7 +6367,7 @@ Siz <b>ANIMEUZ</b> saytiga kirish jarayonini boshladingiz. Kirishni tasdiqlash u
                   const [rows] = await dbQuery("SELECT * FROM animes");
                   let anime = null;
                   if (Array.isArray(rows)) {
-                    anime = rows.find((r) => toSlugLocal(r.title) === startParam);
+                    anime = rows.find((r) => toSlugLocal2(r.title) === startParam);
                   }
                   if (anime) {
                     const caption = `<b>\u{1F3AC} ${anime.title}</b>
@@ -7812,7 +8011,7 @@ async function start() {
     }
     return res.type("text/plain").send("yandex.ru, f08c4a5923fc3014, DIRECT, f08c4a5923fc3014");
   });
-  const toSlugLocal = (text) => {
+  const toSlugLocal2 = (text) => {
     if (!text) return "";
     return text.toLowerCase().replace(/o['’`‘]/g, "o").replace(/g['’`‘]/g, "g").replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-").replace(/^-+|-+$/g, "");
   };
@@ -7902,7 +8101,7 @@ async function start() {
         animesList = store.animes || [];
       }
       for (const a of animesList) {
-        const slug = toSlugLocal(a.title) || String(a.id);
+        const slug = toSlugLocal2(a.title) || String(a.id);
         if (slug) {
           const imgUrl = escapeXml(toAbsoluteUrl(a.image_url, domain));
           const titleClean = escapeXml(a.title || "Anime");
@@ -8053,14 +8252,14 @@ async function start() {
         let animeRaw = null;
         const store = loadLocalStore();
         animeRaw = (store.animes || []).find(
-          (a) => toSlugLocal(a.title) === rawParam || String(a.id) === rawParam || rawParam.startsWith(a.id + "-") || rawParam.endsWith("-" + a.id)
+          (a) => toSlugLocal2(a.title) === rawParam || String(a.id) === rawParam || rawParam.startsWith(a.id + "-") || rawParam.endsWith("-" + a.id)
         );
         if (!animeRaw) {
           try {
             const [rows] = await dbQuery("SELECT * FROM animes ORDER BY id DESC");
             if (Array.isArray(rows) && rows.length > 0) {
               animeRaw = rows.find(
-                (a) => toSlugLocal(a.title) === rawParam || String(a.id) === rawParam || rawParam.startsWith(a.id + "-") || rawParam.endsWith("-" + a.id)
+                (a) => toSlugLocal2(a.title) === rawParam || String(a.id) === rawParam || rawParam.startsWith(a.id + "-") || rawParam.endsWith("-" + a.id)
               );
               store.animes = rows;
               saveLocalStore(store);
@@ -8073,7 +8272,7 @@ async function start() {
           titleText = `${animeRaw.title} - O'zbek tilida ko'rish`;
           descText = `${animeRaw.title} o'zbek tilida HD formatda onlayn tomosha qilish. ${animeRaw.description ? animeRaw.description.substring(0, 180).trim() : "Barcha qismlari bepul va yuqori sifatda!"}`;
           imageUrl = animeRaw.image_url || "https://animem.uz/logo.png";
-          shareUrl = `https://animem.uz/anime/${toSlugLocal(animeRaw.title)}`;
+          shareUrl = `https://animem.uz/anime/${toSlugLocal2(animeRaw.title)}`;
           imageAltText = animeRaw.title;
           const genres = animeRaw.janrlar ? animeRaw.janrlar.split(",").map((g) => g.trim()) : [];
           const isSeries = animeRaw.qismlar_soni && Number(animeRaw.qismlar_soni) > 1;
@@ -8257,7 +8456,7 @@ async function start() {
               "item": {
                 "@type": "Movie",
                 "name": a.title,
-                "url": `https://animem.uz/anime/${toSlugLocal(a.title)}`,
+                "url": `https://animem.uz/anime/${toSlugLocal2(a.title)}`,
                 "image": {
                   "@type": "ImageObject",
                   "url": a.image_url,

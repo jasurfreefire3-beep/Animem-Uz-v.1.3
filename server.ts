@@ -331,6 +331,16 @@ function queryLocalStore(sql: string, params: any[] = []): any[] {
   }
 }
 
+function toSlugLocal(text: string): string {
+  if (!text) return "";
+  return String(text)
+    .toLowerCase()
+    .replace(/o['’`‘ʻʼ]/g, "o")
+    .replace(/g['’`‘ʻʼ]/g, "g")
+    .replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 // Resilient query wrapper: Cloudflare D1 with local_store fallback
 async function dbQuery<T = any>(sql: string, params?: any[], retries = 3): Promise<T> {
   try {
@@ -593,9 +603,186 @@ async function initShopTables() {
     console.error("Failed to initialize Shop tables:", err);
   }
 }
+
+// Ensure anime base table columns, episodes columns, view and triggers exist in PostgreSQL
+async function initAnimeTables() {
+  try {
+    // 1. Ensure columns in base table anime
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS telegram_url TEXT DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS video_url TEXT DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS is_adult INTEGER DEFAULT 0`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS is_banner INTEGER DEFAULT 0`);
+
+    // 2. Ensure columns in episodes table
+    await pgPool.query(`ALTER TABLE episodes ADD COLUMN IF NOT EXISTS is_filler INTEGER DEFAULT 0`);
+    await pgPool.query(`ALTER TABLE episodes ALTER COLUMN video_url DROP NOT NULL`).catch(() => {});
+    await pgPool.query(`ALTER TABLE episodes ALTER COLUMN video_url SET DEFAULT ''`).catch(() => {});
+
+    // 3. Recreate view animes with all columns
+    await pgPool.query(`DROP VIEW IF EXISTS animes CASCADE`);
+    await pgPool.query(`
+      CREATE VIEW animes AS
+      SELECT 
+        id,
+        COALESCE(title_uz, title_orig, title_en, 'Anime'::character varying) AS title,
+        title_uz,
+        title_orig,
+        title_en,
+        slug,
+        description,
+        COALESCE(poster_url, banner_url, ''::text) AS image_url,
+        poster_url,
+        banner_url,
+        season,
+        COALESCE(status, 'Faol'::character varying) AS holati,
+        status,
+        COALESCE(release_year, 2024) AS yil,
+        release_year,
+        COALESCE(episodes_count, 12) AS qismlar_soni,
+        episodes_count,
+        COALESCE(current_episodes, 1) AS current_episodes,
+        COALESCE(rating, 9.0) AS rating,
+        COALESCE(rating_count, 0) AS rating_count,
+        COALESCE(views, 0) AS korishlar,
+        views,
+        COALESCE(is_featured, 0) AS tavsiya,
+        is_featured,
+        COALESCE(is_banner, 0) AS is_banner,
+        COALESCE(type, 'TV'::character varying) AS type,
+        COALESCE(age_rating, '16+'::character varying) AS age_rating,
+        COALESCE(genres, 'Sarguzasht'::text) AS janrlar,
+        genres,
+        COALESCE(studio, 'Animem'::character varying) AS studiyasi,
+        studio,
+        duration,
+        dub_studio,
+        COALESCE(telegram_url, ''::text) AS telegram_url,
+        COALESCE(video_url, ''::text) AS video_url,
+        COALESCE(tags, ''::text) AS tags,
+        COALESCE(is_adult, 0) AS is_adult,
+        created_at,
+        updated_at
+      FROM anime;
+    `);
+
+    // 4. Create INSTEAD OF triggers on animes
+    await pgPool.query(`
+      CREATE OR REPLACE FUNCTION animes_insert_trigger()
+      RETURNS TRIGGER AS $$
+      DECLARE
+        v_title text;
+        v_slug text;
+        v_id int;
+      BEGIN
+        v_title := COALESCE(NEW.title, NEW.title_uz, 'Anime');
+        v_slug := COALESCE(NEW.slug, LOWER(REGEXP_REPLACE(v_title, '[^a-zA-Z0-9]+', '-', 'g')));
+        IF v_slug = '' OR v_slug = '-' THEN v_slug := 'anime-' || EXTRACT(EPOCH FROM NOW())::int; END IF;
+
+        INSERT INTO anime (
+          title_uz, title_orig, title_en, slug, description,
+          poster_url, banner_url, season, status, release_year,
+          episodes_count, rating, views, is_featured, is_banner,
+          type, age_rating, genres, studio, rating_count,
+          telegram_url, video_url, tags, is_adult, updated_at
+        ) VALUES (
+          v_title,
+          COALESCE(NEW.title_orig, v_title),
+          COALESCE(NEW.title_en, v_title),
+          v_slug,
+          COALESCE(NEW.description, ''),
+          COALESCE(NEW.image_url, NEW.poster_url, ''),
+          COALESCE(NEW.banner_url, ''),
+          COALESCE(NEW.season, '2024'),
+          COALESCE(NEW.holati, NEW.status, 'Faol'),
+          COALESCE(NEW.yil, NEW.release_year, 2024),
+          COALESCE(NEW.qismlar_soni, NEW.episodes_count, 12),
+          COALESCE(NEW.rating, 9.0),
+          COALESCE(NEW.korishlar, NEW.views, 0),
+          COALESCE(NEW.tavsiya, NEW.is_featured, 0),
+          COALESCE(NEW.is_banner, 0),
+          COALESCE(NEW.type, 'TV'),
+          COALESCE(NEW.age_rating, '16+'),
+          COALESCE(NEW.janrlar, NEW.genres, ''),
+          COALESCE(NEW.studiyasi, NEW.studio, ''),
+          COALESCE(NEW.rating_count, 0),
+          COALESCE(NEW.telegram_url, ''),
+          COALESCE(NEW.video_url, ''),
+          COALESCE(NEW.tags, ''),
+          COALESCE(NEW.is_adult, 0),
+          CURRENT_TIMESTAMP
+        ) RETURNING id INTO v_id;
+
+        NEW.id := v_id;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_animes_insert ON animes;
+      CREATE TRIGGER trg_animes_insert
+      INSTEAD OF INSERT ON animes
+      FOR EACH ROW EXECUTE FUNCTION animes_insert_trigger();
+
+      CREATE OR REPLACE FUNCTION animes_update_trigger()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        UPDATE anime SET
+          title_uz = COALESCE(NEW.title, NEW.title_uz, title_uz),
+          description = COALESCE(NEW.description, description),
+          poster_url = COALESCE(NEW.image_url, NEW.poster_url, poster_url),
+          banner_url = COALESCE(NEW.banner_url, banner_url),
+          rating = COALESCE(NEW.rating, rating),
+          rating_count = COALESCE(NEW.rating_count, rating_count),
+          status = COALESCE(NEW.holati, NEW.status, status),
+          release_year = COALESCE(NEW.yil, NEW.release_year, release_year),
+          episodes_count = COALESCE(NEW.qismlar_soni, NEW.episodes_count, episodes_count),
+          views = COALESCE(NEW.korishlar, NEW.views, views),
+          genres = COALESCE(NEW.janrlar, NEW.genres, genres),
+          studio = COALESCE(NEW.studiyasi, NEW.studio, studio),
+          is_featured = COALESCE(NEW.tavsiya, NEW.is_featured, is_featured),
+          is_banner = COALESCE(NEW.is_banner, is_banner),
+          telegram_url = COALESCE(NEW.telegram_url, telegram_url),
+          video_url = COALESCE(NEW.video_url, video_url),
+          tags = COALESCE(NEW.tags, tags),
+          is_adult = COALESCE(NEW.is_adult, is_adult),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = OLD.id;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_animes_update ON animes;
+      CREATE TRIGGER trg_animes_update
+      INSTEAD OF UPDATE ON animes
+      FOR EACH ROW EXECUTE FUNCTION animes_update_trigger();
+
+      CREATE OR REPLACE FUNCTION animes_delete_trigger()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        DELETE FROM episodes WHERE anime_id = OLD.id;
+        DELETE FROM comments WHERE anime_id = OLD.id;
+        DELETE FROM anime WHERE id = OLD.id;
+        RETURN OLD;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_animes_delete ON animes;
+      CREATE TRIGGER trg_animes_delete
+      INSTEAD OF DELETE ON animes
+      FOR EACH ROW EXECUTE FUNCTION animes_delete_trigger();
+    `);
+
+    console.log("Verified and initialized Anime & Episode tables and view triggers in PostgreSQL.");
+  } catch (err) {
+    console.error("Failed to initialize Anime tables:", err);
+  }
+}
+
 setTimeout(() => {
   initShopTables();
-}, 1000);
+  initAnimeTables();
+}, 500);
 
 // --- Watch Together (Do'stlar bilan birga ko'rish) Data Structures ---
 interface WatchParticipant {
@@ -4686,27 +4873,32 @@ app.post("/api/animes", authenticateToken, async (req: any, res) => {
       is_adult,
     } = req.body;
 
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "Anime nomi kiritilishi shart!" });
+    }
+
+    const cleanTitle = title.trim();
     const cleanImageUrl = normalizeImageUrl(image_url);
     const cleanBannerUrl = normalizeImageUrl(banner_url);
 
-    let insertId = Date.now();
+    let insertId = 0;
     try {
       const [result]: any = await dbQuery(
         `INSERT INTO animes 
         (title, description, image_url, banner_url, rating, rating_count, holati, yil, studiyasi, qismlar_soni, korishlar, janrlar, telegram_url, video_url, tavsiya, is_banner, tags, is_adult) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          title || "",
+          cleanTitle,
           description || "",
           cleanImageUrl,
           cleanBannerUrl,
-          rating || 0.0,
-          rating_count || 0,
+          Number(rating) || 9.0,
+          Number(rating_count) || 0,
           holati || "Faol",
-          yil || null,
+          yil ? Number(yil) : 2024,
           studiyasi || "",
-          qismlar_soni || 0,
-          korishlar || 0,
+          qismlar_soni ? Number(qismlar_soni) : 12,
+          korishlar ? Number(korishlar) : 0,
           janrlar || "",
           telegram_url || "",
           video_url || "",
@@ -4718,24 +4910,35 @@ app.post("/api/animes", authenticateToken, async (req: any, res) => {
       );
       if (result && result.insertId) {
         insertId = result.insertId;
+      } else {
+        // Query back the newly inserted ID
+        const [lookup]: any = await dbQuery("SELECT id FROM animes WHERE title = ? ORDER BY id DESC LIMIT 1", [cleanTitle]);
+        if (lookup && lookup[0]) {
+          insertId = lookup[0].id;
+        }
       }
-    } catch (dbErr) {
-      console.warn("DB insert anime failed, using local store:", (dbErr as any)?.message);
+    } catch (dbErr: any) {
+      console.error("DB insert anime failed:", dbErr?.message || dbErr);
+      return res.status(500).json({ error: "Anime bazaga saqlanmadi: " + (dbErr?.message || "Xatolik yuz berdi") });
+    }
+
+    if (!insertId) {
+      return res.status(500).json({ error: "Anime bazaga saqlanmadi (ID olinmadi)" });
     }
 
     const store = loadLocalStore();
     const newObj = {
       id: insertId,
-      title: title || "",
+      title: cleanTitle,
       description: description || "",
-      image_url: image_url || "",
-      banner_url: banner_url || "",
-      rating: rating || 0.0,
-      rating_count: rating_count || 0,
+      image_url: cleanImageUrl,
+      banner_url: cleanBannerUrl,
+      rating: Number(rating) || 9.0,
+      rating_count: Number(rating_count) || 0,
       holati: holati || "Faol",
-      yil: yil ? Number(yil) : null,
+      yil: yil ? Number(yil) : 2024,
       studiyasi: studiyasi || "",
-      qismlar_soni: qismlar_soni ? Number(qismlar_soni) : 0,
+      qismlar_soni: qismlar_soni ? Number(qismlar_soni) : 12,
       korishlar: korishlar ? Number(korishlar) : 0,
       janrlar: janrlar || "",
       telegram_url: telegram_url || "",
@@ -4749,24 +4952,28 @@ app.post("/api/animes", authenticateToken, async (req: any, res) => {
     store.animes.unshift(newObj);
     saveLocalStore(store);
 
+    // Invalidate server cache immediately
+    invalidateServerCache("api_all_animes");
+    invalidateServerCache("api_anime_");
+
     // Notify Telegram
     notifyTelegramNewAnime(insertId, qismlar_soni ? Number(qismlar_soni) : null);
 
     // Broadcast Web Push to all devices with anime image
     broadcastPushNotification({
       title: "Animem.uz | Yangi Anime Qo'shildi! 🎬",
-      body: `"${title}" o'zbek tilida joylandi (${qismlar_soni ? `${qismlar_soni} qism` : 'Film'}). Hoziroq tomosha qiling!`,
-      image: image_url || banner_url || undefined,
-      url: `/anime/${(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+      body: `"${cleanTitle}" o'zbek tilida joylandi (${qismlar_soni ? `${qismlar_soni} qism` : 'Film'}). Hoziroq tomosha qiling!`,
+      image: cleanImageUrl || cleanBannerUrl || undefined,
+      url: `/anime/${toSlugLocal(cleanTitle)}`,
       tag: `anime-${insertId}`
     }).catch(() => {});
 
     notifyContentUpdate("anime");
 
-    res.status(201).json({ id: insertId });
-  } catch (err) {
+    res.status(201).json({ id: insertId, success: true, message: "Yangi anime muvaffaqiyatli qo'shildi!" });
+  } catch (err: any) {
     console.error("Add anime error:", err);
-    res.status(500).json({ error: "Failed to create anime" });
+    res.status(500).json({ error: "Failed to create anime: " + (err?.message || err) });
   }
 });
 
@@ -4865,8 +5072,9 @@ app.put("/api/animes/:id", authenticateToken, async (req: any, res) => {
           id,
         ]
       );
-    } catch (dbErr) {
-      console.warn("DB update anime failed, relying on local store:", (dbErr as any)?.message);
+    } catch (dbErr: any) {
+      console.error("DB update anime failed:", dbErr?.message || dbErr);
+      return res.status(500).json({ error: "Anime tahrirlanmadi: " + (dbErr?.message || "Xatolik yuz berdi") });
     }
 
     // Always update local_store.json
@@ -4944,7 +5152,7 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
     const epNum = parseInt(episode_number);
     const fillerVal = is_filler ? 1 : 0;
 
-    let epId = Date.now();
+    let epId = 0;
     try {
       const [existing]: any = await dbQuery(
         "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ?",
@@ -4955,20 +5163,29 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
         epId = existing[0].id;
         await dbQuery(
           "UPDATE episodes SET video_url = ?, is_filler = ? WHERE anime_id = ? AND episode_number = ?",
-          [video_url, fillerVal, anime_id, epNum]
+          [video_url || "", fillerVal, anime_id, epNum]
         );
       } else {
         const [result]: any = await dbQuery(
           "INSERT INTO episodes (anime_id, episode_number, video_url, is_filler) VALUES (?, ?, ?, ?)",
-          [anime_id, epNum, video_url, fillerVal]
+          [anime_id, epNum, video_url || "", fillerVal]
         );
-        if (result && result.insertId) epId = result.insertId;
+        if (result && result.insertId) {
+          epId = result.insertId;
+        } else {
+          const [lookup]: any = await dbQuery(
+            "SELECT id FROM episodes WHERE anime_id = ? AND episode_number = ? ORDER BY id DESC LIMIT 1",
+            [anime_id, epNum]
+          );
+          if (lookup && lookup[0]) epId = lookup[0].id;
+        }
         
         // Notify Telegram
         notifyTelegramNewAnime(anime_id, epNum);
       }
-    } catch (dbErr) {
-      console.warn("DB save episode failed, relying on local store:", (dbErr as any)?.message);
+    } catch (dbErr: any) {
+      console.error("DB save episode failed:", dbErr?.message || dbErr);
+      return res.status(500).json({ error: "Qism bazaga saqlanmadi: " + (dbErr?.message || "Xatolik") });
     }
 
     const store = loadLocalStore();
@@ -4978,13 +5195,13 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
     );
 
     if (idx >= 0) {
-      store.episodes[idx] = { ...store.episodes[idx], video_url, is_filler: fillerVal };
+      store.episodes[idx] = { ...store.episodes[idx], video_url: video_url || "", is_filler: fillerVal };
     } else {
       store.episodes.push({
         id: epId,
         anime_id,
         episode_number: epNum,
-        video_url,
+        video_url: video_url || "",
         is_filler: fillerVal
       });
     }
@@ -4992,10 +5209,10 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
 
     notifyContentUpdate("anime");
 
-    res.json({ message: "Qism saqlandi", id: epId });
-  } catch (err) {
+    res.json({ success: true, message: "Qism muvaffaqiyatli saqlandi", id: epId });
+  } catch (err: any) {
     console.error("Save episode error:", err);
-    res.status(500).json({ error: "Failed to save episode" });
+    res.status(500).json({ error: "Qismni saqlashda xatolik: " + (err?.message || err) });
   }
 });
 
@@ -5018,7 +5235,7 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req: an
       if (isNaN(epNum)) continue;
       const video_url = ep.video_url || "";
       const fillerVal = ep.is_filler ? 1 : 0;
-      let epId = Date.now();
+      let epId = 0;
 
       try {
         const [existing]: any = await dbQuery(
@@ -5038,8 +5255,8 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req: an
           );
           if (result && result.insertId) epId = result.insertId;
         }
-      } catch (dbErr) {
-        // Fallback to local store
+      } catch (dbErr: any) {
+        console.error(`Bulk save ep #${epNum} failed:`, dbErr?.message || dbErr);
       }
 
       const idx = store.episodes.findIndex(
@@ -5049,7 +5266,7 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req: an
         store.episodes[idx] = { ...store.episodes[idx], video_url, is_filler: fillerVal };
       } else {
         store.episodes.push({
-          id: epId,
+          id: epId || Date.now(),
           anime_id,
           episode_number: epNum,
           video_url,
@@ -5061,10 +5278,10 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req: an
     saveLocalStore(store);
     notifyContentUpdate("anime");
 
-    res.json({ message: "Barcha qismlar saqlandi", count: episodes.length });
-  } catch (err) {
+    res.json({ success: true, message: "Barcha qismlar muvaffaqiyatli saqlandi", count: episodes.length });
+  } catch (err: any) {
     console.error("Bulk save episodes error:", err);
-    res.status(500).json({ error: "Failed to bulk save episodes" });
+    res.status(500).json({ error: "Qismlarni ommaviy saqlashda xatolik: " + (err?.message || err) });
   }
 });
 
@@ -5079,7 +5296,9 @@ app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, as
         "DELETE FROM episodes WHERE anime_id = ? AND episode_number = ?",
         [animeId, episodeNumber]
       );
-    } catch (e) {}
+    } catch (e: any) {
+      console.error("Delete episode DB error:", e?.message || e);
+    }
 
     const store = loadLocalStore();
     store.episodes = (store.episodes || []).filter(
@@ -5089,10 +5308,10 @@ app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, as
 
     notifyContentUpdate("anime");
 
-    res.json({ message: "Qism o'chirildi" });
-  } catch (err) {
+    res.json({ success: true, message: "Qism muvaffaqiyatli o'chirildi" });
+  } catch (err: any) {
     console.error("Delete episode error:", err);
-    res.status(500).json({ error: "Failed to delete episode" });
+    res.status(500).json({ error: "Qismni o'chirishda xatolik: " + (err?.message || err) });
   }
 });
 
