@@ -142,9 +142,60 @@ export default function Register() {
     }
   };
 
-  const handleTelegramLoginStart = () => {
-    setError('');
-    setIsTgModalOpen(true);
+  const handleTelegramLoginStart = async () => {
+    try {
+      setError('');
+      setLoading(true);
+
+      // Check if Telegram Login SDK is available and can open popup
+      if (typeof window !== 'undefined' && (window as any).Telegram?.Login?.auth) {
+        (window as any).Telegram.Login.auth(
+          {
+            client_id: 8699829863,
+            scope: ['profile', 'phone'],
+            lang: 'uz'
+          },
+          async (res: any) => {
+            if (!res || res.error) {
+              setLoading(false);
+              if (res?.error && res.error !== 'user_closed') {
+                setError(typeof res.error === 'string' ? res.error : 'Telegram orqali kirish bekor qilindi');
+              }
+              return;
+            }
+
+            try {
+              const verifyRes = await fetch('/api/auth/telegram/openid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(res)
+              });
+              const data = await verifyRes.json();
+              if (!verifyRes.ok || !data.token) {
+                throw new Error(data.error || 'Telegram orqali ro\'yxatdan o\'tishda xatolik yuz berdi');
+              }
+
+              login(data.token, data.user);
+              navigate('/');
+            } catch (err: any) {
+              setLoading(false);
+              setError(err.message || 'Telegram orqali ro\'yxatdan o\'tishda xatolik');
+            }
+          }
+        );
+        return;
+      }
+
+      // Fallback: standard OAuth 2.0 / OIDC redirect
+      const res = await fetch('/api/auth/telegram/url');
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || 'Telegram avtorizatsiya havolasi olinmadi');
+
+      window.location.href = data.url;
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || 'Telegram orqali kirishda xatolik');
+    }
   };
 
   const GOOGLE_CLIENT_ID = "1045938197563-q078ssunbfut19gl87jti0ti5svighqt.apps.googleusercontent.com";
@@ -721,27 +772,23 @@ export default function Register() {
               </div>
             </button>
 
-            {/* Option 3: Telegram (Hozircha ishlamaydi) */}
+            {/* Option 3: Telegram (OpenID Connect) */}
             <button
-              disabled
-              className="w-full bg-[#0088cc]/30 text-white/50 p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-not-allowed relative border border-white/10"
+              type="button"
+              onClick={handleTelegramLoginStart}
+              className="w-full bg-[#0088cc]/10 hover:bg-[#0088cc]/20 border border-[#0088cc]/30 hover:border-[#0088cc]/50 p-4 rounded-sm transition-all text-left flex items-center gap-4 cursor-pointer group"
             >
-              <div className="absolute top-3 right-3">
-                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                  Hozircha ishlamaydi
-                </span>
-              </div>
-              <div className="w-10 h-10 bg-white/5 rounded-sm flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-white/40">
+              <div className="w-10 h-10 bg-[#0088cc]/20 group-hover:bg-[#0088cc]/30 rounded-sm flex items-center justify-center transition-colors">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-[#0088cc]">
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
                 </svg>
               </div>
-              <div className="flex-1 pr-24">
-                <div className="text-sm font-black text-white/70">
+              <div className="flex-1">
+                <div className="text-sm font-black text-white group-hover:text-[#0088cc] transition-colors">
                   Telegram bilan kirish
                 </div>
-                <div className="text-[11px] text-white/40">
-                  Hozircha ishlamaydi (Tez kunda)
+                <div className="text-[11px] text-white/70">
+                  Telegram OpenID orqali bir bosishda xavfsiz kirish
                 </div>
               </div>
             </button>

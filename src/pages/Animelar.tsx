@@ -5,7 +5,6 @@ import { Anime, translateGenre, getEnglishGenre, toSlug } from '../types';
 import { Star, Play, Grid, List, Film, Eye, Search, X, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import AnimeCard from '../components/AnimeCard';
-import AdBanner728x90 from '../components/AdBanner728x90';
 import LoadingScreen from '../components/LoadingScreen';
 
 // Calculate responsive batch size (approx. 2.5 - 3 rows depending on device)
@@ -247,8 +246,6 @@ export default function Animelar() {
         })}
       </div>
 
-      {/* 728x90 Advertisement Banner */}
-      <AdBanner728x90 />
 
       {/* Empty State */}
       {filteredAnimes.length === 0 && (

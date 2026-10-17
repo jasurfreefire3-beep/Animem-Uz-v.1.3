@@ -138,9 +138,60 @@ export default function Login() {
     }
   };
 
-  const handleTelegramLoginStart = () => {
-    setError('');
-    setIsTgModalOpen(true);
+  const handleTelegramLoginStart = async () => {
+    try {
+      setError('');
+      setLoading(true);
+
+      // Check if Telegram Login SDK is available and can open popup
+      if (typeof window !== 'undefined' && (window as any).Telegram?.Login?.auth) {
+        (window as any).Telegram.Login.auth(
+          {
+            client_id: 8699829863,
+            scope: ['profile', 'phone'],
+            lang: 'uz'
+          },
+          async (res: any) => {
+            if (!res || res.error) {
+              setLoading(false);
+              if (res?.error && res.error !== 'user_closed') {
+                setError(typeof res.error === 'string' ? res.error : 'Telegram orqali kirish bekor qilindi');
+              }
+              return;
+            }
+
+            try {
+              const verifyRes = await fetch('/api/auth/telegram/openid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(res)
+              });
+              const data = await verifyRes.json();
+              if (!verifyRes.ok || !data.token) {
+                throw new Error(data.error || 'Telegram orqali kirishda xatolik yuz berdi');
+              }
+
+              login(data.token, data.user);
+              navigate('/');
+            } catch (err: any) {
+              setLoading(false);
+              setError(err.message || 'Telegram orqali kirishda xatolik');
+            }
+          }
+        );
+        return;
+      }
+
+      // Fallback: standard OAuth 2.0 / OIDC redirect
+      const res = await fetch('/api/auth/telegram/url');
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || 'Telegram avtorizatsiya havolasi olinmadi');
+
+      window.location.href = data.url;
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || 'Telegram orqali kirishda xatolik');
+    }
   };
 
   const formatPhone = (input: string) => {
@@ -716,21 +767,16 @@ export default function Login() {
                 <span>Discord bilan kirish</span>
               </button>
 
-              {/* Telegram bilan kirish (Vaqtincha o'chirilgan) */}
+              {/* Telegram bilan kirish (OpenID Connect) */}
               <button
                 type="button"
-                disabled
-                className="w-full bg-[#0088cc]/30 text-white/50 font-bold py-3 px-4 rounded-sm transition-colors mt-3 flex items-center justify-center gap-3 cursor-not-allowed relative border border-white/10"
+                onClick={handleTelegramLoginStart}
+                className="w-full bg-[#0088cc] hover:bg-[#0077bb] active:scale-[0.99] text-white font-bold py-3 px-4 rounded-sm transition-all mt-3 flex items-center justify-center gap-3 cursor-pointer shadow-lg shadow-[#0088cc]/20 border border-[#00aaff]/30"
               >
-                <div className="absolute top-2 right-2">
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                    Hozircha ishlamaydi
-                  </span>
-                </div>
-                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current opacity-40">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-white">
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.197 1.006.128.832.946z" />
                 </svg>
-                <span className="opacity-50">Telegram bilan kirish</span>
+                <span>Telegram bilan kirish</span>
               </button>
             </div>
 

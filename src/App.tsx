@@ -6,7 +6,6 @@ import MobileBottomNav from './components/MobileBottomNav';
 import Home from './pages/Home';
 import ChatWidget from './components/ChatWidget';
 import MikaAiWidget from './components/MikaAiWidget';
-import SpinBetterAdModal from './components/SpinBetterAdModal';
 import NotificationPromptModal from './components/NotificationPromptModal';
 import InstallAppButton from './components/InstallAppButton';
 import CookieBanner from './components/CookieBanner';
@@ -314,7 +313,6 @@ export default function App() {
       <ChatWidget />
       <MikaAiWidget />
       <InstallAppButton />
-      <SpinBetterAdModal />
       <NotificationPromptModal />
       <CookieBanner />
     </div>

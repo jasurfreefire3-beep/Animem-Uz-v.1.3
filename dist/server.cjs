@@ -6056,10 +6056,10 @@ app.delete("/api/chat/clear", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to clear chat" });
   }
 });
-var BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw";
-var TELEGRAM_CLIENT_ID = process.env.TELEGRAM_CLIENT_ID || "8976573921";
-var TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "animem_auth_bot";
-var TELEGRAM_CLIENT_SECRET = process.env.TELEGRAM_CLIENT_SECRET || "k0m7Wkrmewn5tsEsE7xZiJbjy3oehADauTSqP_N1LS8Z2-WnPzy6Rw";
+var BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8699829863:AAHk_-1c8R9xpE8QPNAdIQwPcY3XQn72NLc";
+var TELEGRAM_CLIENT_ID = process.env.TELEGRAM_CLIENT_ID || "8699829863";
+var TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "Animem_reg_bot";
+var TELEGRAM_CLIENT_SECRET = process.env.TELEGRAM_CLIENT_SECRET || "e94XiRS7IPqJKVR8fhJElsVda-NgsvREiR6a1PuYSZEEu1juvUs_Kg";
 var activeSessions = /* @__PURE__ */ new Map();
 var chatToSession = /* @__PURE__ */ new Map();
 async function sendTelegramMessage(chatId, text, replyMarkup) {
@@ -6086,7 +6086,7 @@ async function sendTelegramMessage(chatId, text, replyMarkup) {
   }
 }
 async function runTelegramBot() {
-  console.log("Starting Telegram Bot (8976573921 - @animem_auth_bot) long polling loop...");
+  console.log("Starting Telegram Bot (8699829863 - @Animem_reg_bot) long polling loop...");
   let offset = 0;
   setInterval(() => {
     const now = Date.now();
@@ -6955,21 +6955,290 @@ app.post("/api/auth/telegram/webapp", async (req, res) => {
     res.status(500).json({ error: err.message || "Telegram WebApp orqali kirishda xatolik" });
   }
 });
+function getTelegramRedirectUri(req) {
+  if (process.env.TELEGRAM_REDIRECT_URI) return process.env.TELEGRAM_REDIRECT_URI;
+  const host = (req.headers.host || "").toLowerCase();
+  if (host.includes("animem.uz")) {
+    return "https://www.animem.uz/api/auth/telegram/callback";
+  }
+  const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
+  return `${appUrl.replace(/\/$/, "")}/api/auth/telegram/callback`;
+}
 app.get("/api/auth/telegram/config", (req, res) => {
-  const origin = req.headers.origin || `https://${req.headers.host}`;
-  const redirectUri = `${origin}/login`;
+  const redirectUri = getTelegramRedirectUri(req);
   res.json({
     botUsername: TELEGRAM_BOT_USERNAME,
     clientId: TELEGRAM_CLIENT_ID,
     redirectUri,
-    authUrl: `https://oauth.telegram.org/auth?client_id=${TELEGRAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid+profile`
+    authUrl: `https://oauth.telegram.org/auth?client_id=${TELEGRAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid+profile+phone`
   });
 });
-app.post("/api/auth/telegram/exchange", async (req, res) => {
+app.get("/api/auth/telegram/url", (req, res) => {
+  if (!TELEGRAM_CLIENT_ID) {
+    return res.status(503).json({ error: "Telegram orqali kirish hali serverda sozlanmagan." });
+  }
+  const redirectUri = getTelegramRedirectUri(req);
+  const state = import_jsonwebtoken.default.sign({ provider: "telegram", redirectUri }, JWT_SECRET, { expiresIn: "15m" });
+  const params = new URLSearchParams({
+    client_id: TELEGRAM_CLIENT_ID,
+    response_type: "code",
+    redirect_uri: redirectUri,
+    scope: "openid profile phone",
+    state
+  });
+  res.json({
+    url: `https://oauth.telegram.org/auth?${params.toString()}`,
+    redirect_uri: redirectUri,
+    client_id: TELEGRAM_CLIENT_ID
+  });
+});
+async function processTelegramAuth(code, redirectUri, fallbackUri) {
+  if (!TELEGRAM_CLIENT_ID || !TELEGRAM_CLIENT_SECRET) {
+    throw new Error("Telegram server sozlamalari topilmadi.");
+  }
+  const exchangeToken = async (targetUri) => {
+    const tokenParams = new URLSearchParams({
+      client_id: TELEGRAM_CLIENT_ID,
+      client_secret: TELEGRAM_CLIENT_SECRET,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: targetUri
+    });
+    const tokenRes = await fetch("https://oauth.telegram.org/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenParams.toString()
+    });
+    const data = await tokenRes.json();
+    return { ok: tokenRes.ok, data };
+  };
+  let tokenResult = await exchangeToken(redirectUri);
+  if (!tokenResult.ok && fallbackUri && fallbackUri !== redirectUri) {
+    const altResult = await exchangeToken(fallbackUri);
+    if (altResult.ok) {
+      tokenResult = altResult;
+    }
+  }
+  const tokenData = tokenResult.data;
+  if (!tokenResult.ok || !tokenData.id_token && !tokenData.access_token) {
+    throw new Error(tokenData.error_description || tokenData.message || tokenData.error || "Telegram tasdiqlash kodini tekshirib bo'lmadi.");
+  }
+  let decoded = null;
+  if (tokenData.id_token) {
+    decoded = import_jsonwebtoken.default.decode(tokenData.id_token);
+  }
+  let tgUserId = decoded?.sub ? String(decoded.sub) : "";
+  let name = decoded?.name || [decoded?.given_name, decoded?.family_name].filter(Boolean).join(" ") || decoded?.preferred_username || "";
+  let username = decoded?.preferred_username || "";
+  let photoUrl = decoded?.picture || null;
+  const phoneNumber = decoded?.phone_number || null;
+  if (!tgUserId) {
+    throw new Error("Telegram profilingiz ma'lumotlari olinmadi.");
+  }
+  if (!name) name = username || `Telegram_${tgUserId.slice(-4)}`;
+  const email = username ? `tg_${username}@telegram.uz` : `tg_${tgUserId}@telegram.uz`;
+  if (!photoUrl && BOT_TOKEN) {
+    try {
+      const photosRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUserProfilePhotos?user_id=${tgUserId}&limit=1`);
+      const photosData = await photosRes.json();
+      if (photosData.ok && photosData.result && photosData.result.total_count > 0) {
+        const fileId = photosData.result.photos[0][0].file_id;
+        const fileRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
+        const fileData = await fileRes.json();
+        if (fileData.ok && fileData.result) {
+          photoUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileData.result.file_path}`;
+        }
+      }
+    } catch (photoErr) {
+      console.warn("Could not fetch telegram profile picture via bot API:", photoErr);
+    }
+  }
+  let [users] = await dbQuery("SELECT * FROM users WHERE telegram_id = ? OR email = ?", [tgUserId, email]);
+  let user = users[0];
+  if (!user) {
+    const role = email === "mosinjonovjasurbek28@gmail.com" || email === "mosinjonovjasurbek00@gmail.com" ? "admin" : "user";
+    const hashedPassword = await import_bcryptjs.default.hash(Math.random().toString(36).slice(-16), 10);
+    try {
+      const [insertRes] = await dbQuery(
+        "INSERT INTO users (name, email, password, role, avatar_url, telegram_id, auth_provider, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [name, email, hashedPassword, role, photoUrl || null, tgUserId, "telegram", phoneNumber || null]
+      );
+      user = { id: insertRes.insertId, name, email, role, avatar_url: photoUrl, telegram_id: tgUserId, phone: phoneNumber };
+    } catch (insertErr) {
+      const [insertRes] = await dbQuery(
+        "INSERT INTO users (name, email, password, role, avatar_url, telegram_id) VALUES (?, ?, ?, ?, ?, ?)",
+        [name, email, hashedPassword, role, photoUrl || null, tgUserId]
+      );
+      user = { id: insertRes.insertId, name, email, role, avatar_url: photoUrl, telegram_id: tgUserId };
+    }
+  } else {
+    try {
+      await dbQuery(
+        "UPDATE users SET telegram_id = COALESCE(telegram_id, ?), avatar_url = COALESCE(?, avatar_url), name = COALESCE(NULLIF(?, ''), name), auth_provider = 'telegram' WHERE id = ?",
+        [tgUserId, photoUrl || null, name, user.id]
+      );
+    } catch {
+      await dbQuery(
+        "UPDATE users SET telegram_id = COALESCE(telegram_id, ?), avatar_url = COALESCE(?, avatar_url), name = COALESCE(NULLIF(?, ''), name) WHERE id = ?",
+        [tgUserId, photoUrl || null, name, user.id]
+      );
+    }
+    user.telegram_id = tgUserId;
+    if (photoUrl && !user.avatar_url) user.avatar_url = photoUrl;
+  }
+  const userPayload = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar_url: user.avatar_url,
+    telegram_id: user.telegram_id
+  };
+  const token = import_jsonwebtoken.default.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
+  return { token, user: userPayload };
+}
+app.get(["/api/auth/telegram/callback", "/api/auth/telegram/callback/"], async (req, res) => {
+  const sendCallback = (statusType, payload) => {
+    const message = { type: statusType, ...payload };
+    const jsonMessage = JSON.stringify(message);
+    const errorStr = typeof payload.error === "string" ? payload.error : "";
+    const isSuccess = statusType === "TELEGRAM_AUTH_SUCCESS";
+    res.send(`<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Animem.uz - Telegram Kirish</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0b0c10;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      text-align: center;
+    }
+    .card {
+      background: #15161c;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 36px 28px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(0, 136, 204, 0.2);
+      border-top-color: #0088cc;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 24px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+    .desc { font-size: 14px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+    a.btn {
+      display: inline-block;
+      margin-top: 20px;
+      background: #0088cc;
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <div class="title">${isSuccess ? "Muvaffaqiyatli kirdingiz!" : "Xatolik yuz berdi"}</div>
+    <div class="desc">${isSuccess ? "Telegram profilingiz yuklanmoqda, iltimos kuting..." : errorStr || "Telegram orqali kirishda xatolik yuz berdi."}</div>
+    ${!isSuccess ? `<a href="/login" class="btn">Kirish sahifasiga qaytish</a>` : ""}
+  </div>
+
+  <script>
+    (function() {
+      try {
+        const msg = ${jsonMessage};
+        const ok = msg.type === "TELEGRAM_AUTH_SUCCESS";
+
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage(msg, window.location.origin);
+            window.close();
+            return;
+          } catch (e) {}
+        }
+
+        if (ok && msg.token) {
+          try {
+            localStorage.setItem("token", msg.token);
+            if (msg.user) localStorage.setItem("user", JSON.stringify(msg.user));
+          } catch (e) {}
+
+          const targetUrl = "/?token=" + encodeURIComponent(msg.token || "") + "&user=" + encodeURIComponent(JSON.stringify(msg.user || {}));
+          window.location.replace(targetUrl);
+        } else {
+          const err = msg.error || "Telegram orqali kirishda xatolik";
+          setTimeout(function() {
+            window.location.replace("/login?error=" + encodeURIComponent(err));
+          }, 1500);
+        }
+      } catch (err) {
+        console.error("Callback execution error:", err);
+        window.location.replace("/login");
+      }
+    })();
+  </script>
+</body>
+</html>`);
+  };
   try {
-    const { code, redirect_uri } = req.body;
-    if (!code) {
-      return res.status(400).json({ error: "Telegram avtorizatsiya kodi taqdim etilmadi!" });
+    const code = req.query.code;
+    const state = req.query.state;
+    if (!code) throw new Error("Telegram tasdiqlash kodi olinmadi.");
+    let redirectUri = getTelegramRedirectUri(req);
+    if (state) {
+      try {
+        const stateData = import_jsonwebtoken.default.verify(state, JWT_SECRET);
+        if (stateData && stateData.redirectUri) {
+          redirectUri = stateData.redirectUri;
+        }
+      } catch {
+      }
+    }
+    const host = (req.headers.host || "").toLowerCase();
+    const currentCallbackUri = `https://${host}/api/auth/telegram/callback`;
+    const fallbackUri = currentCallbackUri !== redirectUri ? currentCallbackUri : redirectUri.includes("www.") ? redirectUri.replace("www.", "") : redirectUri.replace("https://", "https://www.");
+    const result = await processTelegramAuth(code, redirectUri, fallbackUri);
+    sendCallback("TELEGRAM_AUTH_SUCCESS", result);
+  } catch (err) {
+    console.error("Telegram OAuth callback error:", err);
+    sendCallback("TELEGRAM_AUTH_ERROR", { error: err.message || "Telegram orqali kirishda xatolik" });
+  }
+});
+app.post(["/api/auth/telegram/openid", "/api/auth/telegram/oauth", "/api/auth/telegram/exchange"], async (req, res) => {
+  try {
+    const data = req.body;
+    if (!data) {
+      return res.status(400).json({ error: "Telegram ma'lumotlari taqdim etilmadi" });
+    }
+    if (data.code) {
+      const redirectUri = data.redirect_uri || getTelegramRedirectUri(req);
+      const host = (req.headers.host || "").toLowerCase();
+      const currentCallbackUri = `https://${host}/api/auth/telegram/callback`;
+      const fallbackUri = currentCallbackUri !== redirectUri ? currentCallbackUri : redirectUri.includes("www.") ? redirectUri.replace("www.", "") : redirectUri.replace("https://", "https://www.");
+      const result = await processTelegramAuth(data.code, redirectUri, fallbackUri);
+      return res.json({ success: true, ...result });
     }
     let tgUserId = "";
     let firstName = "";
@@ -6977,145 +7246,30 @@ app.post("/api/auth/telegram/exchange", async (req, res) => {
     let username = "";
     let photoUrl = null;
     let name = "";
-    try {
-      const tokenUrl = "https://oauth.telegram.org/token";
-      const bodyParams = new URLSearchParams();
-      bodyParams.append("client_id", TELEGRAM_CLIENT_ID);
-      bodyParams.append("client_secret", TELEGRAM_CLIENT_SECRET || BOT_TOKEN);
-      bodyParams.append("grant_type", "authorization_code");
-      bodyParams.append("code", code);
-      if (redirect_uri) bodyParams.append("redirect_uri", redirect_uri);
-      const tokenRes = await fetch(tokenUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: bodyParams.toString()
-      });
-      const tokenData = await tokenRes.json();
-      if (tokenRes.ok && tokenData.id_token) {
-        const decoded = import_jsonwebtoken.default.decode(tokenData.id_token);
-        if (decoded && decoded.sub) {
-          tgUserId = String(decoded.sub);
-          firstName = (decoded.given_name || "").trim();
-          lastName = (decoded.family_name || "").trim();
-          username = (decoded.preferred_username || "").trim();
-          photoUrl = decoded.picture || null;
-          name = decoded.name || [firstName, lastName].filter(Boolean).join(" ") || username || `Telegram_${tgUserId.slice(-4)}`;
-        }
+    let phoneNumber = null;
+    if (data.id_token) {
+      const decoded = import_jsonwebtoken.default.decode(data.id_token);
+      if (decoded && decoded.sub) {
+        tgUserId = String(decoded.sub);
+        firstName = (decoded.given_name || "").trim();
+        lastName = (decoded.family_name || "").trim();
+        username = (decoded.preferred_username || "").trim();
+        photoUrl = decoded.picture || null;
+        phoneNumber = decoded.phone_number || null;
+        name = decoded.name || [firstName, lastName].filter(Boolean).join(" ") || username || `Telegram_${tgUserId.slice(-4)}`;
       }
-    } catch (oidcErr) {
-      console.warn("Telegram OIDC direct exchange warning:", oidcErr);
+    } else if (data.id) {
+      tgUserId = String(data.id);
+      firstName = (data.first_name || "").trim();
+      lastName = (data.last_name || "").trim();
+      username = (data.username || "").trim();
+      photoUrl = data.photo_url || null;
+      phoneNumber = data.phone_number || null;
+      name = [firstName, lastName].filter(Boolean).join(" ") || username || `Telegram_${tgUserId.slice(-4)}`;
     }
     if (!tgUserId) {
-      return res.status(400).json({ error: "Telegram orqali foydalanuvchini tasdiqlab bo'lmadi" });
+      return res.status(400).json({ error: "Telegram foydalanuvchi ma'lumotlari aniqlanmadi" });
     }
-    const email = username ? `tg_${username}@telegram.uz` : `tg_${tgUserId}@telegram.uz`;
-    let [users] = await dbQuery("SELECT * FROM users WHERE telegram_id = ? OR email = ?", [tgUserId, email]);
-    let user = users[0];
-    if (!user) {
-      const randomPass = Math.random().toString(36).slice(-10);
-      const hashedPassword = await import_bcryptjs.default.hash(randomPass, 10);
-      const role = email === "mosinjonovjasurbek28@gmail.com" || email === "mosinjonovjasurbek00@gmail.com" ? "admin" : "user";
-      try {
-        const [insertRes] = await dbQuery(
-          "INSERT INTO users (name, email, password, role, avatar_url, telegram_id, auth_provider) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [name, email, hashedPassword, role, photoUrl || null, tgUserId, "telegram_oidc"]
-        );
-        user = {
-          id: insertRes.insertId,
-          name,
-          email,
-          role,
-          avatar_url: photoUrl || null,
-          telegram_id: tgUserId,
-          auth_provider: "telegram_oidc"
-        };
-      } catch (insertErr) {
-        if (insertErr.code === "ER_BAD_FIELD_ERROR") {
-          const [insertRes] = await dbQuery(
-            "INSERT INTO users (name, email, password, role, avatar_url, telegram_id) VALUES (?, ?, ?, ?, ?, ?)",
-            [name, email, hashedPassword, role, photoUrl || null, tgUserId]
-          );
-          user = {
-            id: insertRes.insertId,
-            name,
-            email,
-            role,
-            avatar_url: photoUrl || null,
-            telegram_id: tgUserId
-          };
-        } else if (insertErr.code === "ER_DUP_ENTRY") {
-          let [existingUsers] = await dbQuery("SELECT * FROM users WHERE telegram_id = ? OR email = ?", [tgUserId, email]);
-          user = existingUsers[0];
-          if (!user) throw insertErr;
-        } else {
-          throw insertErr;
-        }
-      }
-    } else {
-      try {
-        await dbQuery(
-          "UPDATE users SET telegram_id = ?, avatar_url = COALESCE(?, avatar_url), name = COALESCE(NULLIF(?, ''), name), auth_provider = 'telegram_oidc' WHERE id = ?",
-          [tgUserId, photoUrl || null, name, user.id]
-        );
-      } catch {
-        await dbQuery(
-          "UPDATE users SET telegram_id = ?, avatar_url = COALESCE(?, avatar_url), name = COALESCE(NULLIF(?, ''), name) WHERE id = ?",
-          [tgUserId, photoUrl || null, name, user.id]
-        );
-      }
-      user.telegram_id = tgUserId;
-      if (photoUrl) user.avatar_url = photoUrl;
-      if (name) user.name = name;
-    }
-    const userPayload = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      avatar_url: user.avatar_url,
-      telegram_id: user.telegram_id
-    };
-    const tokenPayload = {
-      id: user.id,
-      email: user.email,
-      role: user.role
-    };
-    const token = import_jsonwebtoken.default.sign(tokenPayload, JWT_SECRET, { expiresIn: "30d" });
-    res.json({
-      success: true,
-      token,
-      user: userPayload
-    });
-  } catch (err) {
-    console.error("Telegram exchange endpoint error:", err);
-    res.status(500).json({ error: err.message || "Telegram OpenID orqali kirishda xatolik" });
-  }
-});
-app.post(["/api/auth/telegram/openid", "/api/auth/telegram/oauth"], async (req, res) => {
-  try {
-    const data = req.body;
-    if (!data || !data.id) {
-      return res.status(400).json({ error: "Telegram OpenID/OAuth ma'lumotlari to'liq emas" });
-    }
-    const { hash, ...rest } = data;
-    if (hash && (BOT_TOKEN || TELEGRAM_CLIENT_SECRET)) {
-      try {
-        const checkString = Object.keys(rest).sort().map((k) => `${k}=${rest[k]}`).join("\n");
-        const secretKey = import_crypto.default.createHash("sha256").update(BOT_TOKEN || TELEGRAM_CLIENT_SECRET).digest();
-        const calculatedHash = import_crypto.default.createHmac("sha256", secretKey).update(checkString).digest("hex");
-        if (calculatedHash !== hash) {
-          console.warn("Telegram OpenID hash mismatch - logging warning");
-        }
-      } catch (checkErr) {
-        console.warn("Telegram OpenID verification warning:", checkErr);
-      }
-    }
-    const tgUserId = String(data.id);
-    const firstName = (data.first_name || "").trim();
-    const lastName = (data.last_name || "").trim();
-    const username = (data.username || "").trim();
-    let photoUrl = data.photo_url || null;
-    const name = [firstName, lastName].filter(Boolean).join(" ") || username || `Telegram_${tgUserId.slice(-4)}`;
     const email = username ? `tg_${username}@telegram.uz` : `tg_${tgUserId}@telegram.uz`;
     if (!photoUrl && BOT_TOKEN) {
       try {
@@ -7141,55 +7295,31 @@ app.post(["/api/auth/telegram/openid", "/api/auth/telegram/oauth"], async (req, 
       const role = email === "mosinjonovjasurbek28@gmail.com" || email === "mosinjonovjasurbek00@gmail.com" ? "admin" : "user";
       try {
         const [insertRes] = await dbQuery(
-          "INSERT INTO users (name, email, password, role, avatar_url, telegram_id, auth_provider) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [name, email, hashedPassword, role, photoUrl || null, tgUserId, "telegram_openid"]
+          "INSERT INTO users (name, email, password, role, avatar_url, telegram_id, auth_provider, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [name, email, hashedPassword, role, photoUrl || null, tgUserId, "telegram", phoneNumber || null]
         );
-        user = {
-          id: insertRes.insertId,
-          name,
-          email,
-          role,
-          avatar_url: photoUrl || null,
-          telegram_id: tgUserId,
-          auth_provider: "telegram_openid"
-        };
+        user = { id: insertRes.insertId, name, email, role, avatar_url: photoUrl, telegram_id: tgUserId, phone: phoneNumber };
       } catch (insertErr) {
-        if (insertErr.code === "ER_BAD_FIELD_ERROR") {
-          const [insertRes] = await dbQuery(
-            "INSERT INTO users (name, email, password, role, avatar_url, telegram_id) VALUES (?, ?, ?, ?, ?, ?)",
-            [name, email, hashedPassword, role, photoUrl || null, tgUserId]
-          );
-          user = {
-            id: insertRes.insertId,
-            name,
-            email,
-            role,
-            avatar_url: photoUrl || null,
-            telegram_id: tgUserId
-          };
-        } else if (insertErr.code === "ER_DUP_ENTRY") {
-          let [existingUsers] = await dbQuery("SELECT * FROM users WHERE telegram_id = ? OR email = ?", [tgUserId, email]);
-          user = existingUsers[0];
-          if (!user) throw insertErr;
-        } else {
-          throw insertErr;
-        }
+        const [insertRes] = await dbQuery(
+          "INSERT INTO users (name, email, password, role, avatar_url, telegram_id) VALUES (?, ?, ?, ?, ?, ?)",
+          [name, email, hashedPassword, role, photoUrl || null, tgUserId]
+        );
+        user = { id: insertRes.insertId, name, email, role, avatar_url: photoUrl, telegram_id: tgUserId };
       }
     } else {
       try {
         await dbQuery(
-          "UPDATE users SET telegram_id = ?, avatar_url = COALESCE(?, avatar_url), name = COALESCE(NULLIF(?, ''), name), auth_provider = 'telegram_openid' WHERE id = ?",
+          "UPDATE users SET telegram_id = COALESCE(telegram_id, ?), avatar_url = COALESCE(?, avatar_url), name = COALESCE(NULLIF(?, ''), name), auth_provider = 'telegram' WHERE id = ?",
           [tgUserId, photoUrl || null, name, user.id]
         );
       } catch {
         await dbQuery(
-          "UPDATE users SET telegram_id = ?, avatar_url = COALESCE(?, avatar_url), name = COALESCE(NULLIF(?, ''), name) WHERE id = ?",
+          "UPDATE users SET telegram_id = COALESCE(telegram_id, ?), avatar_url = COALESCE(?, avatar_url), name = COALESCE(NULLIF(?, ''), name) WHERE id = ?",
           [tgUserId, photoUrl || null, name, user.id]
         );
       }
       user.telegram_id = tgUserId;
-      if (photoUrl) user.avatar_url = photoUrl;
-      if (name) user.name = name;
+      if (photoUrl && !user.avatar_url) user.avatar_url = photoUrl;
     }
     const userPayload = {
       id: user.id,
@@ -7199,12 +7329,7 @@ app.post(["/api/auth/telegram/openid", "/api/auth/telegram/oauth"], async (req, 
       avatar_url: user.avatar_url,
       telegram_id: user.telegram_id
     };
-    const tokenPayload = {
-      id: user.id,
-      email: user.email,
-      role: user.role
-    };
-    const token = import_jsonwebtoken.default.sign(tokenPayload, JWT_SECRET, { expiresIn: "30d" });
+    const token = import_jsonwebtoken.default.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
     res.json({
       success: true,
       token,

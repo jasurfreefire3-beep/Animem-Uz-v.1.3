@@ -7,8 +7,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import VideoPlayer from '../components/VideoPlayer';
 import WatchTogetherRoom from '../components/WatchTogetherRoom';
 import AgeGate from '../components/AgeGate';
-import AdBanner728x90 from '../components/AdBanner728x90';
-import NativeBannerAd from '../components/NativeBannerAd';
 import PersonalListButton from '../components/PersonalListButton';
 import { setActiveAnimeViewing } from '../hooks/usePresenceTracker';
 import { 
@@ -1195,11 +1193,6 @@ export default function AnimeDetails() {
                </div>
             </motion.section>
 
-            {/* 728x90 Advertisement Banner */}
-            <AdBanner728x90 />
-
-            {/* Native Banner Advertisement */}
-            <NativeBannerAd />
 
             {/* Reyting va Sharhlar Section */}
             {anime && (

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import React from 'react';
 
 interface AdBanner728x90Props {
   className?: string;
@@ -84,4 +85,5 @@ export default function AdBanner728x90({ className = '' }: AdBanner728x90Props) 
       </div>
     </div>
   );
+  return null;
 }
