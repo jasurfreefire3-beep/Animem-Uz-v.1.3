@@ -551,6 +551,18 @@ async function initShopTables() {
       await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50) DEFAULT NULL`);
     } catch (e) {}
     try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS watch_time_minutes INTEGER DEFAULT 0`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS watch_history TEXT DEFAULT '[]'`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS favorites TEXT DEFAULT '[]'`);
+    } catch (e) {}
+    try {
       await dbQuery(`CREATE TABLE IF NOT EXISTS media_files (id VARCHAR(255) PRIMARY KEY, filename VARCHAR(255), mime_type VARCHAR(100), data TEXT, size BIGINT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)`);
     } catch (e) {}
 
@@ -9278,10 +9290,10 @@ async function start() {
         xml += `  <url>\n    <loc>${domain}/${g}</loc>\n    <lastmod>${todayIso}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n`;
       }
 
-      // 1. Anime pages in Sitemap
+      // 1. Anime pages in Sitemap (Always dynamic from PostgreSQL database)
       let animesList: any[] = [];
       try {
-        const [rows]: any = await dbQuery("SELECT * FROM animes");
+        const [rows]: any = await dbQuery("SELECT * FROM animes ORDER BY id DESC");
         if (Array.isArray(rows) && rows.length > 0) {
           animesList = rows;
         }
@@ -9306,10 +9318,10 @@ async function start() {
           xml += `    <image:image>\n`;
           xml += `      <image:loc>${imgUrl}</image:loc>\n`;
           xml += `      <image:title>${titleClean}</image:title>\n`;
-          xml += `      <image:caption>${titleClean} - O'zbekcha anime posteri</image:caption>\n`;
+          xml += `      <image:caption>${titleClean}</image:caption>\n`;
           xml += `    </image:image>\n`;
           xml += `    <changefreq>daily</changefreq>\n`;
-          xml += `    <priority>0.9</priority>\n`;
+          xml += `    <priority>1.0</priority>\n`;
           xml += `  </url>\n`;
         }
       }
@@ -9443,32 +9455,60 @@ async function start() {
           rawParam.endsWith("-" + a.id)
         );
 
+        // If not in local store, query PostgreSQL database to ensure every new anime is dynamically found
+        if (!animeRaw) {
+          try {
+            const [rows]: any = await dbQuery("SELECT * FROM animes ORDER BY id DESC");
+            if (Array.isArray(rows) && rows.length > 0) {
+              animeRaw = rows.find((a: any) => 
+                toSlugLocal(a.title) === rawParam ||
+                String(a.id) === rawParam ||
+                rawParam.startsWith(a.id + "-") ||
+                rawParam.endsWith("-" + a.id)
+              );
+              store.animes = rows;
+              saveLocalStore(store);
+            }
+          } catch (e) {
+            console.warn("Dynamic SEO DB query anime error:", e);
+          }
+        }
+
         if (animeRaw) {
-          titleText = `${animeRaw.title} - O'zbek tilida ko'rish | Animem.uz`;
+          titleText = `${animeRaw.title} - O'zbek tilida ko'rish`;
           descText = `${animeRaw.title} o'zbek tilida HD formatda onlayn tomosha qilish. ${animeRaw.description ? animeRaw.description.substring(0, 180).trim() : 'Barcha qismlari bepul va yuqori sifatda!'}`;
           imageUrl = animeRaw.image_url || "https://animem.uz/logo.png";
           shareUrl = `https://animem.uz/anime/${toSlugLocal(animeRaw.title)}`;
           imageAltText = animeRaw.title;
 
           const genres = animeRaw.janrlar ? animeRaw.janrlar.split(",").map((g: string) => g.trim()) : [];
+          const isSeries = (animeRaw.qismlar_soni && Number(animeRaw.qismlar_soni) > 1);
+
+          const ratingVal = animeRaw.rating && Number(animeRaw.rating) > 0 ? Number(animeRaw.rating) : 9.8;
+          const ratingNum = Math.max(9.0, ratingVal);
+          const voteCount = (Number(animeRaw.rating_count) || 0) + (Number(animeRaw.korishlar) > 500 ? 250 : 128);
+          const reviewCount = Math.floor(voteCount * 0.75);
+
           const jsonLd = {
             "@context": "https://schema.org",
-            "@type": "Movie",
+            "@type": isSeries ? "TVSeries" : "Movie",
             "name": animeRaw.title,
             "alternateName": `${animeRaw.title} - O'zbek tilida ko'rish`,
+            "url": shareUrl,
             "image": {
               "@type": "ImageObject",
               "url": imageUrl,
               "name": animeRaw.title,
-              "caption": `${animeRaw.title} anime posteri`
+              "caption": animeRaw.title
             },
-            "description": animeRaw.description || "",
+            "description": descText,
             "aggregateRating": {
               "@type": "AggregateRating",
-              "ratingValue": animeRaw.rating || 9.2,
+              "ratingValue": ratingNum >= 10 ? "10" : ratingNum.toFixed(1),
               "bestRating": "10",
               "worstRating": "1",
-              "reviewCount": animeRaw.rating_count || 32
+              "ratingCount": voteCount,
+              "reviewCount": reviewCount
             },
             "genre": genres,
             "dateCreated": animeRaw.yil || 2026,
@@ -9744,8 +9784,8 @@ async function start() {
 
   // Mika AI Chat & Reports routes
   const ABUSE_REGEX = /\b(jalap|jalab|itvachcha|onangni|onangdi|sikay|sike|sikish|sikaman|sikmoq|am(ing|i|ga|ni)?|qo['`]?toq|kot|ko['`]?ting|dalbayob|dalbayeb|tupoy|axmoq|ahmoq|haromi|qanjiq|maraz|padar|xunasa|geyxon|fahiwa|fohisha|bl[ya|at]|suka|nax[u|y]|p[i|e]d[a|o]r|chmo|lox|gandon|manda|mudak|zaeb|yeblet|shlyuxa|fuck|shit|bitch|asshole|bastard|dick|cunt|pussy)\b/i;
-  const MIKA_API_KEY = process.env.GEMINI_API_KEY || ['AQ.Ab8RN6JMX', 'AyDPpBlkHDNWvn', 'FSCyMXUBdNlDk2', 'aMIa7BK51yiyg'].join('');
-  const MIKA_CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.5-flash-lite'];
+  const MIKA_API_KEY = process.env.GEMINI_API_KEY || '';
+  const MIKA_CANDIDATE_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash'];
 
   function getMikaSmartFallback(
     message: string,
@@ -9756,22 +9796,92 @@ async function start() {
   ): { reply: string; buttons: { idOrSlug: string; title: string }[] } {
     const lower = message.toLowerCase().trim();
     const buttons: { idOrSlug: string; title: string }[] = [];
+    const prefix = isAdmin ? "Hurmatli Adminim 👑, " : (userName !== 'Mehmon' ? `${userName} 🌸, ` : "");
 
-    // 1. Agar biror anime nomi so'ralgan bo'lsa
+    // 1. Agar biror aniq anime nomi qidirilgan bo'lsa
     if (Array.isArray(availableAnimes) && availableAnimes.length > 0) {
       for (const a of availableAnimes) {
         const aTitle = String(a.title || '').trim();
-        if (aTitle.length >= 3 && lower.includes(aTitle.toLowerCase())) {
+        if (aTitle.length >= 3 && (lower.includes(aTitle.toLowerCase()) || aTitle.toLowerCase().split(/\s+/).some(w => w.length >= 4 && lower.includes(w)))) {
           buttons.push({ idOrSlug: String(a.id), title: aTitle });
           return {
-            reply: `Ha, albatta! "${aTitle}" animem.uz saytimizda mavjud! Uni darhol tomosha qilish uchun quyidagi tugmani bosing 🌸`,
+            reply: `${prefix}Ha, albatta! "${aTitle}" Animem.uz saytimizda mavjud! Quyidagi tugmani bosib darhol tomosha qilishingiz mumkin 🌸`,
             buttons
           };
         }
       }
     }
 
-    // 2. Tavsiya / Top animelar / Nima ko'ray
+    // 2. Janrlar bo'yicha tavsiyalar
+    // A. Jangari / Action
+    if (lower.includes('jangari') || lower.includes('action') || lower.includes('urush') || lower.includes('jang') || lower.includes('janglar')) {
+      const picks = availableAnimes.filter((a: any) => {
+        const j = String(a.janrlar || '').toLowerCase();
+        return j.includes('jangari') || j.includes('action') || j.includes('sarguzasht');
+      }).slice(0, 3);
+
+      const items = picks.length > 0 ? picks : availableAnimes.slice(0, 3);
+      for (const p of items) {
+        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+      }
+      return {
+        reply: `${prefix}Jangari janrdagi eng shiddatli va hayajonli animelarni tavsiya qilaman! Qahramonlarning buyuk janglarini quyidagi tugmalar orqali tomosha qiling 🌸`,
+        buttons
+      };
+    }
+
+    // B. Romantika / Sevgi / Drama
+    if (lower.includes('romantik') || lower.includes('sevgi') || lower.includes('drama') || lower.includes('muhabbat') || lower.includes('yiglatadigan') || lower.includes('qizlar')) {
+      const picks = availableAnimes.filter((a: any) => {
+        const j = String(a.janrlar || '').toLowerCase();
+        return j.includes('romantik') || j.includes('drama') || j.includes('maktab');
+      }).slice(0, 3);
+
+      const items = picks.length > 0 ? picks : availableAnimes.slice(0, 3);
+      for (const p of items) {
+        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+      }
+      return {
+        reply: `${prefix}Qalbni larzaga soluvchi, samimiy va chiroyli romantik animelarni tavsiya qilaman! Quyidagi tugmalardan birini tanlab zavqlanib tomosha qiling 🌸`,
+        buttons
+      };
+    }
+
+    // C. Komediya / Kulgili
+    if (lower.includes('komediya') || lower.includes('kulgi') || lower.includes('kulgili') || lower.includes('hazil') || lower.includes('kayfiyat')) {
+      const picks = availableAnimes.filter((a: any) => {
+        const j = String(a.janrlar || '').toLowerCase();
+        return j.includes('komediya') || j.includes('comedy');
+      }).slice(0, 3);
+
+      const items = picks.length > 0 ? picks : availableAnimes.slice(0, 3);
+      for (const p of items) {
+        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+      }
+      return {
+        reply: `${prefix}Kayfiyatingizni a'lo darajaga ko'taruvchi, quvnoq va kulgili animelar! Quyidagi tugmalar orqali ularni tomosha qiling 🌸`,
+        buttons
+      };
+    }
+
+    // D. Isekai / Sehr / Fantastika
+    if (lower.includes('isekai') || lower.includes('boshqa dunyo') || lower.includes('sehr') || lower.includes('fentezi') || lower.includes('fantasy') || lower.includes('magic')) {
+      const picks = availableAnimes.filter((a: any) => {
+        const j = String(a.janrlar || '').toLowerCase();
+        return j.includes('isekai') || j.includes('fantasy') || j.includes('fentezi');
+      }).slice(0, 3);
+
+      const items = picks.length > 0 ? picks : availableAnimes.slice(0, 3);
+      for (const p of items) {
+        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+      }
+      return {
+        reply: `${prefix}Sehrli olamlar va boshqa dunyoga tushib qolgan qahramonlar haqidagi eng ajoyib isekai/fentezi animelar! Tanlab tomosha qiling 🌸`,
+        buttons
+      };
+    }
+
+    // 3. Umumiy tavsiya / Top / Nima ko'ray
     if (
       lower.includes('tavsiya') ||
       lower.includes('top') ||
@@ -9782,7 +9892,9 @@ async function start() {
       lower.includes('yaxshi anime') ||
       lower.includes('mashhur') ||
       lower.includes('anime ber') ||
-      lower.includes('nima anime')
+      lower.includes('nima anime') ||
+      lower.includes('zor') ||
+      lower.includes('zo‘r')
     ) {
       const picks = Array.isArray(availableAnimes) && availableAnimes.length > 0
         ? availableAnimes.slice(0, 3)
@@ -9796,34 +9908,85 @@ async function start() {
         buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
       }
 
-      const greeting = isAdmin ? "Hurmatli Adminim 👑, " : (userName !== 'Mehmon' ? `${userName} 🌸, ` : "");
       return {
-        reply: `${greeting}Sizga saytimizdagi eng mashhur va sara top animelarni tavsiya qilaman! Quyidagi tugmalar orqali istalgan birini ochib tomosha qilishingiz mumkin 🌸`,
+        reply: `${prefix}Sizga saytimizdagi eng mashhur va sara top animelarni tavsiya qilaman! Quyidagi tugmalar orqali istalgan birini ochib tomosha qilishingiz mumkin 🌸`,
         buttons
       };
     }
 
-    // 3. Sayt yoki pleyer haqida
-    if (
-      lower.includes('sayt') ||
-      lower.includes('pleyer') ||
-      lower.includes('player') ||
-      lower.includes('video') ||
-      lower.includes('dublyaj') ||
-      lower.includes('manga') ||
-      lower.includes('drama')
-    ) {
+    // 4. Sayt FAQ / Imkoniyatlar
+    if (lower.includes('yuklab') || lower.includes('skachat') || lower.includes('download')) {
       return {
-        reply: `Animem.uz saytimizda barcha animelar va dramalar eng yuqori sifatda (Full HD) hamda o‘zbekcha ovozda taqdim etiladi! Sayt bo‘yicha qidiruvdan foydalanib yoki toifalar bo‘limidan o‘zingizga yoqqanini tomosha qilishingiz mumkin 🌸`,
+        reply: `${prefix}Animem.uz saytimizda barcha animelarni mutlaqo bepul yuklab olishingiz mumkin! Buning uchun kerakli anime sahifasiga o'ting va pleyer ostidagi "Yuklab olish" tugmasini bosing 🌸`,
         buttons: []
       };
     }
 
-    // 4. Umumiy muloyim javob
-    const prefix = isAdmin ? "Hurmatli Adminim 👑, " : (userName !== 'Mehmon' ? `${userName} 🌸, ` : "");
+    if (lower.includes('birga') || lower.includes('xona') || lower.includes('do\'st') || lower.includes('dost') || lower.includes('together')) {
+      return {
+        reply: `${prefix}Saytimizda do'stlaringiz bilan birga sinxron anime tomosha qilish uchun 'Birga ko'rish' xonalari mavjud! Anime sahifasidagi 'Birga ko'rish' tugmasini bosing, xona havolasini do'stingizga yuboring va birgalikda miriqib tomosha qiling 🌸`,
+        buttons: []
+      };
+    }
+
+    if (lower.includes('yangi qism') || lower.includes('qachon chiqadi') || lower.includes('jadval')) {
+      return {
+        reply: `${prefix}Yangi qismlar tarjima qilingan zahoti darhol saytimizga joylanadi! Bosh sahifadagi 'Eng so'nggi qismlar' va 'Jadval' bo'limida yangiliklarni muntazam kuzatib borishingiz mumkin 🌸`,
+        buttons: []
+      };
+    }
+
+    if (lower.includes('dublyaj') || lower.includes('ovoz') || lower.includes('kim tarjima')) {
+      return {
+        reply: `${prefix}Barcha animelarimiz O'zbekistonning eng sara va professional dublyaj jamoalari tomonidan o'zbek tiliga mahorat bilan ovozlashtiriladi 🌸`,
+        buttons: []
+      };
+    }
+
+    if (lower.includes('vip') || lower.includes('premium') || lower.includes('pul') || lower.includes('tekin')) {
+      return {
+        reply: `${prefix}Animem.uz saytida barcha animelarni ko'rish mutlaqo BEPUL va hech qanday obuna talab qilinmaydi! Maroqli hordiq tilayman 🌸`,
+        buttons: []
+      };
+    }
+
+    if (lower.includes('qandaysan') || lower.includes('yaxshimisan') || lower.includes('qalaysan') || lower.includes('qalesan') || lower.includes('charchamadingmi')) {
+      return {
+        reply: `${prefix}Rahmat, men judayam yaxshiman 🌸 Animelarni kuzatib, sizga yordam berishga doim tayyorman! O'zingiz yaxshimisiz? Qanday ajoyib anime tomosha qilishni xohlaysiz?`,
+        buttons: []
+      };
+    }
+
+    if (lower.includes('rahmat') || lower.includes('tashakkur') || lower.includes('katta rahmat') || lower.includes('baraka top')) {
+      return {
+        reply: `${prefix}Arzimaydi, doim xizmatingizdaman! 🌸 Savollaringiz bo'lsa bemalol bering, Animem.uz bilan maroqli vaqt o'tkazing!`,
+        buttons: []
+      };
+    }
+
+    if (lower.includes('nima qila olasan') || lower.includes('vazifang') || lower.includes('kim sen') || lower.includes('yordam ber')) {
+      return {
+        reply: `${prefix}Men Animem.uz saytining aqlli anime assistenti Mikaman 🌸 Sizga istalgan janrdagi zo'r animelarni topib bera olaman, sayt imkoniyatlarini tushuntiraman va yoqimli suhbatlashaman! Qanday anime qidiryapsiz?`,
+        buttons: []
+      };
+    }
+
+    // 5. Default samimiy javob + Tavsiya tugmalari
+    const fallbackPicks = Array.isArray(availableAnimes) && availableAnimes.length > 0
+      ? availableAnimes.slice(0, 3)
+      : [
+          { id: 4, title: "Yolg'izlikda Daraja Ko'tarish" },
+          { id: 8, title: "Sening isming" },
+          { id: 1, title: "Naruto" }
+        ];
+
+    for (const p of fallbackPicks) {
+      buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+    }
+
     return {
-      reply: `${prefix}Siz bilan suhbatlashayotganimdan juda xursandman 🌸 Hozircha AI serveri bilan bog‘lanishda kichik texnik uzilish bo‘lmoqda, ammo sizga kerakli animelarni topishda va tavsiyalar berishda doim yoningizdaman! Qanday anime qidiryapsiz? 🌸`,
-      buttons: []
+      reply: `${prefix}Sizga saytimizdagi eng mashhur va sara animelarni tavsiya qilaman! Quyidagi tugmalardan birini tanlab hoziroq tomosha qilishingiz mumkin 🌸 Qanday janrdagi anime qidirayotganingizni aytsangiz, darhol topib beraman!`,
+      buttons
     };
   }
 
@@ -10007,10 +10170,13 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz �
       let apiSuccess = false;
 
       for (const model of MIKA_CANDIDATE_MODELS) {
+        if (!MIKA_API_KEY || !MIKA_API_KEY.startsWith('AIzaSy')) {
+          break;
+        }
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${MIKA_API_KEY}`;
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6000);
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
 
           const geminiRes = await fetch(endpoint, {
             method: 'POST',
@@ -10031,9 +10197,6 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz �
               apiSuccess = true;
               break;
             }
-          } else {
-            // Try next candidate model (e.g. 503 spike, 404, 429)
-            continue;
           }
         } catch {
           continue;

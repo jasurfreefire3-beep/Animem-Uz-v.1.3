@@ -99,6 +99,22 @@ export const usePresenceTracker = () => {
       } catch (err) {
         console.warn('Presence firestore ping warning:', err);
       }
+
+      // 3. Heartbeat ping to PostgreSQL backend for authentic last_seen and online tracking
+      try {
+        if (typeof window !== 'undefined') {
+          const token = localStorage.getItem('token');
+          if (token) {
+            fetch('/api/user/ping', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              }
+            }).catch(() => {});
+          }
+        }
+      } catch {}
     };
 
     // Register active viewing update listener

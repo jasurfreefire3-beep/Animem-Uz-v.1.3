@@ -16,11 +16,15 @@ import {
 } from '../components/SocialIcons';
 import LoadingScreen from '../components/LoadingScreen';
 import { isVideoMedia } from '../components/UserAvatar';
+import { getAllWatchProgress } from '../services/watchProgressService';
 
 // Default banner if none provided
 const DEFAULT_BANNER = "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1200&auto=format&fit=crop&q=80";
 
-function getOnlineStatusInfo(lastSeen?: string) {
+function getOnlineStatusInfo(lastSeen?: string, isOwner?: boolean) {
+  if (isOwner) {
+    return { isOnline: true, text: "Hozir tarmoqda (Online)" };
+  }
   if (!lastSeen) return { isOnline: false, text: "Oflayn" };
   const seenDate = new Date(lastSeen).getTime();
   if (isNaN(seenDate)) return { isOnline: false, text: "Oflayn" };
@@ -28,7 +32,7 @@ function getOnlineStatusInfo(lastSeen?: string) {
   const now = Date.now();
   const diffMs = now - seenDate;
   
-  if (diffMs < 180000) {
+  if (diffMs < 300000) { // 5 minutes
     return { isOnline: true, text: "Hozir tarmoqda (Online)" };
   }
 
@@ -43,11 +47,11 @@ function getOnlineStatusInfo(lastSeen?: string) {
   }
 
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 30) {
+  if (diffDays < 7) {
     return { isOnline: false, text: `${diffDays} kun oldin tarmoqda edi` };
   }
 
-  return { isOnline: false, text: "Uzoq vaqt oldin tarmoqda edi" };
+  return { isOnline: false, text: "Yaqinda tarmoqda edi" };
 }
 
 export default function Profil() {
@@ -149,7 +153,27 @@ export default function Profil() {
         // Auto-sync owner's local favorites and watch history to server if needed
         if (isUserOwner && token) {
           const savedFavs = localStorage.getItem('anime_favorites');
-          const savedHist = localStorage.getItem('anime_history');
+          const allProgress = getAllWatchProgress();
+          let computedMinutes = 0;
+          for (const prog of Object.values(allProgress)) {
+            if (prog && prog.episodes) {
+              computedMinutes += Object.values(prog.episodes).filter((ep: any) => ep && ep.watched).length * 24;
+            } else if (prog && prog.lastEpisode) {
+              computedMinutes += Number(prog.lastEpisode) * 24;
+            }
+          }
+
+          if (computedMinutes > (data.user.watch_time_minutes || 0)) {
+            data.user.watch_time_minutes = computedMinutes;
+            fetch(`${API_BASE}/api/user/watch-progress`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ total_minutes: computedMinutes })
+            }).catch(() => {});
+          }
 
           if (savedFavs && (!data.user.favorites || data.user.favorites.length === 0)) {
             try {
@@ -163,24 +187,15 @@ export default function Profil() {
                   },
                   body: JSON.stringify({ favorites: favIds })
                 }).catch(() => {});
-              }
-            } catch (e) {}
-          }
 
-          if (savedHist && (!data.user.watch_time_minutes || data.user.watch_time_minutes === 0)) {
-            try {
-              const histItems = JSON.parse(savedHist);
-              if (Array.isArray(histItems) && histItems.length > 0) {
-                const totalMins = histItems.reduce((acc: number, item: any) => acc + (Number(item.lastEpisode || 1) * 24), 0);
-                fetch(`${API_BASE}/api/user/watch-progress`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  },
-                  body: JSON.stringify({ total_minutes: totalMins })
-                }).catch(() => {});
-                data.user.watch_time_minutes = totalMins;
+                // Pre-populate favorites so UI immediately displays them
+                const animesRes = await fetch(`${API_BASE}/api/animes`).catch(() => null);
+                if (animesRes && animesRes.ok) {
+                  const animesList = await animesRes.json();
+                  if (Array.isArray(animesList)) {
+                    data.user.favorites = animesList.filter((a: any) => favIds.some((f: any) => String(f) === String(a.id)));
+                  }
+                }
               }
             } catch (e) {}
           }
@@ -647,7 +662,7 @@ export default function Profil() {
 
                 {/* ONLINE / OFFLINE STATUS BADGE */}
                 {(() => {
-                  const status = getOnlineStatusInfo(profileUser.last_seen);
+                  const status = getOnlineStatusInfo(profileUser.last_seen, isOwner);
                   return (
                     <span className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold border ${
                       status.isOnline 

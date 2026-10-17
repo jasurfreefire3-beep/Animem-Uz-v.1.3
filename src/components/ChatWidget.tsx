@@ -23,7 +23,8 @@ const MemoizedMessage = memo(({
   handleDeleteMessage,
   handleContextMenu,
   handleTouchStart,
-  handleTouchEnd
+  handleTouchEnd,
+  onCloseChat
 }: any) => {
   const isMe = msg.user_id === user?.id;
   const canDelete = user && (user.role === 'admin' || user.id === msg.user_id);
@@ -45,7 +46,14 @@ const MemoizedMessage = memo(({
       className="flex items-start gap-2.5 group my-1 cursor-pointer select-none"
     >
       {hasValidUserId ? (
-        <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 mt-0.5">
+        <Link 
+          to={isMe ? "/profil" : `/user/${msg.user_id}`} 
+          onClick={(e) => {
+            e.stopPropagation();
+            onCloseChat?.();
+          }} 
+          className="shrink-0 mt-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+        >
           <UserAvatar
             size="md"
             src={avatarSrc}
@@ -67,7 +75,14 @@ const MemoizedMessage = memo(({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-1">
           {hasValidUserId ? (
-            <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className={`font-bold text-xs hover:underline ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}>
+            <Link 
+              to={isMe ? "/profil" : `/user/${msg.user_id}`} 
+              onClick={(e) => {
+                e.stopPropagation();
+                onCloseChat?.();
+              }} 
+              className={`font-bold text-xs hover:underline cursor-pointer ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}
+            >
               {msg.user_name}
             </Link>
           ) : (
@@ -677,6 +692,7 @@ export default function ChatWidget() {
                     handleContextMenu={handleContextMenu}
                     handleTouchStart={handleTouchStart}
                     handleTouchEnd={handleTouchEnd}
+                    onCloseChat={() => setIsOpen(false)}
                   />
                 ))
               )}
