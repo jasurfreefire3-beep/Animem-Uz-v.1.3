@@ -332,11 +332,11 @@ export default function Profil() {
 
     setUploadingBanner(true);
     try {
-      const resizedBase64 = await resizeImage(file, 1000, 400);
+      const resizedBase64 = await resizeImage(file, 1920, 1080);
       setEditBannerUrl(resizedBase64);
 
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-      await fetch(`${API_BASE}/api/user/profile`, {
+      const res = await fetch(`${API_BASE}/api/user/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -348,7 +348,44 @@ export default function Profil() {
         })
       });
 
-      setProfileUser(prev => prev ? { ...prev, banner_url: resizedBase64 } : null);
+      const data = await res.json();
+      const savedBanner = data?.user?.banner_url || resizedBase64;
+      setProfileUser(prev => prev ? { ...prev, banner_url: savedBanner } : null);
+      setEditBannerUrl(savedBanner);
+      if (currentUser) {
+        login(token, { ...currentUser, banner_url: savedBanner });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
+  const handleRemoveBanner = async () => {
+    if (!token || !isOwner) return;
+    if (!window.confirm("Haqiqatan ham profil orqa fon rasmini o'chirmoqchimisiz?")) return;
+
+    setUploadingBanner(true);
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      await fetch(`${API_BASE}/api/user/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: profileUser?.name,
+          banner_url: ''
+        })
+      });
+
+      setProfileUser(prev => prev ? { ...prev, banner_url: undefined } : null);
+      setEditBannerUrl('');
+      if (currentUser) {
+        login(token, { ...currentUser, banner_url: undefined });
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -535,73 +572,124 @@ export default function Profil() {
     }).catch(() => {});
   };
 
+  const hasCustomBg = Boolean(profileUser?.banner_url && profileUser.banner_url.trim() !== '');
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-16">
-      
-      {/* BANNER & AVATAR HEADER */}
-      <div className="relative bg-[#111] border border-[#222] rounded-2xl overflow-hidden shadow-2xl">
-        
-        {/* Banner Container */}
-        <div className="relative w-full h-48 sm:h-64 md:h-72 bg-[#1a1a1c] overflow-hidden">
-          {profileUser.banner_url && isVideoMedia(profileUser.banner_url) ? (
+    <div className="relative min-h-[85vh]">
+      {/* FULL PROFILE PAGE BACKGROUND - No blur, no darkening, 100% natural crisp quality */}
+      {hasCustomBg && (
+        <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden select-none">
+          {isVideoMedia(profileUser.banner_url!) ? (
             <video
-              src={profileUser.banner_url}
+              src={profileUser.banner_url!}
               autoPlay
               loop
               muted
               playsInline
-              className="w-full h-full object-cover opacity-80"
+              className="w-full h-full object-cover object-center"
             />
           ) : (
-            <img loading="lazy" decoding="async" 
-              src={profileUser.banner_url || DEFAULT_BANNER} 
-              alt="User Banner" 
-              className="w-full h-full object-cover opacity-80"
+            <img
+              src={profileUser.banner_url!}
+              alt="Profile Background"
+              className="w-full h-full object-cover object-center"
             />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent pointer-events-none" />
-
-          {/* Banner Upload Button (For Owner) */}
-          {isOwner && (
-            <label className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 cursor-pointer backdrop-blur-md transition-all flex items-center gap-1.5 z-10 shadow-lg">
-              <Camera size={14} className="text-[#ff006a]" />
-              <span>{uploadingBanner ? "Yuklanmoqda..." : "Muqovani almashtirish"}</span>
-              <input 
-                type="file" 
-                accept="image/*,video/webm,video/mp4,.gif,.webm" 
-                className="hidden" 
-                onChange={handleBannerUpload}
-                disabled={uploadingBanner}
-              />
-            </label>
-          )}
         </div>
+      )}
 
-        {/* Profile Content Overlay */}
-        <div className="px-6 pb-6 pt-0 relative flex flex-col md:flex-row items-center md:items-end justify-between gap-6 -mt-16 sm:-mt-20">
+      <div className="relative z-10 max-w-5xl mx-auto space-y-6 pb-16">
+        
+        {/* BANNER & AVATAR HEADER */}
+        <div className={`relative rounded-2xl overflow-hidden shadow-2xl transition-all duration-300 ${
+          hasCustomBg 
+            ? 'bg-[#0a0a14]/75 backdrop-blur-xl border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.5)]' 
+            : 'bg-[#111] border border-[#222]'
+        }`}>
           
-          {/* Avatar & Basic Info */}
-          <div className="flex flex-col md:flex-row items-center md:items-end gap-5 text-center md:text-left">
+          {/* Banner Container */}
+          <div className={`relative w-full h-48 sm:h-64 md:h-72 overflow-hidden ${
+            hasCustomBg ? 'bg-black/20' : 'bg-[#1a1a1c]'
+          }`}>
+            {profileUser.banner_url && isVideoMedia(profileUser.banner_url) ? (
+              <video
+                src={profileUser.banner_url}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <img loading="lazy" decoding="async" 
+                src={profileUser.banner_url || DEFAULT_BANNER} 
+                alt="User Banner" 
+                className="w-full h-full object-cover"
+              />
+            )}
             
-            {/* Avatar Square */}
-            <div className="relative shrink-0 aspect-square group w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
-              <div className="w-full h-full aspect-square rounded-2xl border-2 sm:border-4 border-[#111] bg-[#1c1c1e] overflow-hidden flex items-center justify-center text-4xl sm:text-5xl font-black text-[#ff006a] uppercase shadow-[0_0_30px_rgba(255,0,106,0.3)] relative">
-                {profileUser.avatar_url ? (
-                  isVideoMedia(profileUser.avatar_url) ? (
-                    <video
-                      src={profileUser.avatar_url}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <img loading="lazy" decoding="async" src={profileUser.avatar_url} alt={profileUser.name} className="w-full h-full object-cover" />
-                  )
-                ) : (
-                  (profileUser?.name || 'U').charAt(0)
+            {/* Smooth bottom transition to card body */}
+            <div className={`absolute inset-0 pointer-events-none ${
+              hasCustomBg 
+                ? 'bg-gradient-to-t from-[#0a0a14]/80 via-transparent to-transparent' 
+                : 'bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent'
+            }`} />
+
+            {/* Banner / Background Controls (For Owner) */}
+            {isOwner && (
+              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                <label className="bg-black/65 hover:bg-black/85 text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-white/25 cursor-pointer backdrop-blur-md transition-all flex items-center gap-1.5 shadow-lg">
+                  <Camera size={14} className="text-[#ff006a]" />
+                  <span>{uploadingBanner ? "Yuklanmoqda..." : "Fon rasmi yuklash"}</span>
+                  <input 
+                    type="file" 
+                    accept="image/*,video/webm,video/mp4,.gif,.webm" 
+                    className="hidden" 
+                    onChange={handleBannerUpload}
+                    disabled={uploadingBanner}
+                  />
+                </label>
+                {profileUser.banner_url && (
+                  <button
+                    onClick={handleRemoveBanner}
+                    title="Fon rasmini o'chirish"
+                    className="bg-black/65 hover:bg-red-600/90 text-white px-2.5 py-1.5 rounded-xl border border-white/25 cursor-pointer backdrop-blur-md transition-all shadow-lg flex items-center gap-1 text-xs font-bold"
+                  >
+                    <Trash2 size={13} />
+                    <span className="hidden sm:inline">O'chirish</span>
+                  </button>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Profile Content Overlay */}
+          <div className="px-6 pb-6 pt-0 relative flex flex-col md:flex-row items-center md:items-end justify-between gap-6 -mt-16 sm:-mt-20">
+            
+            {/* Avatar & Basic Info */}
+            <div className="flex flex-col md:flex-row items-center md:items-end gap-5 text-center md:text-left">
+              
+              {/* Avatar Square */}
+              <div className="relative shrink-0 aspect-square group w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
+                <div className={`w-full h-full aspect-square rounded-2xl border-2 sm:border-4 ${
+                  hasCustomBg ? 'border-white/25 bg-black/60 backdrop-blur-md' : 'border-[#111] bg-[#1c1c1e]'
+                } overflow-hidden flex items-center justify-center text-4xl sm:text-5xl font-black text-[#ff006a] uppercase shadow-[0_0_30px_rgba(255,0,106,0.3)] relative`}>
+                  {profileUser.avatar_url ? (
+                    isVideoMedia(profileUser.avatar_url) ? (
+                      <video
+                        src={profileUser.avatar_url}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img loading="lazy" decoding="async" src={profileUser.avatar_url} alt={profileUser.name} className="w-full h-full object-cover" />
+                    )
+                  ) : (
+                    (profileUser?.name || 'U').charAt(0)
+                  )}
 
                 {uploadingAvatar && (
                   <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
@@ -733,9 +821,13 @@ export default function Profil() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-[#111] border border-[#ff006a]/30 rounded-2xl p-6 shadow-2xl space-y-5"
+            className={`rounded-2xl p-6 shadow-2xl space-y-5 transition-all ${
+              hasCustomBg 
+                ? 'bg-[#0a0a14]/90 backdrop-blur-2xl border border-[#ff006a]/40 shadow-[0_12px_40px_rgba(0,0,0,0.6)]' 
+                : 'bg-[#111] border border-[#ff006a]/30'
+            }`}
           >
-            <div className="flex items-center justify-between border-b border-[#222] pb-3">
+            <div className={`flex items-center justify-between border-b pb-3 ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
               <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
                 <Sparkles size={18} className="text-[#ff006a]" /> Profil Ma'lumotlarini Tahrirlash
               </h3>
@@ -755,7 +847,9 @@ export default function Profil() {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     required
-                    className="w-full bg-[#000] border border-[#222] rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a]"
+                    className={`w-full rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
+                      hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                    }`}
                     placeholder="Ismingizni kiriting"
                   />
                 </div>
@@ -766,38 +860,83 @@ export default function Profil() {
                     type="text"
                     value={editBio}
                     onChange={(e) => setEditBio(e.target.value)}
-                    className="w-full bg-[#000] border border-[#222] rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a]"
+                    className={`w-full rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
+                      hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                    }`}
                     placeholder="Masalan: Anime ixlosmandi va manga ishqibozi..."
                   />
                 </div>
               </div>
 
-              {/* Banner & Avatar URLs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-white/70 uppercase mb-1">Banner Rasm Havolasi (URL yoki .webm)</label>
-                  <input
-                    type="text"
-                    value={editBannerUrl}
-                    onChange={(e) => setEditBannerUrl(e.target.value)}
-                    className="w-full bg-[#000] border border-[#222] rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a]"
-                    placeholder="https://.../banner.jpg yoki .webm"
-                  />
+              {/* Background Wallpaper Section */}
+              <div className={`p-4 rounded-xl space-y-3 ${hasCustomBg ? 'bg-white/5 border border-white/10' : 'bg-black/40 border border-[#222]'}`}>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-[#ff006a] uppercase tracking-wider">
+                    Orqa Fon Rasmi (Profil Bosh Foni / Wallpaper)
+                  </label>
+                  {editBannerUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditBannerUrl('')}
+                      className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-bold"
+                    >
+                      <Trash2 size={12} /> Fonni tozalash
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-white/70 uppercase mb-1">Avatar Havolasi (URL, GIF yoki .webm)</label>
-                  <input
-                    type="text"
-                    value={editAvatarUrl}
-                    onChange={(e) => setEditAvatarUrl(e.target.value)}
-                    className="w-full bg-[#000] border border-[#222] rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a]"
-                    placeholder="https://.../avatar.gif yoki .webm"
-                  />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={editBannerUrl}
+                      onChange={(e) => setEditBannerUrl(e.target.value)}
+                      className={`w-full rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      }`}
+                      placeholder="https://... rasm yoki GIF havolasi"
+                    />
+                  </div>
+                  <label className="shrink-0 bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-lg border border-white/20 cursor-pointer backdrop-blur-md transition-all flex items-center justify-center gap-2">
+                    <Upload size={14} className="text-[#ff006a]" />
+                    <span>{uploadingBanner ? "Yuklanmoqda..." : "Fayl yuklash"}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*,video/webm,video/mp4,.gif,.webm" 
+                      className="hidden" 
+                      onChange={handleBannerUpload}
+                      disabled={uploadingBanner}
+                    />
+                  </label>
                 </div>
+                {editBannerUrl && (
+                  <div className="relative w-full h-24 rounded-lg overflow-hidden border border-white/20">
+                    <img src={editBannerUrl} alt="Fon preview" className="w-full h-full object-cover" />
+                    <span className="absolute bottom-1 right-2 bg-black/75 text-[10px] text-white/90 px-2 py-0.5 rounded backdrop-blur-sm">
+                      Tanlangan fon rasmi
+                    </span>
+                  </div>
+                )}
+                <p className="text-[11px] text-white/40">
+                  Ushbu rasm butun profil orqa foniga to'liq va tiniq sifatda joylashadi. Kartochkalar esa zamonaviy shaffof oyna (glassmorphism) ko'rinishiga o'tadi.
+                </p>
+              </div>
+
+              {/* Avatar URL */}
+              <div>
+                <label className="block text-xs font-bold text-white/70 uppercase mb-1">Avatar Havolasi (URL, GIF yoki .webm)</label>
+                <input
+                  type="text"
+                  value={editAvatarUrl}
+                  onChange={(e) => setEditAvatarUrl(e.target.value)}
+                  className={`w-full rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
+                    hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                  }`}
+                  placeholder="https://.../avatar.gif yoki .webm"
+                />
               </div>
 
               {/* Social Media Links Inputs */}
-              <div className="border-t border-[#222] pt-4">
+              <div className={`border-t pt-4 ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
                 <h4 className="text-xs font-bold text-[#ff006a] uppercase tracking-wider mb-3">
                   Ijtimoiy Tarmoq Sahifalari (Telegram, Instagram, YouTube, Discord, Facebook, TikTok, VK)
                 </h4>
@@ -810,7 +949,9 @@ export default function Profil() {
                       value={editTelegram}
                       onChange={(e) => setEditTelegram(e.target.value)}
                       placeholder="@username yoki t.me/username"
-                      className="w-full bg-[#000] border border-[#222] rounded-lg px-3 py-2 text-white text-xs focus:border-[#0088cc]"
+                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#0088cc] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      }`}
                     />
                   </div>
 
@@ -821,7 +962,9 @@ export default function Profil() {
                       value={editInstagram}
                       onChange={(e) => setEditInstagram(e.target.value)}
                       placeholder="@username"
-                      className="w-full bg-[#000] border border-[#222] rounded-lg px-3 py-2 text-white text-xs focus:border-[#e1306c]"
+                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#e1306c] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      }`}
                     />
                   </div>
 
@@ -832,7 +975,9 @@ export default function Profil() {
                       value={editYoutube}
                       onChange={(e) => setEditYoutube(e.target.value)}
                       placeholder="youtube.com/@channel"
-                      className="w-full bg-[#000] border border-[#222] rounded-lg px-3 py-2 text-white text-xs focus:border-red-500"
+                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-red-500 ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      }`}
                     />
                   </div>
 
@@ -843,7 +988,9 @@ export default function Profil() {
                       value={editDiscord}
                       onChange={(e) => setEditDiscord(e.target.value)}
                       placeholder="username#0000 yoki invite"
-                      className="w-full bg-[#000] border border-[#222] rounded-lg px-3 py-2 text-white text-xs focus:border-[#5865F2]"
+                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#5865F2] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      }`}
                     />
                   </div>
 
@@ -854,7 +1001,9 @@ export default function Profil() {
                       value={editFacebook}
                       onChange={(e) => setEditFacebook(e.target.value)}
                       placeholder="facebook.com/username"
-                      className="w-full bg-[#000] border border-[#222] rounded-lg px-3 py-2 text-white text-xs focus:border-[#1877F2]"
+                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#1877F2] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      }`}
                     />
                   </div>
 
@@ -865,7 +1014,9 @@ export default function Profil() {
                       value={editTiktok}
                       onChange={(e) => setEditTiktok(e.target.value)}
                       placeholder="@username"
-                      className="w-full bg-[#000] border border-[#222] rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-400"
+                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-400 ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      }`}
                     />
                   </div>
 
@@ -876,18 +1027,20 @@ export default function Profil() {
                       value={editVk}
                       onChange={(e) => setEditVk(e.target.value)}
                       placeholder="vk.com/username yoki id"
-                      className="w-full bg-[#000] border border-[#222] rounded-lg px-3 py-2 text-white text-xs focus:border-[#0077FF]"
+                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#0077FF] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      }`}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Submit / Cancel Buttons */}
-              <div className="flex justify-end gap-3 pt-3 border-t border-[#222]">
+              <div className={`flex justify-end gap-3 pt-3 border-t ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white rounded-lg text-xs font-bold uppercase"
+                  className="px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white rounded-lg text-xs font-bold uppercase transition-all"
                 >
                   Bekor qilish
                 </button>
@@ -895,7 +1048,7 @@ export default function Profil() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-6 py-2.5 bg-[#ff006a] hover:bg-[#d40058] text-white rounded-lg text-xs font-bold uppercase flex items-center gap-2 shadow-lg"
+                  className="px-6 py-2.5 bg-[#ff006a] hover:bg-[#d40058] text-white rounded-lg text-xs font-bold uppercase flex items-center gap-2 shadow-lg transition-all"
                 >
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   <span>Saqlash</span>
@@ -909,7 +1062,11 @@ export default function Profil() {
 
       {/* SOCIAL LINKS DISPLAY SECTION */}
       {socialLinks.length > 0 && (
-        <div className="bg-[#111] border border-[#222] rounded-2xl p-5 shadow-lg">
+        <div className={`rounded-2xl p-5 shadow-lg transition-all ${
+          hasCustomBg 
+            ? 'bg-[#0a0a14]/70 backdrop-blur-xl border border-white/20 shadow-lg' 
+            : 'bg-[#111] border border-[#222]'
+        }`}>
           <h3 className="text-xs font-bold text-white/70 uppercase tracking-wider mb-4 flex items-center gap-2">
             <Globe size={16} className="text-[#ff006a]" /> Ijtimoiy Tarmoq Sahifalari
           </h3>
@@ -923,7 +1080,11 @@ export default function Profil() {
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`bg-[#18181c] border border-white/10 hover:border-[#ff006a]/50 p-2 pr-4 rounded-full text-xs font-bold flex items-center gap-3 transition-all transform hover:-translate-y-0.5 ${social.glow} group cursor-pointer`}
+                  className={`p-2 pr-4 rounded-full text-xs font-bold flex items-center gap-3 transition-all transform hover:-translate-y-0.5 ${social.glow} group cursor-pointer ${
+                    hasCustomBg 
+                      ? 'bg-black/50 backdrop-blur-md border border-white/20 hover:border-[#ff006a]/50 hover:bg-black/70' 
+                      : 'bg-[#18181c] border border-white/10 hover:border-[#ff006a]/50'
+                  }`}
                 >
                   <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center overflow-hidden">
                     <IconComp className="w-9 h-9" size={36} />
@@ -941,21 +1102,33 @@ export default function Profil() {
 
       {/* STATS COUNTER BAR */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-[#111] border border-[#222] p-5 rounded-2xl text-center space-y-1 hover:border-[#ff006a]/30 transition-colors">
+        <div className={`p-5 rounded-2xl text-center space-y-1 transition-all ${
+          hasCustomBg 
+            ? 'bg-[#0a0a14]/70 backdrop-blur-xl border border-white/20 shadow-lg hover:border-[#ff006a]/50 hover:bg-[#0a0a14]/85' 
+            : 'bg-[#111] border border-[#222] hover:border-[#ff006a]/30'
+        }`}>
           <Clock className="w-6 h-6 text-[#ff006a] mx-auto" />
           <h4 className="text-white/40 text-[10px] uppercase font-bold tracking-wider">Tomosha vaqti</h4>
           <p className="text-2xl font-black text-white">{formatWatchTime(profileUser.watch_time_minutes)}</p>
           <span className="text-[10px] text-white/30 font-mono block">Aniq tomosha davomiyligi</span>
         </div>
 
-        <div className="bg-[#111] border border-[#222] p-5 rounded-2xl text-center space-y-1 hover:border-[#ff006a]/30 transition-colors">
+        <div className={`p-5 rounded-2xl text-center space-y-1 transition-all ${
+          hasCustomBg 
+            ? 'bg-[#0a0a14]/70 backdrop-blur-xl border border-white/20 shadow-lg hover:border-[#ff006a]/50 hover:bg-[#0a0a14]/85' 
+            : 'bg-[#111] border border-[#222] hover:border-[#ff006a]/30'
+        }`}>
           <Heart className="w-6 h-6 text-[#ff006a] mx-auto fill-current" />
           <h4 className="text-white/40 text-[10px] uppercase font-bold tracking-wider">Saqlangan animelar</h4>
           <p className="text-2xl font-black text-white">{favoritesList.length} ta</p>
           <span className="text-[10px] text-white/30 font-mono block">Sevimlilar ro'yxatida</span>
         </div>
 
-        <div className="bg-[#111] border border-[#222] p-5 rounded-2xl text-center space-y-1 hover:border-[#ff006a]/30 transition-colors">
+        <div className={`p-5 rounded-2xl text-center space-y-1 transition-all ${
+          hasCustomBg 
+            ? 'bg-[#0a0a14]/70 backdrop-blur-xl border border-white/20 shadow-lg hover:border-[#ff006a]/50 hover:bg-[#0a0a14]/85' 
+            : 'bg-[#111] border border-[#222] hover:border-[#ff006a]/30'
+        }`}>
           <MessageSquare className="w-6 h-6 text-[#ff006a] mx-auto" />
           <h4 className="text-white/40 text-[10px] uppercase font-bold tracking-wider">Jami Izohlar</h4>
           <p className="text-2xl font-black text-white">{profileUser.comments_count || 0} ta</p>
@@ -964,8 +1137,12 @@ export default function Profil() {
       </div>
 
       {/* SAVED / FAVORITE ANIMELAR DISPLAY GRID */}
-      <div className="bg-[#111] border border-[#222] rounded-2xl p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-[#222] pb-4">
+      <div className={`rounded-2xl p-6 space-y-4 transition-all ${
+        hasCustomBg 
+          ? 'bg-[#0a0a14]/70 backdrop-blur-xl border border-white/20 shadow-lg' 
+          : 'bg-[#111] border border-[#222]'
+      }`}>
+        <div className={`flex items-center justify-between border-b pb-4 ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
           <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
             <Film size={18} className="text-[#ff006a]" /> Saqlangan Animelar ({favoritesList.length})
           </h3>
@@ -995,7 +1172,11 @@ export default function Profil() {
             {favoritesList.map((anime) => (
               <div 
                 key={anime.id} 
-                className="bg-[#161618] border border-[#222] rounded-xl overflow-hidden group hover:border-[#ff006a]/50 transition-all flex flex-col relative"
+                className={`rounded-xl overflow-hidden group transition-all flex flex-col relative ${
+                  hasCustomBg 
+                    ? 'bg-black/50 backdrop-blur-md border border-white/15 hover:border-[#ff006a]/60 shadow-lg' 
+                    : 'bg-[#161618] border border-[#222] hover:border-[#ff006a]/50'
+                }`}
               >
                 {/* Anime Poster */}
                 <Link to={`/anime/${toSlug(anime.title)}`} className="relative block p-[2px] rounded-xl bg-gradient-to-b from-white/20 via-white/5 to-[#ff006a]/25 group-hover:from-[#ff006a] group-hover:to-purple-600 transition-all duration-500">
@@ -1035,7 +1216,9 @@ export default function Profil() {
                     {anime.title}
                   </Link>
 
-                  <div className="mt-2 pt-2 border-t border-[#222] flex items-center justify-between text-[10px] text-white/40">
+                  <div className={`mt-2 pt-2 border-t flex items-center justify-between text-[10px] text-white/40 ${
+                    hasCustomBg ? 'border-white/10' : 'border-[#222]'
+                  }`}>
                     <span>{anime.qismlar_soni || 12}-qism</span>
                     <Link to={`/anime/${toSlug(anime.title)}`} className="text-[#ff006a] font-bold hover:underline">
                       Ko'rish
@@ -1048,10 +1231,12 @@ export default function Profil() {
         )}
       </div>
 
-
-
       {/* ACCOUNT DETAILS & PRIVACY CARD */}
-      <div className="bg-[#111] border border-[#222] rounded-2xl p-6 space-y-4">
+      <div className={`rounded-2xl p-6 space-y-4 transition-all ${
+        hasCustomBg 
+          ? 'bg-[#0a0a14]/70 backdrop-blur-xl border border-white/20 shadow-lg' 
+          : 'bg-[#111] border border-[#222]'
+      }`}>
         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
           <Shield size={16} className="text-[#ff006a]" /> Tizim va Maxfiylik Ma'lumotlari
         </h3>
@@ -1059,16 +1244,18 @@ export default function Profil() {
         <div className="space-y-3 text-xs font-mono">
           {/* EMAIL PRIVACY: EMAIL IS ONLY SHOWN IF ISOWNER IS TRUE */}
           {isOwner ? (
-            <div className="flex justify-between py-2 border-b border-[#222] items-center">
+            <div className={`flex justify-between py-2 border-b items-center ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
               <span className="text-white/40 uppercase flex items-center gap-1.5">
                 <Eye size={13} className="text-[#ff006a]" /> Email (Faqat sizga ko'rinadi):
               </span>
-              <span className="text-white font-bold bg-[#1a1a1c] px-3 py-1 rounded border border-[#333]">
+              <span className={`text-white font-bold px-3 py-1 rounded border ${
+                hasCustomBg ? 'bg-black/50 border-white/20' : 'bg-[#1a1a1c] border-[#333]'
+              }`}>
                 {profileUser.email || currentUser?.email || 'Foydalanuvchi emaili'}
               </span>
             </div>
           ) : (
-            <div className="flex justify-between py-2 border-b border-[#222] items-center text-white/40">
+            <div className={`flex justify-between py-2 border-b items-center text-white/40 ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
               <span className="uppercase flex items-center gap-1.5">
                 <Lock size={13} className="text-white/30" /> Email Manzili:
               </span>
@@ -1076,7 +1263,7 @@ export default function Profil() {
             </div>
           )}
 
-          <div className="flex justify-between py-2 border-b border-[#222] items-center">
+          <div className={`flex justify-between py-2 border-b items-center ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
             <span className="text-white/40 uppercase">Hisob Roli:</span>
             <span className="text-[#ff006a] font-bold uppercase">
               {profileUser.role === 'admin' ? 'ADMINISTRATOR' : 'PREMIUM FOYDALANUVCHI'}
@@ -1092,6 +1279,7 @@ export default function Profil() {
         </div>
       </div>
 
+      </div>
     </div>
   );
 }
