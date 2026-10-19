@@ -6,6 +6,7 @@ import { Star, Play, Grid, List, Film, Eye, Search, X, ChevronDown } from 'lucid
 import { motion } from 'motion/react';
 import AnimeCard from '../components/AnimeCard';
 import LoadingScreen from '../components/LoadingScreen';
+import { getSocketUrl } from '../lib/api';
 
 // Calculate responsive batch size (approx. 2.5 - 3 rows depending on device)
 const getBatchSize = () => {
@@ -84,7 +85,7 @@ export default function Animelar() {
     };
     fetchAnimes();
 
-    const socketUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : window.location.origin);
+    const socketUrl = getSocketUrl();
     const socket = io(socketUrl);
     socket.on('contentUpdated', (data: any) => {
       if (!data || data.type === 'anime' || data.type === 'all') {

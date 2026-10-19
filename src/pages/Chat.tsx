@@ -10,6 +10,7 @@ import AudioMessage, { parseMessageContent } from '../components/AudioMessage';
 import GifPicker from '../components/GifPicker';
 import FormattedContent, { isGifContent } from '../components/FormattedContent';
 import UserAvatar from '../components/UserAvatar';
+import { getSocketUrl } from '../lib/api';
 
 const CHAT_BG_IMAGE = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRbK8qI1E3BjTK74xv_20a3cTlFO8toJzzRqbJmZHUE4Qrg4dAKPrWmyZw&s=10";
 
@@ -236,7 +237,7 @@ export default function Chat() {
     fetchInitialMessages();
 
     // Connect to the socket server
-    const socketUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : window.location.origin);
+    const socketUrl = getSocketUrl();
     const socket = io(socketUrl);
     socketRef.current = socket;
 

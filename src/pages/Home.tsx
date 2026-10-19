@@ -8,6 +8,7 @@ import AnimeCard from '../components/AnimeCard';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import UserAvatar from '../components/UserAvatar';
+import { getSocketUrl } from '../lib/api';
 
 export default function Home() {
   const { user } = useAuth();
@@ -83,7 +84,7 @@ export default function Home() {
 
     fetchHomeData();
 
-    const socketUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? 'https://p01--animem-beckend--jddxxkp4tz2g.code.run' : window.location.origin);
+    const socketUrl = getSocketUrl();
     const socket = io(socketUrl);
     socket.on('contentUpdated', () => {
       fetchHomeData();

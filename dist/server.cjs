@@ -222,9 +222,123 @@ async function initPgDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log("Verified video table in PostgreSQL.");
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT DEFAULT 0,
+        user_name VARCHAR(255) DEFAULT 'Anonim',
+        content TEXT NOT NULL,
+        reply_to_id VARCHAR(255),
+        reply_to_name VARCHAR(255),
+        reply_to_content TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    try {
+      await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_messages_id_desc ON messages (id DESC)`);
+    } catch (_) {
+    }
+    const messageCols = [
+      "ALTER TABLE messages ADD COLUMN IF NOT EXISTS user_id BIGINT DEFAULT 0",
+      "ALTER TABLE messages ADD COLUMN IF NOT EXISTS user_name VARCHAR(255) DEFAULT 'Anonim'",
+      "ALTER TABLE messages ADD COLUMN IF NOT EXISTS content TEXT",
+      "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id VARCHAR(255)",
+      "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_name VARCHAR(255)",
+      "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_content TEXT",
+      "ALTER TABLE messages ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"
+    ];
+    for (const q of messageCols) {
+      try {
+        await pgPool.query(q);
+      } catch (_) {
+      }
+    }
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS comments (
+        id BIGSERIAL PRIMARY KEY,
+        anime_id BIGINT,
+        user_id BIGINT,
+        manga_id BIGINT,
+        drama_id BIGINT,
+        content TEXT NOT NULL,
+        likes INT DEFAULT 0,
+        dislikes INT DEFAULT 0,
+        liked_users TEXT DEFAULT '[]',
+        disliked_users TEXT DEFAULT '[]',
+        replies TEXT DEFAULT '[]',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    try {
+      await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_comments_anime_id ON comments (anime_id)`);
+    } catch (_) {
+    }
+    try {
+      await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_comments_drama_id ON comments (drama_id)`);
+    } catch (_) {
+    }
+    const commentCols = [
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS anime_id BIGINT",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS user_id BIGINT",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS manga_id BIGINT",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS drama_id BIGINT",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS content TEXT",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS likes INT DEFAULT 0",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS dislikes INT DEFAULT 0",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS liked_users TEXT DEFAULT '[]'",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS disliked_users TEXT DEFAULT '[]'",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS replies TEXT DEFAULT '[]'",
+      "ALTER TABLE comments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"
+    ];
+    for (const q of commentCols) {
+      try {
+        await pgPool.query(q);
+      } catch (_) {
+      }
+    }
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id BIGSERIAL PRIMARY KEY,
+        title VARCHAR(255),
+        message TEXT,
+        anime_id BIGINT,
+        link VARCHAR(500),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS donations (
+        id BIGSERIAL PRIMARY KEY,
+        order_id VARCHAR(255) UNIQUE,
+        user_id BIGINT,
+        donor_name VARCHAR(255),
+        donor_avatar TEXT,
+        donor_avatar_frame TEXT,
+        amount NUMERIC(15, 2) NOT NULL,
+        comment TEXT,
+        payment_method VARCHAR(50) DEFAULT 'tezcheck',
+        status VARCHAR(50) DEFAULT 'pending',
+        pay_url TEXT,
+        paid_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS mika_complaints (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT DEFAULT 0,
+        user_name VARCHAR(255),
+        message TEXT NOT NULL,
+        ai_response TEXT,
+        reason TEXT,
+        ip VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'new',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log("Verified PostgreSQL core tables: video, messages, comments, notifications, donations, mika_complaints.");
   } catch (err) {
-    console.error("Failed to initialize PostgreSQL video table:", err);
+    console.error("Failed to initialize PostgreSQL core tables:", err.message);
   }
 }
 initPgDb();
@@ -1025,12 +1139,12 @@ io.on("connection", (socket) => {
           const [result] = await dbQuery(
             "INSERT INTO messages (user_id, user_name, content, reply_to_id, reply_to_name, reply_to_content) VALUES (?, ?, ?, ?, ?, ?)",
             [
-              user_id || null,
+              Number(user_id) || 0,
               user_name || "Anonim",
               content,
-              reply_to_id || null,
-              reply_to_name || null,
-              reply_to_content || null
+              reply_to_id ? String(reply_to_id) : null,
+              reply_to_name ? String(reply_to_name) : null,
+              reply_to_content ? String(reply_to_content) : null
             ]
           );
           if (result && result.insertId) {
@@ -1079,10 +1193,10 @@ io.on("connection", (socket) => {
                     u.avatar_frame_url AS user_avatar_frame, 
                     u.avatar_frame_url AS avatar_frame_url 
              FROM messages m 
-             LEFT JOIN users u ON (m.user_id = u.id AND m.user_id > 0)
+             LEFT JOIN users u ON (CAST(m.user_id AS TEXT) = CAST(u.id AS TEXT) AND m.user_id IS NOT NULL)
              ORDER BY m.id DESC LIMIT 50`
           ),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2e3))
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5e3))
         ]);
         if (Array.isArray(rows) && rows.length > 0) {
           previousMessages = [...rows].reverse();
@@ -3398,8 +3512,8 @@ app.get("/api/comments/recent", async (req, res) => {
              u.avatar_frame_url AS avatar_frame_url, 
              a.title AS anime_title 
       FROM comments c 
-      LEFT JOIN users u ON (c.user_id = u.id AND c.user_id > 0) 
-      LEFT JOIN animes a ON (c.anime_id = a.id OR CAST(c.anime_id AS TEXT) = CAST(a.id AS TEXT)) 
+      LEFT JOIN users u ON (CAST(c.user_id AS TEXT) = CAST(u.id AS TEXT) AND c.user_id IS NOT NULL) 
+      LEFT JOIN animes a ON (CAST(c.anime_id AS TEXT) = CAST(a.id AS TEXT)) 
       ORDER BY c.id DESC 
       LIMIT 10
     `);
@@ -3829,10 +3943,10 @@ app.get("/api/animes/:id/comments", async (req, res) => {
               u.avatar_frame_url AS user_avatar_frame, 
               u.avatar_frame_url AS avatar_frame_url 
        FROM comments c 
-       LEFT JOIN users u ON (c.user_id = u.id AND c.user_id > 0) 
-       WHERE (c.anime_id = ? OR CAST(c.anime_id AS TEXT) = CAST(? AS TEXT)) 
+       LEFT JOIN users u ON (CAST(c.user_id AS TEXT) = CAST(u.id AS TEXT) AND c.user_id IS NOT NULL) 
+       WHERE (CAST(c.anime_id AS TEXT) = CAST(? AS TEXT)) 
        ORDER BY c.id DESC`,
-      [id, id]
+      [String(id)]
     );
     if (Array.isArray(rows)) {
       const parsed = rows.map((r) => ({
@@ -3875,7 +3989,7 @@ app.post("/api/animes/:id/comments", authenticateToken, async (req, res) => {
     try {
       const [result] = await dbQuery(
         "INSERT INTO comments (anime_id, user_id, content, likes, dislikes, liked_users, disliked_users, replies) VALUES (?, ?, ?, 0, 0, '[]', '[]', '[]')",
-        [animeId, userId, content]
+        [Number(animeId) || null, Number(userId) || null, content]
       );
       if (result && result.insertId) {
         insertId = result.insertId;
@@ -6409,7 +6523,7 @@ app.get("/api/chat/messages", async (req, res) => {
                 u.avatar_frame_url AS user_avatar_frame, 
                 u.avatar_frame_url AS avatar_frame_url 
          FROM messages m 
-         LEFT JOIN users u ON (m.user_id = u.id AND m.user_id > 0)
+         LEFT JOIN users u ON (CAST(m.user_id AS TEXT) = CAST(u.id AS TEXT) AND m.user_id IS NOT NULL)
          ORDER BY m.id DESC LIMIT 50`
       );
       if (Array.isArray(rows) && rows.length > 0) {
@@ -6455,12 +6569,12 @@ app.post("/api/chat/messages", authenticateToken, async (req, res) => {
       const [result] = await dbQuery(
         "INSERT INTO messages (user_id, user_name, content, reply_to_id, reply_to_name, reply_to_content) VALUES (?, ?, ?, ?, ?, ?)",
         [
-          currentUserId,
+          Number(currentUserId) || 0,
           currentUserName,
           content,
-          reply_to_id || null,
-          reply_to_name || null,
-          reply_to_content || null
+          reply_to_id ? String(reply_to_id) : null,
+          reply_to_name ? String(reply_to_name) : null,
+          reply_to_content ? String(reply_to_content) : null
         ]
       );
       const newId = result.insertId;
@@ -6468,7 +6582,7 @@ app.post("/api/chat/messages", authenticateToken, async (req, res) => {
         const [rows] = await dbQuery(
           `SELECT m.*, u.avatar_url AS user_avatar 
            FROM messages m 
-           LEFT JOIN users u ON m.user_id = u.id 
+           LEFT JOIN users u ON (CAST(m.user_id AS TEXT) = CAST(u.id AS TEXT) AND m.user_id IS NOT NULL) 
            WHERE m.id = ?`,
           [newId]
         );
