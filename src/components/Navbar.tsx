@@ -255,7 +255,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           <img 
             src={logoImg} 
             alt="AnimeUz" 
-            className="h-[60px] min-[400px]:h-[72px] w-auto object-contain" 
+            className="h-8 min-[380px]:h-9 w-auto object-contain max-w-[110px]" 
           />
         </Link>
 
@@ -352,11 +352,12 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         {/* Donat Button */}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('open-donat-modal'))}
-          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 hover:from-[#ff006a]/30 hover:to-purple-600/30 border border-[#ff006a]/40 text-[#ff006a] hover:text-white text-xs font-black transition-all shadow-sm shadow-[#ff006a]/10 cursor-pointer"
+          className="flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:px-3 md:py-1.5 rounded-lg bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 hover:from-[#ff006a]/30 hover:to-purple-600/30 border border-[#ff006a]/40 text-[#ff006a] hover:text-white text-xs font-black transition-all shadow-sm shadow-[#ff006a]/10 cursor-pointer shrink-0"
           title="Saytni qo'llab-quvvatlash (Donat)"
+          aria-label="Donat qilish"
         >
-          <Heart size={14} className="fill-[#ff006a] text-[#ff006a]" />
-          <span className="hidden min-[480px]:inline">Donat</span>
+          <Heart size={15} className="fill-[#ff006a] text-[#ff006a] shrink-0" />
+          <span className="hidden md:inline ml-1.5">Donat</span>
         </button>
 
         {/* Language Switcher Dropdown */}
