@@ -79,6 +79,7 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
     { name: t.navFavorites, path: '/sevimlilar', icon: Heart },
     { name: t.navHistory, path: '/tarix', icon: History },
     { name: t.navChat, path: '/chat', icon: MessageSquare },
+    { name: 'Donat qilish', path: '/donat', icon: Heart },
     { name: t.navSettings, path: '/sozlamalar', icon: Settings },
   ];
 

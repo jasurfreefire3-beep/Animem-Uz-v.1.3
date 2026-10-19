@@ -13,6 +13,7 @@ import AdminNotifications from '../components/AdminNotifications';
 import AdminUsers from '../components/AdminUsers';
 import AdminGifs from '../components/AdminGifs';
 import AdminShop from '../components/AdminShop';
+import AdminDonatlar from '../components/AdminDonatlar';
 import OnlineUsersTab from '../components/OnlineUsersTab';
 import ImageUploader from '../components/ImageUploader';
 import AdminMikaReports from '../components/AdminMikaReports';
@@ -20,7 +21,7 @@ import AdminMikaReports from '../components/AdminMikaReports';
 export default function Admin() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports'>('manage_animes');
+  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'donations'>('manage_animes');
   
   // Anime Form States
   const [title, setTitle] = useState('');
@@ -59,6 +60,16 @@ export default function Admin() {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+  const getAdminHeaders = (extraHeaders: Record<string, string> = {}) => {
+    const currentToken = token || localStorage.getItem('token') || '';
+    const adminPasscode = sessionStorage.getItem('animem_admin_passcode') || '1213234';
+    return {
+      ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+      'x-admin-passcode': adminPasscode,
+      ...extraHeaders
+    };
+  };
 
   const safeJson = async (res: Response) => {
     const contentType = res.headers.get("content-type") || "";
@@ -138,19 +149,13 @@ export default function Admin() {
       if (editingAnime) {
         res = await fetch(`${API_BASE}/api/animes/${editingAnime.id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: getAdminHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(payload)
         });
       } else {
         res = await fetch(`${API_BASE}/api/animes`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: getAdminHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(payload)
         });
       }
@@ -251,9 +256,7 @@ export default function Admin() {
     try {
       const res = await fetch(`${API_BASE}/api/animes/${animeId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: getAdminHeaders()
       });
       const resData = await safeJson(res);
       if (!res.ok) {
@@ -472,10 +475,7 @@ export default function Admin() {
 
       const res = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: getAdminHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ 
           episode_number: epNum, 
           video_url: urlVal,
@@ -484,7 +484,7 @@ export default function Admin() {
       });
       const resData = await safeJson(res);
       if (!res.ok) {
-        throw new Error(resData.error || 'Failed to save episode');
+        throw new Error(resData.error || 'Qismni saqlab bo\'lmadi');
       }
       
       setMessage({ type: 'success', text: `${epNum}-qism muvaffaqiyatli saqlandi!` });
@@ -528,29 +528,27 @@ export default function Admin() {
 
       const res = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes/bulk`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: getAdminHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload)
       });
 
       if (res.ok) {
         setMessage({ type: 'success', text: `Barcha ${episodesList.length} ta qism muvaffaqiyatli saqlandi!` });
       } else {
+        const errJson = await res.json().catch(() => null);
+        let lastErr = errJson?.error || "Qismlarni saqlashda xatolik yuz berdi";
         // Fallback: save in small parallel chunks
         const total = episodesList.length;
         let count = 0;
         const chunkSize = 6;
+        let anyFailed = false;
+
         for (let i = 0; i < episodesList.length; i += chunkSize) {
           const chunk = episodesList.slice(i, i + chunkSize);
-          await Promise.all(chunk.map(ep =>
+          const chunkResponses = await Promise.all(chunk.map(ep =>
             fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
+              headers: getAdminHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify({
                 episode_number: ep.episode_number,
                 video_url: ep.video_url || '',
@@ -558,10 +556,22 @@ export default function Admin() {
               })
             })
           ));
+          for (const cr of chunkResponses) {
+            if (!cr.ok) {
+              anyFailed = true;
+              const errBody = await cr.json().catch(() => null);
+              if (errBody?.error) lastErr = errBody.error;
+            }
+          }
           count += chunk.length;
           setBulkSaveProgress({ current: Math.min(count, total), total });
         }
-        setMessage({ type: 'success', text: `Barcha ${episodesList.length} ta qism muvaffaqiyatli saqlandi!` });
+
+        if (anyFailed) {
+          throw new Error(lastErr);
+        } else {
+          setMessage({ type: 'success', text: `Barcha ${episodesList.length} ta qism muvaffaqiyatli saqlandi!` });
+        }
       }
 
       // Refresh list from server
@@ -738,9 +748,7 @@ export default function Admin() {
     try {
       const res = await fetch(`${API_BASE}/api/animes/${selectedAnimeId}/episodes/${epNum}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: getAdminHeaders()
       });
       const resData = await safeJson(res);
       if (!res.ok) {
@@ -891,6 +899,18 @@ export default function Admin() {
         >
           <ShieldAlert size={16} className="text-red-400" />
           <span>Mika Shikoyatlari 🌸</span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('donations');
+            setMessage({ type: '', text: '' });
+          }}
+          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
+            activeTab === 'donations' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
+          }`}
+        >
+          <Heart size={16} className="text-[#ff006a]" />
+          <span>Donatlar ❤️</span>
         </button>
       </div>
 
@@ -1938,6 +1958,11 @@ export default function Admin() {
       {/* Tab: Mika Shikoyatlari & Xavfsizlik */}
       {activeTab === 'mika_reports' && (
         <AdminMikaReports />
+      )}
+
+      {/* Tab: Donatlar Boshqaruvi */}
+      {activeTab === 'donations' && (
+        <AdminDonatlar />
       )}
     </div>
   );

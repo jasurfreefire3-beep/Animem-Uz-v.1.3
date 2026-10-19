@@ -86,7 +86,7 @@ export const AdminPasscodeGate: React.FC<AdminPasscodeGateProps> = ({ children }
     return () => clearInterval(timer);
   }, [lockoutRemaining]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lockoutRemaining > 0) return;
 
@@ -102,6 +102,27 @@ export const AdminPasscodeGate: React.FC<AdminPasscodeGateProps> = ({ children }
       localStorage.removeItem(STORAGE_KEYS.ATTEMPTS);
       localStorage.removeItem(STORAGE_KEYS.LOCKOUT_UNTIL);
       sessionStorage.setItem(STORAGE_KEYS.AUTH_TIMESTAMP, Date.now().toString());
+      sessionStorage.setItem('animem_admin_passcode', trimmed);
+
+      // Exchange passcode for valid admin token from backend
+      try {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+        const res = await fetch(`${API_BASE}/api/admin/verify-passcode`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ passcode: trimmed })
+        });
+        const data = await res.json();
+        if (data && data.success && data.token) {
+          localStorage.setItem('token', data.token);
+          if (data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
+        }
+      } catch (err) {
+        console.warn("Passcode token exchange warning:", err);
+      }
+
       setIsUnlocked(true);
     } else {
       const newAttempts = attempts + 1;

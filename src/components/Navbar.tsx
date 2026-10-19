@@ -349,6 +349,16 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           <Search size={16} />
         </button>
 
+        {/* Donat Button */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('open-donat-modal'))}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 hover:from-[#ff006a]/30 hover:to-purple-600/30 border border-[#ff006a]/40 text-[#ff006a] hover:text-white text-xs font-black transition-all shadow-sm shadow-[#ff006a]/10 cursor-pointer"
+          title="Saytni qo'llab-quvvatlash (Donat)"
+        >
+          <Heart size={14} className="fill-[#ff006a] text-[#ff006a]" />
+          <span className="hidden min-[480px]:inline">Donat</span>
+        </button>
+
         {/* Language Switcher Dropdown */}
         <div className="relative" ref={langRef}>
           <button
