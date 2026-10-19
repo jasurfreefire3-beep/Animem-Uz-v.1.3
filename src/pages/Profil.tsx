@@ -325,7 +325,18 @@ export default function Profil() {
         body: JSON.stringify({ avatar_url: resizedBase64 })
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        const rawText = await res.text().catch(() => "");
+        if (res.status === 401 || res.status === 403 || rawText.includes("Forbidden")) {
+          throw new Error("Sessiyangiz muddati tugagan. Iltimos, tizimga qayta kiring.");
+        }
+        throw new Error(rawText || `Server xatosi (${res.status})`);
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Avatarni yuklashda xatolik yuz berdi");
       }
@@ -369,7 +380,18 @@ export default function Profil() {
         body: JSON.stringify({ banner_url: resizedBase64 })
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        const rawText = await res.text().catch(() => "");
+        if (res.status === 401 || res.status === 403 || rawText.includes("Forbidden")) {
+          throw new Error("Sessiyangiz muddati tugagan. Iltimos, tizimga qayta kiring.");
+        }
+        throw new Error(rawText || `Server xatosi (${res.status})`);
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Fon rasmini yuklashda xatolik yuz berdi");
       }
@@ -408,8 +430,13 @@ export default function Profil() {
         })
       });
 
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json().catch(() => ({}));
+      }
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Fon rasmini o'chirishda xatolik");
       }
 
