@@ -102,16 +102,23 @@ export default function Profil() {
   const fetchProfile = async () => {
     setLoading(true);
     setError('');
-    const idToFetch = targetId || currentUser?.id;
+
+    const storedUser = (() => {
+      try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch (e) { return null; }
+    })();
+    const activeUser = currentUser || storedUser;
+    const idToFetch = targetId || activeUser?.id;
+
     if (!idToFetch || idToFetch === 'undefined' || idToFetch === 'null') {
       setLoading(false);
       return;
     }
 
+    const effectiveToken = token || localStorage.getItem('token') || (activeUser as any)?.token;
     const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
     const headers: Record<string, string> = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    if (effectiveToken) {
+      headers['Authorization'] = `Bearer ${effectiveToken}`;
     }
 
     let retries = 3;
@@ -147,11 +154,11 @@ export default function Profil() {
           return;
         }
 
-        const isUserOwner = Boolean(data.isOwner || (currentUser && String(currentUser.id) === String(data.user?.id)));
+        const isUserOwner = Boolean(!targetId || data.isOwner || (activeUser && String(activeUser.id) === String(data.user?.id)));
         setIsOwner(isUserOwner);
 
         // Auto-sync owner's local favorites and watch history to server if needed
-        if (isUserOwner && token) {
+        if (isUserOwner && effectiveToken) {
           const savedFavs = localStorage.getItem('anime_favorites');
           const allProgress = getAllWatchProgress();
           let computedMinutes = 0;
@@ -295,32 +302,43 @@ export default function Profil() {
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !token) return;
+    e.target.value = '';
+
+    const effectiveToken = token || localStorage.getItem('token') || (currentUser as any)?.token;
+    if (!file) return;
+    if (!effectiveToken) {
+      alert("Iltimos, avval hisobingizga kiring!");
+      return;
+    }
 
     setUploadingAvatar(true);
     try {
-      const resizedBase64 = await resizeImage(file, 250, 250);
-      setEditAvatarUrl(resizedBase64);
+      const resizedBase64 = await resizeImage(file, 400, 400);
 
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
       const res = await fetch(`${API_BASE}/api/user/avatar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${effectiveToken}`
         },
         body: JSON.stringify({ avatar_url: resizedBase64 })
       });
 
       const data = await res.json();
-      if (res.ok) {
-        setProfileUser(prev => prev ? { ...prev, avatar_url: resizedBase64 } : null);
-        if (currentUser && data.user) {
-          login(token, { ...currentUser, avatar_url: resizedBase64 });
-        }
+      if (!res.ok) {
+        throw new Error(data.error || "Avatarni yuklashda xatolik yuz berdi");
       }
-    } catch (err) {
-      console.error(err);
+
+      const finalAvatar = data.avatar_url || data.user?.avatar_url || resizedBase64;
+      setProfileUser(prev => prev ? { ...prev, avatar_url: finalAvatar } : null);
+      setEditAvatarUrl(finalAvatar);
+      if (currentUser) {
+        login(effectiveToken, { ...currentUser, avatar_url: finalAvatar });
+      }
+    } catch (err: any) {
+      console.error("Avatar upload error:", err);
+      alert(err.message || "Avatarni yuklashda xatolik yuz berdi");
     } finally {
       setUploadingAvatar(false);
     }
@@ -328,52 +346,61 @@ export default function Profil() {
 
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !token) return;
+    e.target.value = '';
+
+    const effectiveToken = token || localStorage.getItem('token') || (currentUser as any)?.token;
+    if (!file) return;
+    if (!effectiveToken) {
+      alert("Iltimos, avval hisobingizga kiring!");
+      return;
+    }
 
     setUploadingBanner(true);
     try {
       const resizedBase64 = await resizeImage(file, 1920, 1080);
-      setEditBannerUrl(resizedBase64);
 
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-      const res = await fetch(`${API_BASE}/api/user/profile`, {
-        method: 'PUT',
+      const res = await fetch(`${API_BASE}/api/user/banner`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${effectiveToken}`
         },
-        body: JSON.stringify({
-          name: editName || profileUser?.name,
-          banner_url: resizedBase64
-        })
+        body: JSON.stringify({ banner_url: resizedBase64 })
       });
 
       const data = await res.json();
-      const savedBanner = data?.user?.banner_url || resizedBase64;
+      if (!res.ok) {
+        throw new Error(data.error || "Fon rasmini yuklashda xatolik yuz berdi");
+      }
+
+      const savedBanner = data.banner_url || data?.user?.banner_url || resizedBase64;
       setProfileUser(prev => prev ? { ...prev, banner_url: savedBanner } : null);
       setEditBannerUrl(savedBanner);
       if (currentUser) {
-        login(token, { ...currentUser, banner_url: savedBanner });
+        login(effectiveToken, { ...currentUser, banner_url: savedBanner });
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Banner upload error:", err);
+      alert(err.message || "Fon rasmini yuklashda xatolik yuz berdi");
     } finally {
       setUploadingBanner(false);
     }
   };
 
   const handleRemoveBanner = async () => {
-    if (!token || !isOwner) return;
+    const effectiveToken = token || localStorage.getItem('token') || (currentUser as any)?.token;
+    if (!effectiveToken || !isOwner) return;
     if (!window.confirm("Haqiqatan ham profil orqa fon rasmini o'chirmoqchimisiz?")) return;
 
     setUploadingBanner(true);
     try {
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-      await fetch(`${API_BASE}/api/user/profile`, {
+      const res = await fetch(`${API_BASE}/api/user/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${effectiveToken}`
         },
         body: JSON.stringify({
           name: profileUser?.name,
@@ -381,13 +408,19 @@ export default function Profil() {
         })
       });
 
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Fon rasmini o'chirishda xatolik");
+      }
+
       setProfileUser(prev => prev ? { ...prev, banner_url: undefined } : null);
       setEditBannerUrl('');
       if (currentUser) {
-        login(token, { ...currentUser, banner_url: undefined });
+        login(effectiveToken, { ...currentUser, banner_url: undefined });
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Remove banner error:", err);
+      alert(err.message || "Fon rasmini o'chirishda xatolik yuz berdi");
     } finally {
       setUploadingBanner(false);
     }
@@ -395,7 +428,8 @@ export default function Profil() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editName.trim() || !token) return;
+    const effectiveToken = token || localStorage.getItem('token') || (currentUser as any)?.token;
+    if (!editName.trim() || !effectiveToken) return;
 
     setSaving(true);
     try {
@@ -418,7 +452,7 @@ export default function Profil() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${effectiveToken}`
         },
         body: JSON.stringify(payload)
       });
@@ -637,9 +671,9 @@ export default function Profil() {
 
             {/* Banner / Background Controls (For Owner) */}
             {isOwner && (
-              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-                <label className="bg-black/65 hover:bg-black/85 text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-white/25 cursor-pointer backdrop-blur-md transition-all flex items-center gap-1.5 shadow-lg">
-                  <Camera size={14} className="text-[#ff006a]" />
+              <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
+                <label className="bg-[#ff006a] hover:bg-[#d40058] text-white text-xs font-black px-3.5 py-2 rounded-xl border border-white/20 cursor-pointer shadow-[0_0_20px_rgba(255,0,106,0.5)] transition-all flex items-center gap-1.5 active:scale-95">
+                  <Camera size={15} />
                   <span>{uploadingBanner ? "Yuklanmoqda..." : "Fon rasmi yuklash"}</span>
                   <input 
                     type="file" 
@@ -653,9 +687,9 @@ export default function Profil() {
                   <button
                     onClick={handleRemoveBanner}
                     title="Fon rasmini o'chirish"
-                    className="bg-black/65 hover:bg-red-600/90 text-white px-2.5 py-1.5 rounded-xl border border-white/25 cursor-pointer backdrop-blur-md transition-all shadow-lg flex items-center gap-1 text-xs font-bold"
+                    className="bg-black/80 hover:bg-red-600/90 text-white px-3 py-2 rounded-xl border border-white/20 cursor-pointer backdrop-blur-md transition-all shadow-lg flex items-center gap-1 text-xs font-bold"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={14} />
                     <span className="hidden sm:inline">O'chirish</span>
                   </button>
                 )}
@@ -799,14 +833,26 @@ export default function Profil() {
 
           </div>
 
-          {/* Edit Action Button */}
+          {/* Edit Action Buttons */}
           {isOwner && (
-            <div className="shrink-0 flex flex-wrap items-center gap-2">
+            <div className="shrink-0 flex flex-wrap items-center gap-2.5">
+              <label className="bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:from-[#e0005d] hover:to-[#6820b0] border border-white/20 text-white font-black text-xs px-4 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(255,0,106,0.35)] flex items-center gap-2 uppercase tracking-wider cursor-pointer active:scale-95">
+                <Camera size={16} />
+                <span>{uploadingBanner ? "Yuklanmoqda..." : "Fon rasmi yuklash"}</span>
+                <input 
+                  type="file" 
+                  accept="image/*,video/webm,video/mp4,.gif,.webm" 
+                  className="hidden" 
+                  onChange={handleBannerUpload}
+                  disabled={uploadingBanner}
+                />
+              </label>
+
               <button
                 onClick={() => setIsEditing(!isEditing)}
-                className="bg-[#ff006a] hover:bg-[#d40058] text-white font-bold text-xs px-4 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(255,0,106,0.25)] flex items-center gap-2 uppercase tracking-wider cursor-pointer"
+                className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all backdrop-blur-md flex items-center gap-2 uppercase tracking-wider cursor-pointer active:scale-95"
               >
-                <Edit3 size={14} /> Tahrirlash
+                <Edit3 size={15} /> Tahrirlash
               </button>
             </div>
           )}

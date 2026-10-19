@@ -3169,13 +3169,14 @@ async function uploadImageBuffer(
   filename: string = "image.jpg",
   mimeType: string = "image/jpeg"
 ): Promise<string> {
-  const cleanExt = path.extname(filename) || (
-    mimeType.includes("png") ? ".png" :
-    mimeType.includes("webp") ? ".webp" :
-    mimeType.includes("gif") ? ".gif" :
-    mimeType.includes("webm") ? ".webm" :
-    mimeType.includes("mp4") ? ".mp4" : ".jpg"
-  );
+  let cleanExt = "";
+  if (mimeType.includes("webm")) cleanExt = ".webm";
+  else if (mimeType.includes("mp4")) cleanExt = ".mp4";
+  else if (mimeType.includes("gif")) cleanExt = ".gif";
+  else if (mimeType.includes("png")) cleanExt = ".png";
+  else if (mimeType.includes("webp")) cleanExt = ".webp";
+  else if (mimeType.includes("jpeg") || mimeType.includes("jpg")) cleanExt = ".jpg";
+  else cleanExt = path.extname(filename) || ".jpg";
   const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9) + cleanExt;
   const base64String = buffer.toString("base64");
 
@@ -3917,36 +3918,86 @@ app.post("/api/user/ping", authenticateToken, async (req: any, res) => {
 });
 
 // Update user profile photo (Avatar) - stored with https://image.animem.uz domain
-app.post("/api/user/avatar", authenticateToken, async (req: any, res) => {
+app.post("/api/user/avatar", authenticateToken, memoryUpload.single("file"), async (req: any, res) => {
   try {
     const userId = req.user.id;
-    let { avatar_url } = req.body;
+    let avatar_url = req.body?.avatar_url;
+
+    if (req.file) {
+      avatar_url = await uploadImageBuffer(
+        req.file.buffer,
+        req.file.originalname || "avatar.jpg",
+        req.file.mimetype || "image/jpeg"
+      );
+    } else if (avatar_url) {
+      if (typeof avatar_url === "string" && (avatar_url.startsWith("data:image/") || avatar_url.startsWith("data:video/"))) {
+        const match = avatar_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (match) {
+          const mime = match[1];
+          const buf = Buffer.from(match[2], "base64");
+          avatar_url = await uploadImageBuffer(buf, "avatar.jpg", mime);
+        }
+      } else {
+        avatar_url = normalizeImageUrl(avatar_url);
+      }
+    }
 
     if (!avatar_url) {
       return res.status(400).json({ error: "Rasm topilmadi" });
-    }
-
-    if (avatar_url.startsWith("data:image/")) {
-      const match = avatar_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-      if (match) {
-        const mime = match[1];
-        const buf = Buffer.from(match[2], "base64");
-        avatar_url = await uploadImageBuffer(buf, "avatar.jpg", mime);
-      }
-    } else {
-      avatar_url = normalizeImageUrl(avatar_url);
     }
 
     await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [avatar_url, userId]);
 
     // Get updated user details
     const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
-    const updatedUser = rows[0];
+    const updatedUser = rows?.[0] || { id: userId, avatar_url };
 
-    res.json({ message: "Profil rasmi muvaffaqiyatli yangilandi", user: updatedUser });
-  } catch (err) {
+    res.json({ message: "Profil rasmi muvaffaqiyatli yangilandi", avatar_url, user: updatedUser });
+  } catch (err: any) {
     console.error("Upload avatar error:", err);
-    res.status(500).json({ error: "Profil rasmini yuklashda xatolik yuz berdi" });
+    res.status(500).json({ error: "Profil rasmini yuklashda xatolik yuz berdi: " + (err?.message || err) });
+  }
+});
+
+// Update user profile background / banner - stored with https://image.animem.uz domain
+app.post("/api/user/banner", authenticateToken, memoryUpload.single("file"), async (req: any, res) => {
+  try {
+    const userId = req.user.id;
+    let banner_url = req.body?.banner_url;
+
+    if (req.file) {
+      banner_url = await uploadImageBuffer(
+        req.file.buffer,
+        req.file.originalname || "banner.jpg",
+        req.file.mimetype || "image/jpeg"
+      );
+    } else if (banner_url) {
+      if (typeof banner_url === "string" && (banner_url.startsWith("data:image/") || banner_url.startsWith("data:video/"))) {
+        const match = banner_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (match) {
+          const mime = match[1];
+          const buf = Buffer.from(match[2], "base64");
+          banner_url = await uploadImageBuffer(buf, "banner.jpg", mime);
+        }
+      } else {
+        banner_url = normalizeImageUrl(banner_url);
+      }
+    }
+
+    if (!banner_url) {
+      return res.status(400).json({ error: "Fon rasmi topilmadi" });
+    }
+
+    await dbQuery("UPDATE users SET banner_url = ? WHERE id = ?", [banner_url, userId]);
+
+    // Get updated user details
+    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
+    const updatedUser = rows?.[0] || { id: userId, banner_url };
+
+    res.json({ message: "Profil orqa foni muvaffaqiyatli yangilandi", banner_url, user: updatedUser });
+  } catch (err: any) {
+    console.error("Upload banner error:", err);
+    res.status(500).json({ error: "Profil fon rasmini yuklashda xatolik yuz berdi: " + (err?.message || err) });
   }
 });
 
@@ -3956,13 +4007,14 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
     const userId = req.user.id;
     let { name, bio, banner_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: "Ism bo'sh bo'lishi mumkin emas" });
+    let cleanName = (name && typeof name === "string") ? name.trim() : "";
+    if (!cleanName) {
+      const [existing]: any = await dbQuery("SELECT name FROM users WHERE id = ?", [userId]);
+      cleanName = existing?.[0]?.name || req.user.name || "Foydalanuvchi";
     }
 
-    const cleanName = name.trim();
     if (avatar_url) {
-      if (avatar_url.startsWith("data:image/")) {
+      if (typeof avatar_url === "string" && (avatar_url.startsWith("data:image/") || avatar_url.startsWith("data:video/"))) {
         const match = avatar_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
         if (match) {
           const mime = match[1];
@@ -3975,7 +4027,7 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
     }
 
     if (banner_url) {
-      if (banner_url.startsWith("data:image/")) {
+      if (typeof banner_url === "string" && (banner_url.startsWith("data:image/") || banner_url.startsWith("data:video/"))) {
         const match = banner_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
         if (match) {
           const mime = match[1];
