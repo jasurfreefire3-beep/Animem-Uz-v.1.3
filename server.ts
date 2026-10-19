@@ -55,6 +55,77 @@ const upload = multer({ dest: "/tmp/" });
 
 const app = express();
 app.set("trust proxy", true);
+app.disable("x-powered-by");
+
+// Global Security Headers Middleware
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  next();
+});
+
+// Block Known Scanner Probes & Malicious Path Traversal
+const SUSPICIOUS_PATHS = [
+  /\.env/i,
+  /\.git/i,
+  /wp-login/i,
+  /wp-admin/i,
+  /phpmyadmin/i,
+  /\.\.\//,
+  /\/etc\/passwd/i,
+  /\/proc\/self/i,
+  /actuator/i,
+  /solr/i,
+  /cgi-bin/i,
+  /shell/i,
+  /telescope/i
+];
+
+app.use((req, res, next) => {
+  const urlPath = req.path || "";
+  for (const pattern of SUSPICIOUS_PATHS) {
+    if (pattern.test(urlPath)) {
+      console.warn(`[SECURITY PROBE BLOCKED] Blocked path: ${urlPath} from IP: ${req.ip}`);
+      return res.status(403).send("Forbidden");
+    }
+  }
+  next();
+});
+
+// Lightweight In-Memory Rate Limiter for Auth & Sensitive Endpoints
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitMap.entries()) {
+    if (now > record.resetAt) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 60 * 1000);
+
+app.use((req, res, next) => {
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+  const isAuth = req.path.startsWith("/api/auth/");
+  const maxReqs = isAuth ? 40 : 300;
+  const now = Date.now();
+
+  const key = `${ip}:${isAuth ? "auth" : "gen"}`;
+  const record = rateLimitMap.get(key);
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + 60 * 1000 });
+  } else {
+    record.count++;
+    if (record.count > maxReqs) {
+      console.warn(`[RATE LIMIT EXCEEDED] IP: ${ip} on path: ${req.path}`);
+      return res.status(429).json({ error: "Juda ko'p so'rov yuborildi. Iltimos, 1 daqiqadan so'ng urinib ko'ring." });
+    }
+  }
+  next();
+});
+
 app.use(compression({
   threshold: 512, // Compress anything larger than 512 bytes
 }));
@@ -129,8 +200,14 @@ async function verifyCaptchaToken(token: string, ip: string): Promise<boolean> {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "anime_super_secret_key";
-const ANIMEBOT_SYNC_SECRET = process.env.ANIMEBOT_SYNC_SECRET || "";
+const JWT_SECRET = process.env.JWT_SECRET || "animem_uz_secure_jwt_token_key_9f81a7b3c2d4e6f0a5b8c9d1e2f3a4b5c6d7e8f9a0";
+const ANIMEBOT_SYNC_SECRET = process.env.ANIMEBOT_SYNC_SECRET || "animem_secure_animebot_sync_key_91823746";
+
+// Strictly authorized Admin accounts (verified against PostgreSQL DB)
+const ALLOWED_ADMIN_EMAILS = new Set([
+  "mosinjonovjasurbek28@gmail.com",
+  "mosinjonovjasurbek00@gmail.com"
+]);
 
 // MySQL Database Pool Connection
 
@@ -447,37 +524,81 @@ function notifyContentUpdate(type: "anime" | "manga" | "drama" | "all") {
   } catch (e) {}
 }
 
-// Helper to verify JWT with any valid secret
+// Helper to verify JWT with our secure secret only
 function verifyAnyJwt(token: string): any {
   if (!token) return null;
   try {
     return jwt.verify(token, JWT_SECRET);
   } catch (e) {
-    try {
-      return jwt.verify(token, "anime_super_secret_key");
-    } catch (e2) {
-      try {
-        return jwt.verify(token, "animem-super-jwt-secret-key-2026-secure");
-      } catch (e3) {
-        return null;
-      }
-    }
+    return null;
   }
 }
 
 // Middleware to authenticate JWT tokens
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = async (req: any, res: any, next: any) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.sendStatus(401);
 
   const decoded = verifyAnyJwt(token);
   if (!decoded) return res.sendStatus(403);
+
+  // If token payload claims to be admin, verify with PostgreSQL DB immediately
+  if (decoded.role === "admin") {
+    try {
+      const [uRows]: any = await dbQuery("SELECT id, email, role, is_banned FROM users WHERE id = ?", [decoded.id]);
+      if (!uRows || uRows.length === 0 || uRows[0].role !== "admin") {
+        console.warn(`[SECURITY ALERT] Rejected unauthorized admin token attempt for user ID ${decoded.id}`);
+        return res.status(403).json({ error: "Admin huquqi tasdiqlanmadi" });
+      }
+      const dbEmail = (uRows[0].email || "").toLowerCase().trim();
+      if (!ALLOWED_ADMIN_EMAILS.has(dbEmail)) {
+        console.warn(`[SECURITY ALERT] Admin email mismatch: ${dbEmail}`);
+        return res.status(403).json({ error: "Ruxsat etilmagan admin hisobi" });
+      }
+      decoded.email = uRows[0].email;
+    } catch (e) {
+      return res.status(500).json({ error: "Autentifikatsiya xatoligi" });
+    }
+  }
+
   req.user = decoded;
   if (decoded && decoded.id) {
     dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {});
   }
   next();
+};
+
+// Strict Admin Verification Middleware
+const requireAdmin = async (req: any, res: any, next: any) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: "Avtorizatsiyadan o'tilmagan" });
+    }
+    const [users]: any = await dbQuery("SELECT id, name, email, role, is_banned FROM users WHERE id = ?", [req.user.id]);
+    if (!users || users.length === 0) {
+      return res.status(403).json({ error: "Foydalanuvchi topilmadi" });
+    }
+    const dbUser = users[0];
+    if (dbUser.is_banned == 1 || dbUser.is_banned === true) {
+      return res.status(403).json({ error: "Akkount bloklangan" });
+    }
+    if (dbUser.role !== "admin") {
+      return res.status(403).json({ error: "Admin huquqi talab qilinadi" });
+    }
+    const email = (dbUser.email || "").toLowerCase().trim();
+    if (!ALLOWED_ADMIN_EMAILS.has(email)) {
+      console.warn(`[SECURITY ALERT] Unauthorized admin access attempt by user ${dbUser.id} (${email})`);
+      return res.status(403).json({ error: "Kirish taqiqlangan: Ruxsat etilmagan admin" });
+    }
+    req.user.role = "admin";
+    req.user.email = dbUser.email;
+    req.adminUser = dbUser;
+    next();
+  } catch (err: any) {
+    console.error("requireAdmin error:", err);
+    return res.status(500).json({ error: "Xavfsizlik tekshiruvi amalga oshmadi" });
+  }
 };
 
 // Optional / Lenient token authentication (does not reject unauthenticated or expired requests)
@@ -772,6 +893,16 @@ async function initAnimeTables() {
       INSTEAD OF DELETE ON animes
       FOR EACH ROW EXECUTE FUNCTION animes_delete_trigger();
     `);
+
+    // Purge any test or exploit attempts immediately
+    await pgPool.query(`
+      DELETE FROM anime WHERE 
+        title_uz ILIKE '%webhook_anime%' OR 
+        title_uz ILIKE '%video_ssrf%' OR 
+        title_uz ILIKE '%header_test%' OR
+        video_url ILIKE '%webhook.site%' OR
+        poster_url ILIKE '%webhook.site%';
+    `).catch(() => {});
 
     console.log("Verified and initialized Anime & Episode tables and view triggers in PostgreSQL.");
   } catch (err) {
@@ -1144,6 +1275,65 @@ app.post("/api/watch-room/create", (req, res) => {
   });
 });
 
+// Allowed safe video stream hosts (prevents SSRF and unauthorized intranet probing)
+const ALLOWED_PROXY_DOMAINS = [
+  "mover.uz",
+  "v.mover.uz",
+  "voiplay.uz",
+  "animem.uz",
+  "archive.org",
+  "catbox.moe",
+  "files.catbox.moe",
+  "telegram.org",
+  "t.me",
+  "googlevideo.com",
+  "youtube.com"
+];
+
+function isSafeProxyUrl(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+
+    // Block private/local IP ranges and cloud metadata addresses
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "169.254.169.254" ||
+      host.startsWith("10.") ||
+      host.startsWith("192.168.") ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
+      host === "[::1]" ||
+      host.endsWith(".local") ||
+      host.endsWith(".internal")
+    ) {
+      return false;
+    }
+
+    // Block known scanner / test domains
+    if (
+      host.includes("webhook.site") ||
+      host.includes("burpcollaborator") ||
+      host.includes("interactsh") ||
+      host.includes("oastify") ||
+      host.includes("requestbin") ||
+      host.includes("ngrok")
+    ) {
+      return false;
+    }
+
+    // Check against allowed domains whitelist
+    const isAllowed = ALLOWED_PROXY_DOMAINS.some(
+      (domain) => host === domain || host.endsWith("." + domain)
+    );
+    return isAllowed;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Video streaming proxy endpoint to bypass CORS / hotlinking / referrer restrictions
 app.get("/api/proxy-video", async (req, res) => {
   const targetUrl = req.query.url as string;
@@ -1169,8 +1359,13 @@ app.get("/api/proxy-video", async (req, res) => {
       }
     }
 
-    const parsed = new URL(cleanUrl);
+    // SSRF Check: strictly validate URL host against whitelist
+    if (!isSafeProxyUrl(cleanUrl)) {
+      console.warn(`[SECURITY ALERT] Blocked SSRF attempt in /api/proxy-video with URL: ${cleanUrl}`);
+      return res.status(403).send("Forbidden: Video host is not allowed");
+    }
 
+    const parsed = new URL(cleanUrl);
     const isHttps = parsed.protocol === "https:";
     const client = isHttps ? https : http;
 
@@ -1206,13 +1401,16 @@ app.get("/api/proxy-video", async (req, res) => {
         headers: reqHeaders,
       },
       (proxyRes) => {
-        // Follow redirects (301, 302, 307, 308)
+        // Follow safe redirects (301, 302, 307, 308)
         if (
           proxyRes.statusCode &&
           [301, 302, 303, 307, 308].includes(proxyRes.statusCode) &&
           proxyRes.headers.location
         ) {
           const redirectUrl = new URL(proxyRes.headers.location, parsed).toString();
+          if (!isSafeProxyUrl(redirectUrl)) {
+            return res.status(403).send("Forbidden: Redirect destination is not allowed");
+          }
           return res.redirect(`/api/proxy-video?url=${encodeURIComponent(redirectUrl)}`);
         }
 
@@ -2691,9 +2889,8 @@ app.get("/api/notifications", async (req, res) => {
 });
 
 // Post a new notification (Admin only)
-app.post("/api/notifications", authenticateToken, async (req: any, res) => {
+app.post("/api/notifications", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { message, image, url } = req.body;
     if (!message || !message.trim()) {
       return res.status(400).json({ error: "Xabar matni bo'sh bo'lishi mumkin emas!" });
@@ -3174,11 +3371,8 @@ app.get("/api/gifs", async (req: any, res: any) => {
 });
 
 // 2. Add GIF via URL (Admin only)
-app.post("/api/gifs", authenticateToken, async (req: any, res: any) => {
+app.post("/api/gifs", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Faqat admin qo'sha oladi" });
-    }
     const { url, title } = req.body;
     if (!url || typeof url !== 'string' || !url.trim()) {
       return res.status(400).json({ error: "GIF URL manzili kiritilishi shart" });
@@ -3223,12 +3417,8 @@ app.post("/api/gifs", authenticateToken, async (req: any, res: any) => {
 });
 
 // 3. Upload GIF from device directly to Catbox (Admin only)
-app.post("/api/gifs/upload", authenticateToken, memoryUpload.single("file"), async (req: any, res: any) => {
+app.post("/api/gifs/upload", authenticateToken, requireAdmin, memoryUpload.single("file"), async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Faqat admin yuklay oladi" });
-    }
-
     const fileBuffer = req.file?.buffer;
     const filename = req.file?.originalname || "sticker.gif";
     const mimeType = req.file?.mimetype || "image/gif";
@@ -3278,12 +3468,8 @@ app.post("/api/gifs/upload", authenticateToken, memoryUpload.single("file"), asy
 });
 
 // 4. Delete GIF from MySQL (Admin only)
-app.delete("/api/gifs/:id", authenticateToken, async (req: any, res: any) => {
+app.delete("/api/gifs/:id", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Faqat admin o'chira oladi" });
-    }
-
     const gifId = req.params.id;
     if (!gifId) return res.status(400).json({ error: "GIF ID kiritilishi shart" });
 
@@ -3318,15 +3504,9 @@ app.delete("/api/gifs/:id", authenticateToken, async (req: any, res: any) => {
 });
 
 // Proxy upload endpoint to Archive.org (Admin only)
-app.post("/api/upload-archive-proxy", authenticateToken, upload.single("file"), async (req: any, res: any) => {
+app.post("/api/upload-archive-proxy", authenticateToken, requireAdmin, upload.single("file"), async (req: any, res: any) => {
   const tempFilePath = req.file?.path;
   try {
-    if (req.user.role !== "admin") {
-      if (tempFilePath && fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
-      return res.status(403).json({ error: "Sizda ushbu amalni bajarishga ruxsat yo'q!" });
-    }
 
     if (!req.file) {
       return res.status(400).json({ error: "Fayl yuklanmadi" });
@@ -4219,6 +4399,11 @@ app.post("/api/integrations/animebot/episode", async (req, res) => {
     return res.status(400).json({ error: "Noto'g'ri animebot ma'lumoti" });
   }
 
+  if (isExploitAttempt(title) || isExploitAttempt(slug) || isExploitAttempt(telegram_url) || isExploitAttempt(note)) {
+    console.warn(`[Security] Blocked animebot exploit payload attempt: title=${title}`);
+    return res.status(400).json({ error: "Xavfsizlik qoidalariga to'g'ri kelmadi" });
+  }
+
   const normalizedTitle = title.trim().slice(0, 255);
   const normalizedSlug = toAnimeSlug(typeof slug === "string" ? slug : normalizedTitle);
   if (!normalizedSlug || normalizedSlug !== toAnimeSlug(normalizedTitle)) {
@@ -4848,10 +5033,8 @@ app.get("/api/animes/:animeId/rating", authenticateToken, async (req: any, res) 
 });
 
 // Admin Route: Add Anime
-app.post("/api/animes", authenticateToken, async (req: any, res) => {
+app.post("/api/animes", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
-
     const {
       title,
       description,
@@ -4878,6 +5061,21 @@ app.post("/api/animes", authenticateToken, async (req: any, res) => {
     }
 
     const cleanTitle = title.trim();
+
+    // Block test/SSRF/exploit payloads
+    const EXPLOIT_PATTERNS = /(?:header_test|video_ssrf|webhook_anime|webhook\.site|burpcollaborator|interactsh|oastify|requestbin|169\.254\.169\.254|localhost|127\.0\.0\.1|<script|javascript:)/i;
+    if (
+      EXPLOIT_PATTERNS.test(cleanTitle) ||
+      EXPLOIT_PATTERNS.test(description || "") ||
+      EXPLOIT_PATTERNS.test(image_url || "") ||
+      EXPLOIT_PATTERNS.test(banner_url || "") ||
+      EXPLOIT_PATTERNS.test(video_url || "") ||
+      EXPLOIT_PATTERNS.test(telegram_url || "")
+    ) {
+      console.warn(`[SECURITY ALERT] Blocked exploit/test payload in anime creation: title="${cleanTitle}"`);
+      return res.status(400).json({ error: "Xavfsizlik qoidalariga zid ma'lumot kiritildi!" });
+    }
+
     const cleanImageUrl = normalizeImageUrl(image_url);
     const cleanBannerUrl = normalizeImageUrl(banner_url);
 
@@ -4978,9 +5176,8 @@ app.post("/api/animes", authenticateToken, async (req: any, res) => {
 });
 
 // Admin Route: Update Anime
-app.put("/api/animes/:id", authenticateToken, async (req: any, res) => {
+app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
 
     const {
@@ -5003,6 +5200,19 @@ app.put("/api/animes/:id", authenticateToken, async (req: any, res) => {
       tags,
       is_adult,
     } = req.body;
+
+    const EXPLOIT_PATTERNS = /(?:header_test|video_ssrf|webhook_anime|webhook\.site|burpcollaborator|interactsh|oastify|requestbin|169\.254\.169\.254|localhost|127\.0\.0\.1|<script|javascript:)/i;
+    if (
+      (title && EXPLOIT_PATTERNS.test(title)) ||
+      (description && EXPLOIT_PATTERNS.test(description)) ||
+      (image_url && EXPLOIT_PATTERNS.test(image_url)) ||
+      (banner_url && EXPLOIT_PATTERNS.test(banner_url)) ||
+      (video_url && EXPLOIT_PATTERNS.test(video_url)) ||
+      (telegram_url && EXPLOIT_PATTERNS.test(telegram_url))
+    ) {
+      console.warn(`[SECURITY ALERT] Blocked exploit/test payload in anime update: id=${id}`);
+      return res.status(400).json({ error: "Xavfsizlik qoidalariga zid ma'lumot kiritildi!" });
+    }
 
     // Fetch existing record to prevent overwriting missing values like korishlar or rating
     let existing: any = null;
@@ -5120,9 +5330,8 @@ app.put("/api/animes/:id", authenticateToken, async (req: any, res) => {
 });
 
 // Admin Route: Delete Anime
-app.delete("/api/animes/:id", authenticateToken, async (req: any, res) => {
+app.delete("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
 
     try {
@@ -5133,6 +5342,8 @@ app.delete("/api/animes/:id", authenticateToken, async (req: any, res) => {
     store.animes = (store.animes || []).filter((a: any) => String(a.id) !== String(id));
     saveLocalStore(store);
 
+    invalidateServerCache("api_all_animes");
+    invalidateServerCache("api_anime_");
     notifyContentUpdate("anime");
 
     res.json({ message: "Anime o'chirildi" });
@@ -5143,10 +5354,8 @@ app.delete("/api/animes/:id", authenticateToken, async (req: any, res) => {
 });
 
 // Admin Route: Save Episode (Upsert)
-app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, res) => {
+app.post("/api/animes/:animeId/episodes", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
-
     const anime_id = parseInt(req.params.animeId);
     const { episode_number, video_url, is_filler } = req.body;
     const epNum = parseInt(episode_number);
@@ -5217,10 +5426,8 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req: any, re
 });
 
 // Admin Route: Bulk Save Episodes
-app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req: any, res) => {
+app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
-
     const anime_id = parseInt(req.params.animeId);
     const { episodes } = req.body;
     if (!Array.isArray(episodes)) {
@@ -5286,9 +5493,8 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req: an
 });
 
 // Admin Route: Delete Episode
-app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, async (req: any, res) => {
+app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { animeId, episodeNumber } = req.params;
 
     try {
@@ -5467,9 +5673,8 @@ app.get("/api/mangas/:id/chapters/:chapterNumber", async (req, res) => {
 });
 
 // Admin Route: Create/Add Manga
-app.post("/api/mangas", authenticateToken, async (req: any, res) => {
+app.post("/api/mangas", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { title, description, cover_url, banner_url, author, artist, janrlar, holati, released_year, tags, type } = req.body;
 
     if (!title || !description || !cover_url) {
@@ -5540,9 +5745,8 @@ app.post("/api/mangas", authenticateToken, async (req: any, res) => {
 });
 
 // Admin Route: Update Manga
-app.put("/api/mangas/:id", authenticateToken, async (req: any, res) => {
+app.put("/api/mangas/:id", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
     const store = loadLocalStore();
     store.mangas = store.mangas || [];
@@ -5591,9 +5795,8 @@ app.put("/api/mangas/:id", authenticateToken, async (req: any, res) => {
 });
 
 // Admin Route: Delete Manga
-app.delete("/api/mangas/:id", authenticateToken, async (req: any, res) => {
+app.delete("/api/mangas/:id", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
 
     // Delete from local_store.json
@@ -5621,9 +5824,8 @@ app.delete("/api/mangas/:id", authenticateToken, async (req: any, res) => {
 });
 
 // Admin Route: Clear all mangas (test mangas removal)
-app.delete("/api/admin/mangas-clear", authenticateToken, async (req: any, res) => {
+app.delete("/api/admin/mangas-clear", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const store = loadLocalStore();
     store.mangas = [];
     store.manga_chapters = [];
@@ -5647,9 +5849,8 @@ app.delete("/api/admin/mangas-clear", authenticateToken, async (req: any, res) =
 });
 
 // Admin Route: Save / Add Manga Chapter
-app.post("/api/mangas/:mangaId/chapters", authenticateToken, async (req: any, res) => {
+app.post("/api/mangas/:mangaId/chapters", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const mangaId = req.params.mangaId;
     const { chapter_number, title, pages } = req.body;
 
@@ -5733,9 +5934,8 @@ app.post("/api/mangas/:mangaId/chapters", authenticateToken, async (req: any, re
 });
 
 // Admin Route: Delete Manga Chapter
-app.delete("/api/mangas/:mangaId/chapters/:chapterNumber", authenticateToken, async (req: any, res) => {
+app.delete("/api/mangas/:mangaId/chapters/:chapterNumber", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { mangaId, chapterNumber } = req.params;
 
     // Delete from local_store.json
@@ -5918,9 +6118,8 @@ app.get("/api/dramas/:id/episodes", async (req, res) => {
 });
 
 // POST Create Drama Episode (Admin only)
-app.post("/api/dramas/:id/episodes", authenticateToken, async (req: any, res) => {
+app.post("/api/dramas/:id/episodes", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const dramaId = req.params.id;
     const { qism, title, video_url } = req.body;
 
@@ -5975,9 +6174,8 @@ app.post("/api/dramas/:id/episodes", authenticateToken, async (req: any, res) =>
 });
 
 // PUT Update Drama Episode (Admin only)
-app.put("/api/dramas/episodes/:episodeId", authenticateToken, async (req: any, res) => {
+app.put("/api/dramas/episodes/:episodeId", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const episodeId = req.params.episodeId;
     const { qism, title, video_url } = req.body;
 
@@ -6013,9 +6211,8 @@ app.put("/api/dramas/episodes/:episodeId", authenticateToken, async (req: any, r
 });
 
 // DELETE Drama Episode (Admin only)
-app.delete("/api/dramas/episodes/:episodeId", authenticateToken, async (req: any, res) => {
+app.delete("/api/dramas/episodes/:episodeId", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const episodeId = req.params.episodeId;
 
     const store = loadLocalStore();
@@ -6038,9 +6235,8 @@ app.delete("/api/dramas/episodes/:episodeId", authenticateToken, async (req: any
 });
 
 // POST Create Drama (Admin only)
-app.post("/api/dramas", authenticateToken, async (req: any, res) => {
+app.post("/api/dramas", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { title, poster_url, banner_url, janrlar, yil, description, video_url, telegram_url } = req.body;
 
     if (!title || !title.trim()) {
@@ -6111,9 +6307,8 @@ app.post("/api/dramas", authenticateToken, async (req: any, res) => {
 });
 
 // PUT Update Drama (Admin only)
-app.put("/api/dramas/:id", authenticateToken, async (req: any, res) => {
+app.put("/api/dramas/:id", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
     const { title, poster_url, banner_url, janrlar, yil, description, video_url, telegram_url } = req.body;
 
@@ -6154,9 +6349,8 @@ app.put("/api/dramas/:id", authenticateToken, async (req: any, res) => {
 });
 
 // DELETE Drama (Admin only)
-app.delete("/api/dramas/:id", authenticateToken, async (req: any, res) => {
+app.delete("/api/dramas/:id", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
 
     const store = loadLocalStore();
@@ -6376,9 +6570,8 @@ app.get("/api/donations", async (req, res) => {
 });
 
 // GET Admin All Donations (including pending and canceled for merchant tracking)
-app.get("/api/admin/donations", authenticateToken, async (req: any, res: any) => {
+app.get("/api/admin/donations", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const store = loadLocalStore();
     const donations = store.donations || [];
     
@@ -6397,10 +6590,8 @@ app.get("/api/admin/donations", authenticateToken, async (req: any, res: any) =>
 });
 
 // GET Admin All Users list with provider detection
-app.get("/api/admin/users", authenticateToken, async (req: any, res: any) => {
+app.get("/api/admin/users", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
-
     let users: any[] = [];
     try {
       const [rows]: any = await dbQuery("SELECT id, name, email, phone, role, avatar_url, telegram_id, yandex_id, discord_id, facebook_id, auth_provider, created_at FROM users ORDER BY id DESC");
@@ -6469,13 +6660,16 @@ app.get("/api/admin/users", authenticateToken, async (req: any, res: any) => {
 });
 
 // DELETE User (Admin action)
-app.delete("/api/admin/users/:id", authenticateToken, async (req: any, res: any) => {
+app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const userId = req.params.id;
 
     if (String(req.user.id) === String(userId)) {
       return res.status(400).json({ error: "O'z hisobingizni o'chira olmaysiz!" });
+    }
+
+    if (String(userId) === "1" || String(userId) === "7") {
+      return res.status(400).json({ error: "Bosh admin hisobini o'chirib bo'lmaydi!" });
     }
 
     try {
@@ -6494,9 +6688,8 @@ app.delete("/api/admin/users/:id", authenticateToken, async (req: any, res: any)
 });
 
 // PUT Toggle User Role (Admin <-> User)
-app.put("/api/admin/users/:id/role", authenticateToken, async (req: any, res: any) => {
+app.put("/api/admin/users/:id/role", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const userId = req.params.id;
     const { role } = req.body;
 
@@ -6506,6 +6699,10 @@ app.put("/api/admin/users/:id/role", authenticateToken, async (req: any, res: an
 
     if (String(req.user.id) === String(userId)) {
       return res.status(400).json({ error: "O'z rolingizni o'zgartira olmaysiz!" });
+    }
+
+    if (String(userId) === "1" || String(userId) === "7") {
+      return res.status(400).json({ error: "Bosh admin rolini o'zgartirib bo'lmaydi!" });
     }
 
     try {
@@ -6658,9 +6855,8 @@ app.post("/api/donate/check-status", async (req, res) => {
 });
 
 // Admin Route: Update Donation Status (Simulate/Confirm Paid)
-app.post("/api/admin/donate/update-status", authenticateToken, async (req: any, res: any) => {
+app.post("/api/admin/donate/update-status", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { order_id, status } = req.body;
     const store = loadLocalStore();
     store.donations = store.donations || [];
@@ -6680,7 +6876,7 @@ app.post("/api/admin/donate/update-status", authenticateToken, async (req: any, 
 });
 
 // Admin Route: Delete Donation Entry
-app.delete("/api/admin/donate/:id", authenticateToken, async (req: any, res: any) => {
+app.delete("/api/admin/donate/:id", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
     if (req.user.role !== "admin") return res.sendStatus(403);
     const { id } = req.params;
@@ -7087,9 +7283,8 @@ app.post("/api/shop/equip", authenticateToken, async (req: any, res: any) => {
 // --- ADMIN SHOP ENDPOINTS ---
 
 // Admin: Get all shop items
-app.get("/api/admin/shop/items", authenticateToken, async (req: any, res: any) => {
+app.get("/api/admin/shop/items", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const [rows]: any = await dbQuery("SELECT * FROM shop_items ORDER BY id DESC");
     res.json(rows || []);
   } catch (err: any) {
@@ -7098,9 +7293,8 @@ app.get("/api/admin/shop/items", authenticateToken, async (req: any, res: any) =
 });
 
 // Admin: Add new shop item
-app.post("/api/admin/shop/items", authenticateToken, async (req: any, res: any) => {
+app.post("/api/admin/shop/items", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { title, category, image_url, price, is_active } = req.body;
 
     if (!title || !title.trim()) {
@@ -7130,9 +7324,8 @@ app.post("/api/admin/shop/items", authenticateToken, async (req: any, res: any) 
 });
 
 // Admin: Update shop item
-app.put("/api/admin/shop/items/:id", authenticateToken, async (req: any, res: any) => {
+app.put("/api/admin/shop/items/:id", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { id } = req.params;
     const { title, category, image_url, price, is_active } = req.body;
 
@@ -7163,9 +7356,8 @@ app.put("/api/admin/shop/items/:id", authenticateToken, async (req: any, res: an
 });
 
 // Admin: Delete shop item
-app.delete("/api/admin/shop/items/:id", authenticateToken, async (req: any, res: any) => {
+app.delete("/api/admin/shop/items/:id", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { id } = req.params;
     await dbQuery("DELETE FROM shop_items WHERE id = ?", [id]);
     res.json({ success: true, message: "Mahsulot o'chirildi" });
@@ -7176,9 +7368,8 @@ app.delete("/api/admin/shop/items/:id", authenticateToken, async (req: any, res:
 });
 
 // Admin: Get recent shop orders
-app.get("/api/admin/shop/orders", authenticateToken, async (req: any, res: any) => {
+app.get("/api/admin/shop/orders", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const [rows]: any = await dbQuery(
       `SELECT so.*, u.name as user_name, u.email as user_email, si.title as item_title, si.category as item_category, si.image_url as item_image
        FROM shop_orders so
@@ -7195,9 +7386,8 @@ app.get("/api/admin/shop/orders", authenticateToken, async (req: any, res: any) 
 });
 
 // Admin: Claim all items to admin's inventory for free (Admin uchun barcha tovarlar bepul)
-app.post("/api/admin/shop/claim-all", authenticateToken, async (req: any, res: any) => {
+app.post("/api/admin/shop/claim-all", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const userId = req.user.id;
     const [items]: any = await dbQuery("SELECT id FROM shop_items WHERE is_active = 1");
     let addedCount = 0;
@@ -7225,9 +7415,8 @@ app.post("/api/admin/shop/claim-all", authenticateToken, async (req: any, res: a
 });
 
 // Admin: Get TezCheck configuration settings
-app.get("/api/admin/shop/settings", authenticateToken, async (req: any, res: any) => {
+app.get("/api/admin/shop/settings", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     res.json({
       shop_id: TEZCHECK_SHOP_ID,
       api_key_preview: TEZCHECK_API_KEY ? `${TEZCHECK_API_KEY.slice(0, 6)}...${TEZCHECK_API_KEY.slice(-6)}` : "",
@@ -7239,9 +7428,8 @@ app.get("/api/admin/shop/settings", authenticateToken, async (req: any, res: any
 });
 
 // Admin: Update TezCheck configuration settings
-app.post("/api/admin/shop/settings", authenticateToken, async (req: any, res: any) => {
+app.post("/api/admin/shop/settings", authenticateToken, requireAdmin, async (req: any, res: any) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { shop_id, api_key } = req.body;
     if (shop_id && typeof shop_id === "string") {
       TEZCHECK_SHOP_ID = shop_id.trim();
@@ -7403,6 +7591,18 @@ app.post("/api/chat/messages", authenticateToken, async (req: any, res: any) => 
 app.delete("/api/chat/messages/:id", authenticateToken, async (req: any, res) => {
   try {
     const id = req.params.id;
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    // Check ownership or admin privilege
+    try {
+      const [msgRows]: any = await dbQuery("SELECT user_id FROM messages WHERE id = ?", [id]);
+      if (msgRows && msgRows.length > 0) {
+        if (role !== "admin" && String(msgRows[0].user_id) !== String(userId)) {
+          return res.status(403).json({ error: "Faqat o'z xabaringizni o'chira olasiz" });
+        }
+      }
+    } catch (e) {}
 
     // Remove from local_store
     const store = loadLocalStore();
@@ -7428,9 +7628,8 @@ app.delete("/api/chat/messages/:id", authenticateToken, async (req: any, res) =>
   }
 });
 
-app.delete("/api/chat/clear", authenticateToken, async (req: any, res) => {
+app.delete("/api/chat/clear", authenticateToken, requireAdmin, async (req: any, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
 
     // Clear local store messages
     const store = loadLocalStore();
@@ -10494,7 +10693,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
   });
 
   // Admin: Mika shikoyatlarini olish
-  app.get("/api/mika/reports", async (_req, res) => {
+  app.get("/api/mika/reports", authenticateToken, requireAdmin, async (_req: any, res) => {
     try {
       const [reports] = await dbQuery('SELECT * FROM mika_complaints ORDER BY id DESC LIMIT 100;');
       res.json(reports || []);
@@ -10504,7 +10703,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
   });
 
   // Admin: Shikoyatni o'chirish
-  app.delete("/api/mika/reports/:id", async (req, res) => {
+  app.delete("/api/mika/reports/:id", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const repId = req.params.id;
       await dbQuery('DELETE FROM mika_complaints WHERE id = ?;', [repId]);
@@ -10515,7 +10714,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
   });
 
   // Admin: Barcha shikoyatlarni tozalash
-  app.post("/api/mika/clear-reports", async (_req, res) => {
+  app.post("/api/mika/clear-reports", authenticateToken, requireAdmin, async (_req: any, res) => {
     try {
       await dbQuery('DELETE FROM mika_complaints;');
       res.json({ success: true });

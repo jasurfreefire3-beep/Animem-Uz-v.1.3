@@ -44,6 +44,67 @@ try {
 var upload = multer({ dest: "/tmp/" });
 var app = express();
 app.set("trust proxy", true);
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  next();
+});
+var SUSPICIOUS_PATHS = [
+  /\.env/i,
+  /\.git/i,
+  /wp-login/i,
+  /wp-admin/i,
+  /phpmyadmin/i,
+  /\.\.\//,
+  /\/etc\/passwd/i,
+  /\/proc\/self/i,
+  /actuator/i,
+  /solr/i,
+  /cgi-bin/i,
+  /shell/i,
+  /telescope/i
+];
+app.use((req, res, next) => {
+  const urlPath = req.path || "";
+  for (const pattern of SUSPICIOUS_PATHS) {
+    if (pattern.test(urlPath)) {
+      console.warn(`[SECURITY PROBE BLOCKED] Blocked path: ${urlPath} from IP: ${req.ip}`);
+      return res.status(403).send("Forbidden");
+    }
+  }
+  next();
+});
+var rateLimitMap = /* @__PURE__ */ new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitMap.entries()) {
+    if (now > record.resetAt) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 60 * 1e3);
+app.use((req, res, next) => {
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || "unknown";
+  const isAuth = req.path.startsWith("/api/auth/");
+  const maxReqs = isAuth ? 40 : 300;
+  const now = Date.now();
+  const key = `${ip}:${isAuth ? "auth" : "gen"}`;
+  const record = rateLimitMap.get(key);
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + 60 * 1e3 });
+  } else {
+    record.count++;
+    if (record.count > maxReqs) {
+      console.warn(`[RATE LIMIT EXCEEDED] IP: ${ip} on path: ${req.path}`);
+      return res.status(429).json({ error: "Juda ko'p so'rov yuborildi. Iltimos, 1 daqiqadan so'ng urinib ko'ring." });
+    }
+  }
+  next();
+});
 app.use(compression({
   threshold: 512
   // Compress anything larger than 512 bytes
@@ -104,8 +165,12 @@ async function verifyCaptchaToken(token, ip) {
     return false;
   }
 }
-var JWT_SECRET = process.env.JWT_SECRET || "anime_super_secret_key";
-var ANIMEBOT_SYNC_SECRET = process.env.ANIMEBOT_SYNC_SECRET || "";
+var JWT_SECRET = process.env.JWT_SECRET || "animem_uz_secure_jwt_token_key_9f81a7b3c2d4e6f0a5b8c9d1e2f3a4b5c6d7e8f9a0";
+var ANIMEBOT_SYNC_SECRET = process.env.ANIMEBOT_SYNC_SECRET || "animem_secure_animebot_sync_key_91823746";
+var ALLOWED_ADMIN_EMAILS = /* @__PURE__ */ new Set([
+  "mosinjonovjasurbek28@gmail.com",
+  "mosinjonovjasurbek00@gmail.com"
+]);
 var DATABASE_URL = process.env.DATABASE_URL || "postgres://user_f51af4cc:pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww@psql.fr-roub1.bengt.wasmernet.com:20184/animems";
 var pgPool = new PgPool({
   connectionString: DATABASE_URL,
@@ -357,29 +422,68 @@ function verifyAnyJwt(token) {
   try {
     return jwt.verify(token, JWT_SECRET);
   } catch (e) {
-    try {
-      return jwt.verify(token, "anime_super_secret_key");
-    } catch (e2) {
-      try {
-        return jwt.verify(token, "animem-super-jwt-secret-key-2026-secure");
-      } catch (e3) {
-        return null;
-      }
-    }
+    return null;
   }
 }
-var authenticateToken = (req, res, next) => {
+var authenticateToken = async (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.sendStatus(401);
   const decoded = verifyAnyJwt(token);
   if (!decoded) return res.sendStatus(403);
+  if (decoded.role === "admin") {
+    try {
+      const [uRows] = await dbQuery("SELECT id, email, role, is_banned FROM users WHERE id = ?", [decoded.id]);
+      if (!uRows || uRows.length === 0 || uRows[0].role !== "admin") {
+        console.warn(`[SECURITY ALERT] Rejected unauthorized admin token attempt for user ID ${decoded.id}`);
+        return res.status(403).json({ error: "Admin huquqi tasdiqlanmadi" });
+      }
+      const dbEmail = (uRows[0].email || "").toLowerCase().trim();
+      if (!ALLOWED_ADMIN_EMAILS.has(dbEmail)) {
+        console.warn(`[SECURITY ALERT] Admin email mismatch: ${dbEmail}`);
+        return res.status(403).json({ error: "Ruxsat etilmagan admin hisobi" });
+      }
+      decoded.email = uRows[0].email;
+    } catch (e) {
+      return res.status(500).json({ error: "Autentifikatsiya xatoligi" });
+    }
+  }
   req.user = decoded;
   if (decoded && decoded.id) {
     dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {
     });
   }
   next();
+};
+var requireAdmin = async (req, res, next) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: "Avtorizatsiyadan o'tilmagan" });
+    }
+    const [users] = await dbQuery("SELECT id, name, email, role, is_banned FROM users WHERE id = ?", [req.user.id]);
+    if (!users || users.length === 0) {
+      return res.status(403).json({ error: "Foydalanuvchi topilmadi" });
+    }
+    const dbUser = users[0];
+    if (dbUser.is_banned == 1 || dbUser.is_banned === true) {
+      return res.status(403).json({ error: "Akkount bloklangan" });
+    }
+    if (dbUser.role !== "admin") {
+      return res.status(403).json({ error: "Admin huquqi talab qilinadi" });
+    }
+    const email = (dbUser.email || "").toLowerCase().trim();
+    if (!ALLOWED_ADMIN_EMAILS.has(email)) {
+      console.warn(`[SECURITY ALERT] Unauthorized admin access attempt by user ${dbUser.id} (${email})`);
+      return res.status(403).json({ error: "Kirish taqiqlangan: Ruxsat etilmagan admin" });
+    }
+    req.user.role = "admin";
+    req.user.email = dbUser.email;
+    req.adminUser = dbUser;
+    next();
+  } catch (err) {
+    console.error("requireAdmin error:", err);
+    return res.status(500).json({ error: "Xavfsizlik tekshiruvi amalga oshmadi" });
+  }
 };
 var optionalAuth = (req, res, next) => {
   const authHeader = req.headers["authorization"];
@@ -667,6 +771,15 @@ async function initAnimeTables() {
       INSTEAD OF DELETE ON animes
       FOR EACH ROW EXECUTE FUNCTION animes_delete_trigger();
     `);
+    await pgPool.query(`
+      DELETE FROM anime WHERE 
+        title_uz ILIKE '%webhook_anime%' OR 
+        title_uz ILIKE '%video_ssrf%' OR 
+        title_uz ILIKE '%header_test%' OR
+        video_url ILIKE '%webhook.site%' OR
+        poster_url ILIKE '%webhook.site%';
+    `).catch(() => {
+    });
     console.log("Verified and initialized Anime & Episode tables and view triggers in PostgreSQL.");
   } catch (err) {
     console.error("Failed to initialize Anime tables:", err);
@@ -961,6 +1074,38 @@ app.post("/api/watch-room/create", (req, res) => {
     url: `/anime/${animeSlug}?room=${roomId}`
   });
 });
+var ALLOWED_PROXY_DOMAINS = [
+  "mover.uz",
+  "v.mover.uz",
+  "voiplay.uz",
+  "animem.uz",
+  "archive.org",
+  "catbox.moe",
+  "files.catbox.moe",
+  "telegram.org",
+  "t.me",
+  "googlevideo.com",
+  "youtube.com"
+];
+function isSafeProxyUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "169.254.169.254" || host.startsWith("10.") || host.startsWith("192.168.") || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) || host === "[::1]" || host.endsWith(".local") || host.endsWith(".internal")) {
+      return false;
+    }
+    if (host.includes("webhook.site") || host.includes("burpcollaborator") || host.includes("interactsh") || host.includes("oastify") || host.includes("requestbin") || host.includes("ngrok")) {
+      return false;
+    }
+    const isAllowed = ALLOWED_PROXY_DOMAINS.some(
+      (domain) => host === domain || host.endsWith("." + domain)
+    );
+    return isAllowed;
+  } catch (e) {
+    return false;
+  }
+}
 app.get("/api/proxy-video", async (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl) {
@@ -980,6 +1125,10 @@ app.get("/api/proxy-video", async (req, res) => {
           cleanUrl = `https://v.mover.uz/${rawId}${quality}.mp4`;
         }
       }
+    }
+    if (!isSafeProxyUrl(cleanUrl)) {
+      console.warn(`[SECURITY ALERT] Blocked SSRF attempt in /api/proxy-video with URL: ${cleanUrl}`);
+      return res.status(403).send("Forbidden: Video host is not allowed");
     }
     const parsed = new URL(cleanUrl);
     const isHttps = parsed.protocol === "https:";
@@ -1014,6 +1163,9 @@ app.get("/api/proxy-video", async (req, res) => {
       (proxyRes) => {
         if (proxyRes.statusCode && [301, 302, 303, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
           const redirectUrl = new URL(proxyRes.headers.location, parsed).toString();
+          if (!isSafeProxyUrl(redirectUrl)) {
+            return res.status(403).send("Forbidden: Redirect destination is not allowed");
+          }
           return res.redirect(`/api/proxy-video?url=${encodeURIComponent(redirectUrl)}`);
         }
         res.status(proxyRes.statusCode || 200);
@@ -2225,9 +2377,8 @@ app.get("/api/notifications", async (req, res) => {
   const store = loadLocalStore();
   res.json(store.notifications || []);
 });
-app.post("/api/notifications", authenticateToken, async (req, res) => {
+app.post("/api/notifications", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { message, image, url } = req.body;
     if (!message || !message.trim()) {
       return res.status(400).json({ error: "Xabar matni bo'sh bo'lishi mumkin emas!" });
@@ -2635,11 +2786,8 @@ app.get("/api/gifs", async (req, res) => {
   setCache("api_all_gifs", list);
   return res.json(list);
 });
-app.post("/api/gifs", authenticateToken, async (req, res) => {
+app.post("/api/gifs", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Faqat admin qo'sha oladi" });
-    }
     const { url, title } = req.body;
     if (!url || typeof url !== "string" || !url.trim()) {
       return res.status(400).json({ error: "GIF URL manzili kiritilishi shart" });
@@ -2677,11 +2825,8 @@ app.post("/api/gifs", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: "GIF saqlashda xatolik" });
   }
 });
-app.post("/api/gifs/upload", authenticateToken, memoryUpload.single("file"), async (req, res) => {
+app.post("/api/gifs/upload", authenticateToken, requireAdmin, memoryUpload.single("file"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Faqat admin yuklay oladi" });
-    }
     const fileBuffer = req.file?.buffer;
     const filename = req.file?.originalname || "sticker.gif";
     const mimeType = req.file?.mimetype || "image/gif";
@@ -2722,11 +2867,8 @@ app.post("/api/gifs/upload", authenticateToken, memoryUpload.single("file"), asy
     return res.status(500).json({ error: "GIF yuklashda xatolik yuz berdi" });
   }
 });
-app.delete("/api/gifs/:id", authenticateToken, async (req, res) => {
+app.delete("/api/gifs/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Faqat admin o'chira oladi" });
-    }
     const gifId = req.params.id;
     if (!gifId) return res.status(400).json({ error: "GIF ID kiritilishi shart" });
     try {
@@ -2754,15 +2896,9 @@ app.delete("/api/gifs/:id", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: "GIF o'chirishda xatolik" });
   }
 });
-app.post("/api/upload-archive-proxy", authenticateToken, upload.single("file"), async (req, res) => {
+app.post("/api/upload-archive-proxy", authenticateToken, requireAdmin, upload.single("file"), async (req, res) => {
   const tempFilePath = req.file?.path;
   try {
-    if (req.user.role !== "admin") {
-      if (tempFilePath && fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
-      return res.status(403).json({ error: "Sizda ushbu amalni bajarishga ruxsat yo'q!" });
-    }
     if (!req.file) {
       return res.status(400).json({ error: "Fayl yuklanmadi" });
     }
@@ -3522,6 +3658,10 @@ app.post("/api/integrations/animebot/episode", async (req, res) => {
   if (typeof title !== "string" || !title.trim() || !Number.isInteger(episodeNumber) || episodeNumber < 1 || typeof telegram_url !== "string" || !/^https:\/\/t\.me\/[A-Za-z0-9_]+\?start=[A-Za-z0-9_-]{1,64}$/.test(telegram_url)) {
     return res.status(400).json({ error: "Noto'g'ri animebot ma'lumoti" });
   }
+  if (isExploitAttempt(title) || isExploitAttempt(slug) || isExploitAttempt(telegram_url) || isExploitAttempt(note)) {
+    console.warn(`[Security] Blocked animebot exploit payload attempt: title=${title}`);
+    return res.status(400).json({ error: "Xavfsizlik qoidalariga to'g'ri kelmadi" });
+  }
   const normalizedTitle = title.trim().slice(0, 255);
   const normalizedSlug = toAnimeSlug(typeof slug === "string" ? slug : normalizedTitle);
   if (!normalizedSlug || normalizedSlug !== toAnimeSlug(normalizedTitle)) {
@@ -4071,9 +4211,8 @@ app.get("/api/animes/:animeId/rating", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch rating" });
   }
 });
-app.post("/api/animes", authenticateToken, async (req, res) => {
+app.post("/api/animes", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const {
       title,
       description,
@@ -4098,6 +4237,11 @@ app.post("/api/animes", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Anime nomi kiritilishi shart!" });
     }
     const cleanTitle = title.trim();
+    const EXPLOIT_PATTERNS = /(?:header_test|video_ssrf|webhook_anime|webhook\.site|burpcollaborator|interactsh|oastify|requestbin|169\.254\.169\.254|localhost|127\.0\.0\.1|<script|javascript:)/i;
+    if (EXPLOIT_PATTERNS.test(cleanTitle) || EXPLOIT_PATTERNS.test(description || "") || EXPLOIT_PATTERNS.test(image_url || "") || EXPLOIT_PATTERNS.test(banner_url || "") || EXPLOIT_PATTERNS.test(video_url || "") || EXPLOIT_PATTERNS.test(telegram_url || "")) {
+      console.warn(`[SECURITY ALERT] Blocked exploit/test payload in anime creation: title="${cleanTitle}"`);
+      return res.status(400).json({ error: "Xavfsizlik qoidalariga zid ma'lumot kiritildi!" });
+    }
     const cleanImageUrl = normalizeImageUrl(image_url);
     const cleanBannerUrl = normalizeImageUrl(banner_url);
     let insertId = 0;
@@ -4185,9 +4329,8 @@ app.post("/api/animes", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to create anime: " + (err?.message || err) });
   }
 });
-app.put("/api/animes/:id", authenticateToken, async (req, res) => {
+app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
     const {
       title,
@@ -4209,6 +4352,11 @@ app.put("/api/animes/:id", authenticateToken, async (req, res) => {
       tags,
       is_adult
     } = req.body;
+    const EXPLOIT_PATTERNS = /(?:header_test|video_ssrf|webhook_anime|webhook\.site|burpcollaborator|interactsh|oastify|requestbin|169\.254\.169\.254|localhost|127\.0\.0\.1|<script|javascript:)/i;
+    if (title && EXPLOIT_PATTERNS.test(title) || description && EXPLOIT_PATTERNS.test(description) || image_url && EXPLOIT_PATTERNS.test(image_url) || banner_url && EXPLOIT_PATTERNS.test(banner_url) || video_url && EXPLOIT_PATTERNS.test(video_url) || telegram_url && EXPLOIT_PATTERNS.test(telegram_url)) {
+      console.warn(`[SECURITY ALERT] Blocked exploit/test payload in anime update: id=${id}`);
+      return res.status(400).json({ error: "Xavfsizlik qoidalariga zid ma'lumot kiritildi!" });
+    }
     let existing = null;
     try {
       const [rows] = await dbQuery("SELECT * FROM animes WHERE id = ?", [id]);
@@ -4306,9 +4454,8 @@ app.put("/api/animes/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to update anime" });
   }
 });
-app.delete("/api/animes/:id", authenticateToken, async (req, res) => {
+app.delete("/api/animes/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
     try {
       await dbQuery("DELETE FROM animes WHERE id = ?", [id]);
@@ -4317,6 +4464,8 @@ app.delete("/api/animes/:id", authenticateToken, async (req, res) => {
     const store = loadLocalStore();
     store.animes = (store.animes || []).filter((a) => String(a.id) !== String(id));
     saveLocalStore(store);
+    invalidateServerCache("api_all_animes");
+    invalidateServerCache("api_anime_");
     notifyContentUpdate("anime");
     res.json({ message: "Anime o'chirildi" });
   } catch (err) {
@@ -4324,9 +4473,8 @@ app.delete("/api/animes/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to delete anime" });
   }
 });
-app.post("/api/animes/:animeId/episodes", authenticateToken, async (req, res) => {
+app.post("/api/animes/:animeId/episodes", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const anime_id = parseInt(req.params.animeId);
     const { episode_number, video_url, is_filler } = req.body;
     const epNum = parseInt(episode_number);
@@ -4387,9 +4535,8 @@ app.post("/api/animes/:animeId/episodes", authenticateToken, async (req, res) =>
     res.status(500).json({ error: "Qismni saqlashda xatolik: " + (err?.message || err) });
   }
 });
-app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req, res) => {
+app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const anime_id = parseInt(req.params.animeId);
     const { episodes } = req.body;
     if (!Array.isArray(episodes)) {
@@ -4447,9 +4594,8 @@ app.post("/api/animes/:animeId/episodes/bulk", authenticateToken, async (req, re
     res.status(500).json({ error: "Qismlarni ommaviy saqlashda xatolik: " + (err?.message || err) });
   }
 });
-app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, async (req, res) => {
+app.delete("/api/animes/:animeId/episodes/:episodeNumber", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { animeId, episodeNumber } = req.params;
     try {
       await dbQuery(
@@ -4598,9 +4744,8 @@ app.get("/api/mangas/:id/chapters/:chapterNumber", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch chapter" });
   }
 });
-app.post("/api/mangas", authenticateToken, async (req, res) => {
+app.post("/api/mangas", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { title, description, cover_url, banner_url, author, artist, janrlar, holati, released_year, tags, type } = req.body;
     if (!title || !description || !cover_url) {
       return res.status(400).json({ error: "Sarlavha, tavsif va muqova havola (cover_url) kiritilishi shart!" });
@@ -4661,9 +4806,8 @@ app.post("/api/mangas", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Manga qo'shishda xatolik yuz berdi" });
   }
 });
-app.put("/api/mangas/:id", authenticateToken, async (req, res) => {
+app.put("/api/mangas/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
     const store = loadLocalStore();
     store.mangas = store.mangas || [];
@@ -4705,9 +4849,8 @@ app.put("/api/mangas/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Manga tahrirlashda xatolik" });
   }
 });
-app.delete("/api/mangas/:id", authenticateToken, async (req, res) => {
+app.delete("/api/mangas/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
     const store = loadLocalStore();
     store.mangas = (store.mangas || []).filter((m) => String(m.id) !== String(id));
@@ -4727,9 +4870,8 @@ app.delete("/api/mangas/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Manga o'chirishda xatolik" });
   }
 });
-app.delete("/api/admin/mangas-clear", authenticateToken, async (req, res) => {
+app.delete("/api/admin/mangas-clear", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const store = loadLocalStore();
     store.mangas = [];
     store.manga_chapters = [];
@@ -4748,9 +4890,8 @@ app.delete("/api/admin/mangas-clear", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Mangalarni o'chirishda xatolik" });
   }
 });
-app.post("/api/mangas/:mangaId/chapters", authenticateToken, async (req, res) => {
+app.post("/api/mangas/:mangaId/chapters", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const mangaId = req.params.mangaId;
     const { chapter_number, title, pages } = req.body;
     if (!chapter_number || !pages || !Array.isArray(pages) || pages.length === 0) {
@@ -4816,9 +4957,8 @@ app.post("/api/mangas/:mangaId/chapters", authenticateToken, async (req, res) =>
     res.status(500).json({ error: "Bobni saqlashda xatolik yuz berdi" });
   }
 });
-app.delete("/api/mangas/:mangaId/chapters/:chapterNumber", authenticateToken, async (req, res) => {
+app.delete("/api/mangas/:mangaId/chapters/:chapterNumber", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { mangaId, chapterNumber } = req.params;
     const store = loadLocalStore();
     store.manga_chapters = (store.manga_chapters || []).filter(
@@ -4969,9 +5109,8 @@ app.get("/api/dramas/:id/episodes", async (req, res) => {
     res.status(500).json({ error: "Qismlarni yuklashda xatolik" });
   }
 });
-app.post("/api/dramas/:id/episodes", authenticateToken, async (req, res) => {
+app.post("/api/dramas/:id/episodes", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const dramaId = req.params.id;
     const { qism, title, video_url } = req.body;
     if (!video_url || !video_url.trim()) {
@@ -5016,9 +5155,8 @@ app.post("/api/dramas/:id/episodes", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Qismni qo'shishda xatolik" });
   }
 });
-app.put("/api/dramas/episodes/:episodeId", authenticateToken, async (req, res) => {
+app.put("/api/dramas/episodes/:episodeId", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const episodeId = req.params.episodeId;
     const { qism, title, video_url } = req.body;
     const store = loadLocalStore();
@@ -5048,9 +5186,8 @@ app.put("/api/dramas/episodes/:episodeId", authenticateToken, async (req, res) =
     res.status(500).json({ error: "Qismni yangilashda xatolik" });
   }
 });
-app.delete("/api/dramas/episodes/:episodeId", authenticateToken, async (req, res) => {
+app.delete("/api/dramas/episodes/:episodeId", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const episodeId = req.params.episodeId;
     const store = loadLocalStore();
     store.drama_episodes = (store.drama_episodes || []).filter((ep) => String(ep.id) !== String(episodeId));
@@ -5067,9 +5204,8 @@ app.delete("/api/dramas/episodes/:episodeId", authenticateToken, async (req, res
     res.status(500).json({ error: "Qismni o'chirishda xatolik" });
   }
 });
-app.post("/api/dramas", authenticateToken, async (req, res) => {
+app.post("/api/dramas", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { title, poster_url, banner_url, janrlar, yil, description, video_url, telegram_url } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "Drama nomi kiritilishi shart" });
@@ -5128,9 +5264,8 @@ app.post("/api/dramas", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Drama qo'shishda xatolik yuz berdi" });
   }
 });
-app.put("/api/dramas/:id", authenticateToken, async (req, res) => {
+app.put("/api/dramas/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
     const { title, poster_url, banner_url, janrlar, yil, description, video_url, telegram_url } = req.body;
     const store = loadLocalStore();
@@ -5165,9 +5300,8 @@ app.put("/api/dramas/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Dramani yangilashda xatolik" });
   }
 });
-app.delete("/api/dramas/:id", authenticateToken, async (req, res) => {
+app.delete("/api/dramas/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const id = req.params.id;
     const store = loadLocalStore();
     store.dramas = (store.dramas || []).filter((d) => String(d.id) !== String(id));
@@ -5351,9 +5485,8 @@ app.get("/api/donations", async (req, res) => {
     res.status(500).json({ error: "Donatlarni olishda xatolik" });
   }
 });
-app.get("/api/admin/donations", authenticateToken, async (req, res) => {
+app.get("/api/admin/donations", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const store = loadLocalStore();
     const donations = store.donations || [];
     const totalAmount = donations.filter((d) => d.status === "paid").reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
@@ -5366,9 +5499,8 @@ app.get("/api/admin/donations", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Donatlarni olishda xatolik" });
   }
 });
-app.get("/api/admin/users", authenticateToken, async (req, res) => {
+app.get("/api/admin/users", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     let users = [];
     try {
       const [rows] = await dbQuery("SELECT id, name, email, phone, role, avatar_url, telegram_id, yandex_id, discord_id, facebook_id, auth_provider, created_at FROM users ORDER BY id DESC");
@@ -5431,12 +5563,14 @@ app.get("/api/admin/users", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Foydalanuvchilarni olishda xatolik" });
   }
 });
-app.delete("/api/admin/users/:id", authenticateToken, async (req, res) => {
+app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const userId = req.params.id;
     if (String(req.user.id) === String(userId)) {
       return res.status(400).json({ error: "O'z hisobingizni o'chira olmaysiz!" });
+    }
+    if (String(userId) === "1" || String(userId) === "7") {
+      return res.status(400).json({ error: "Bosh admin hisobini o'chirib bo'lmaydi!" });
     }
     try {
       await dbQuery("DELETE FROM users WHERE id = ?", [userId]);
@@ -5451,9 +5585,8 @@ app.delete("/api/admin/users/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Foydalanuvchini o'chirishda xatolik" });
   }
 });
-app.put("/api/admin/users/:id/role", authenticateToken, async (req, res) => {
+app.put("/api/admin/users/:id/role", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const userId = req.params.id;
     const { role } = req.body;
     if (!["admin", "user"].includes(role)) {
@@ -5461,6 +5594,9 @@ app.put("/api/admin/users/:id/role", authenticateToken, async (req, res) => {
     }
     if (String(req.user.id) === String(userId)) {
       return res.status(400).json({ error: "O'z rolingizni o'zgartira olmaysiz!" });
+    }
+    if (String(userId) === "1" || String(userId) === "7") {
+      return res.status(400).json({ error: "Bosh admin rolini o'zgartirib bo'lmaydi!" });
     }
     try {
       await dbQuery("UPDATE users SET role = ? WHERE id = ?", [role, userId]);
@@ -5590,9 +5726,8 @@ app.post("/api/donate/check-status", async (req, res) => {
     res.status(500).json({ error: "Holatni tekshirishda xatolik" });
   }
 });
-app.post("/api/admin/donate/update-status", authenticateToken, async (req, res) => {
+app.post("/api/admin/donate/update-status", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { order_id, status } = req.body;
     const store = loadLocalStore();
     store.donations = store.donations || [];
@@ -5610,7 +5745,7 @@ app.post("/api/admin/donate/update-status", authenticateToken, async (req, res) 
     res.status(500).json({ error: "Xatolik yuz berdi" });
   }
 });
-app.delete("/api/admin/donate/:id", authenticateToken, async (req, res) => {
+app.delete("/api/admin/donate/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     if (req.user.role !== "admin") return res.sendStatus(403);
     const { id } = req.params;
@@ -5939,18 +6074,16 @@ app.post("/api/shop/equip", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "O'rnatishda xatolik yuz berdi" });
   }
 });
-app.get("/api/admin/shop/items", authenticateToken, async (req, res) => {
+app.get("/api/admin/shop/items", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const [rows] = await dbQuery("SELECT * FROM shop_items ORDER BY id DESC");
     res.json(rows || []);
   } catch (err) {
     res.status(500).json({ error: "Xatolik" });
   }
 });
-app.post("/api/admin/shop/items", authenticateToken, async (req, res) => {
+app.post("/api/admin/shop/items", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { title, category, image_url, price, is_active } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "Nomini kiriting" });
@@ -5974,9 +6107,8 @@ app.post("/api/admin/shop/items", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Mahsulot qo'shishda xatolik" });
   }
 });
-app.put("/api/admin/shop/items/:id", authenticateToken, async (req, res) => {
+app.put("/api/admin/shop/items/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { id } = req.params;
     const { title, category, image_url, price, is_active } = req.body;
     await dbQuery(
@@ -6003,9 +6135,8 @@ app.put("/api/admin/shop/items/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Yangilashda xatolik" });
   }
 });
-app.delete("/api/admin/shop/items/:id", authenticateToken, async (req, res) => {
+app.delete("/api/admin/shop/items/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { id } = req.params;
     await dbQuery("DELETE FROM shop_items WHERE id = ?", [id]);
     res.json({ success: true, message: "Mahsulot o'chirildi" });
@@ -6014,9 +6145,8 @@ app.delete("/api/admin/shop/items/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "O'chirishda xatolik" });
   }
 });
-app.get("/api/admin/shop/orders", authenticateToken, async (req, res) => {
+app.get("/api/admin/shop/orders", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const [rows] = await dbQuery(
       `SELECT so.*, u.name as user_name, u.email as user_email, si.title as item_title, si.category as item_category, si.image_url as item_image
        FROM shop_orders so
@@ -6031,9 +6161,8 @@ app.get("/api/admin/shop/orders", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Buyurtmalarni olishda xatolik" });
   }
 });
-app.post("/api/admin/shop/claim-all", authenticateToken, async (req, res) => {
+app.post("/api/admin/shop/claim-all", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const userId = req.user.id;
     const [items] = await dbQuery("SELECT id FROM shop_items WHERE is_active = 1");
     let addedCount = 0;
@@ -6057,9 +6186,8 @@ app.post("/api/admin/shop/claim-all", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Mahsulotlarni inventarga qo'shishda xatolik" });
   }
 });
-app.get("/api/admin/shop/settings", authenticateToken, async (req, res) => {
+app.get("/api/admin/shop/settings", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     res.json({
       shop_id: TEZCHECK_SHOP_ID,
       api_key_preview: TEZCHECK_API_KEY ? `${TEZCHECK_API_KEY.slice(0, 6)}...${TEZCHECK_API_KEY.slice(-6)}` : "",
@@ -6069,9 +6197,8 @@ app.get("/api/admin/shop/settings", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Xatolik" });
   }
 });
-app.post("/api/admin/shop/settings", authenticateToken, async (req, res) => {
+app.post("/api/admin/shop/settings", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const { shop_id, api_key } = req.body;
     if (shop_id && typeof shop_id === "string") {
       TEZCHECK_SHOP_ID = shop_id.trim();
@@ -6213,6 +6340,17 @@ app.post("/api/chat/messages", authenticateToken, async (req, res) => {
 app.delete("/api/chat/messages/:id", authenticateToken, async (req, res) => {
   try {
     const id = req.params.id;
+    const userId = req.user.id;
+    const role = req.user.role;
+    try {
+      const [msgRows] = await dbQuery("SELECT user_id FROM messages WHERE id = ?", [id]);
+      if (msgRows && msgRows.length > 0) {
+        if (role !== "admin" && String(msgRows[0].user_id) !== String(userId)) {
+          return res.status(403).json({ error: "Faqat o'z xabaringizni o'chira olasiz" });
+        }
+      }
+    } catch (e) {
+    }
     const store = loadLocalStore();
     if (store.messages) {
       store.messages = store.messages.filter((m) => String(m.id) !== String(id));
@@ -6230,9 +6368,8 @@ app.delete("/api/chat/messages/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to delete message" });
   }
 });
-app.delete("/api/chat/clear", authenticateToken, async (req, res) => {
+app.delete("/api/chat/clear", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.sendStatus(403);
     const store = loadLocalStore();
     store.messages = [];
     saveLocalStore(store);
@@ -8925,7 +9062,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingi
       res.status(500).json({ error: err.message || "Mika bilan bog\u2018lanishda xatolik yuz berdi" });
     }
   });
-  app.get("/api/mika/reports", async (_req, res) => {
+  app.get("/api/mika/reports", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const [reports] = await dbQuery("SELECT * FROM mika_complaints ORDER BY id DESC LIMIT 100;");
       res.json(reports || []);
@@ -8933,7 +9070,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingi
       res.status(500).json({ error: err.message });
     }
   });
-  app.delete("/api/mika/reports/:id", async (req, res) => {
+  app.delete("/api/mika/reports/:id", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const repId = req.params.id;
       await dbQuery("DELETE FROM mika_complaints WHERE id = ?;", [repId]);
@@ -8942,7 +9079,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingi
       res.status(500).json({ error: err.message });
     }
   });
-  app.post("/api/mika/clear-reports", async (_req, res) => {
+  app.post("/api/mika/clear-reports", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       await dbQuery("DELETE FROM mika_complaints;");
       res.json({ success: true });
