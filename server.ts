@@ -10367,6 +10367,9 @@ async function start() {
       }
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       return res.status(200).send(html);
     } catch (err) {
       console.error("SEO server-side injection error:", err);
@@ -11011,6 +11014,11 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
       }));
     }
     
+    // Return proper 404 text for missing static assets so browsers never receive HTML as CSS/JS
+    app.all(["/assets/*", "/*.js", "/*.css", "/*.map", "/*.png", "/*.jpg", "/*.jpeg", "/*.webp", "/*.svg", "/*.ico", "/*.woff", "/*.woff2"], (req, res) => {
+      res.status(404).type("text/plain").send("Not found");
+    });
+
     app.get("*", (req, res) => {
       handleDynamicSEO(req, res);
     });

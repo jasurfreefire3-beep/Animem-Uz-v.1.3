@@ -5,7 +5,7 @@ import {
   ShieldAlert, Plus, Link as LinkIcon, Image, Type, AlignLeft, 
   Calendar, Building, ListOrdered, Tag, Film, Tv, Video, 
   Trash2, Edit2, Search, X, Check, Eye, Bell, BookOpen, Users, Radio,
-  Sparkles, Layers, Zap, Save, RefreshCw, FileText, ShoppingBag
+  Sparkles, Layers, Zap, Save, RefreshCw, FileText, ShoppingBag, Heart
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Anime, GENRE_MAP, translateGenre } from '../types';
