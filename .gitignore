@@ -19,4 +19,6 @@ data/
 *.webm
 uploads/
 check_media.cjs
+app/dist/
+
 

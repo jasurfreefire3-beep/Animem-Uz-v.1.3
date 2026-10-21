@@ -6,6 +6,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx server.ts",
+    "app": "npm --prefix app run dev",
+    "app:build": "npm --prefix app run build",
     "build": "echo 'Assets prebuilt'",
     "build:local": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=index.js && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "build:client": "npm run build:worker && vite build && node -e \"const fs = require('fs'); fs.copyFileSync('public/_worker.js', 'dist/_worker.js');\"",
