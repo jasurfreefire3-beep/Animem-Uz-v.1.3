@@ -1,23 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Clock, Sparkles, TrendingUp, Compass } from 'lucide-react';
-import { Anime } from '../types';
+import { Flame, Clock, Sparkles, Compass } from 'lucide-react';
+import { Anime, SITE_GENRES, animeMatchesGenre } from '../types';
 import { fetchAnimes } from '../services/api';
 import { HeroCarousel } from '../components/HeroCarousel';
 import { SectionSlider } from '../components/SectionSlider';
 import { AnimeCard } from '../components/AnimeCard';
-
-const GENRES = [
-  'Barchasi',
-  'Ekshn',
-  'Fentezi',
-  'Shonen',
-  'Sarguzasht',
-  'Komediya',
-  'Drama',
-  'Romantika',
-  'Qonli'
-];
 
 export const HomeScreen: React.FC = () => {
   const [animes, setAnimes] = useState<Anime[]>([]);
@@ -34,25 +22,25 @@ export const HomeScreen: React.FC = () => {
 
   const filtered = selectedGenre === 'Barchasi'
     ? animes
-    : animes.filter(a => {
-        if (Array.isArray(a.genres)) return a.genres.includes(selectedGenre);
-        if (typeof a.genres === 'string') return a.genres.includes(selectedGenre);
-        return false;
-      });
+    : animes.filter((a) => animeMatchesGenre(a, selectedGenre));
 
-  const trendingAnimes = animes.filter(a => a.is_trending || (Number(a.rating) >= 9.5));
-  const latestAnimes = [...animes].sort((a, b) => Number(b.release_year || 0) - Number(a.release_year || 0));
+  const trendingAnimes = animes.filter(
+    (a) => Boolean(a.is_trending) || (Number(a.korishlar || a.views || 0) > 100) || (Number(a.rating || 0) >= 9.0)
+  );
+  const latestAnimes = [...animes].sort(
+    (a, b) => Number(b.release_year || b.yil || 0) - Number(a.release_year || a.yil || 0)
+  );
 
   return (
     <div className="space-y-6 pt-3">
-      {/* Featured Hero Carousel */}
+      {/* Featured Hero Carousel (Clean, sleek, star-free) */}
       <div className="px-4">
         <HeroCarousel animes={animes} />
       </div>
 
-      {/* Interactive Genres Chips */}
+      {/* Website Synchronized Genres Chips */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-4 py-1">
-        {GENRES.map((genre) => (
+        {SITE_GENRES.map((genre) => (
           <button
             key={genre}
             onClick={() => setSelectedGenre(genre)}
@@ -121,11 +109,17 @@ export const HomeScreen: React.FC = () => {
           <span className="text-[11px] font-mono text-white/40">{filtered.length} ta anime</span>
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
-          {filtered.map((anime) => (
-            <AnimeCard key={anime.id} anime={anime} />
-          ))}
-        </div>
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-white/40 text-xs bg-white/5 rounded-2xl border border-white/5">
+            Ushbu janrda animelar tez orada qo'shiladi.
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2.5">
+            {filtered.map((anime) => (
+              <AnimeCard key={anime.id} anime={anime} />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

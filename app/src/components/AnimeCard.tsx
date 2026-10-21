@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Play } from 'lucide-react';
-import { Anime } from '../types';
+import { Play } from 'lucide-react';
+import { Anime, formatGenresList } from '../types';
 
 interface AnimeCardProps {
   anime: Anime;
@@ -11,14 +11,23 @@ interface AnimeCardProps {
 export const AnimeCard: React.FC<AnimeCardProps> = ({ anime, size = 'normal' }) => {
   const navigate = useNavigate();
 
+  const posterImg = anime.poster_url || anime.image_url || '/placeholder.png';
+  const epCount = anime.episodes_count || anime.qismlar_soni || anime.total_episodes || (anime.episodes ? anime.episodes.length : 1);
+  const ratingText = anime.rating ? String(anime.rating) : '9.5';
+  const dubText = anime.dub_studio ? 'DUBLYAJ' : 'HD UZ';
+
   if (size === 'wide') {
     return (
       <div
         onClick={() => navigate(`/watch/${anime.id}?ep=1`)}
         className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#0f1016]/80 hover:bg-[#151622] border border-white/5 hover:border-white/15 transition-all cursor-pointer group active:scale-[0.98]"
       >
-        <div className="relative w-20 h-28 shrink-0 rounded-xl overflow-hidden shadow-lg">
-          <img src={anime.poster_url} alt={anime.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+        <div className="relative w-20 h-28 shrink-0 rounded-xl overflow-hidden shadow-lg bg-[#12131b]">
+          <img
+            src={posterImg}
+            alt={anime.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+          />
           <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors flex items-center justify-center">
             <div className="w-8 h-8 rounded-full bg-[#ff006a]/90 text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity scale-75 group-hover:scale-100">
               <Play size={14} className="fill-white ml-0.5" />
@@ -30,19 +39,18 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({ anime, size = 'normal' }) 
             <span className="text-[10px] font-black uppercase text-[#ff006a] bg-[#ff006a]/10 px-1.5 py-0.5 rounded">
               {anime.type || 'TV'}
             </span>
-            <div className="flex items-center gap-1 text-[11px] text-amber-400 font-bold">
-              <Star size={11} className="fill-amber-400" />
-              <span>{anime.rating || '9.0'}</span>
+            <div className="flex items-center gap-1 text-[11px] text-white/80 font-mono font-bold bg-white/5 px-1.5 py-0.5 rounded">
+              <span>{ratingText}</span>
             </div>
           </div>
           <h4 className="text-sm font-bold text-white leading-snug line-clamp-2 group-hover:text-[#ff006a] transition-colors">
             {anime.title}
           </h4>
           <p className="text-[11px] text-white/50 truncate">
-            {Array.isArray(anime.genres) ? anime.genres.join(', ') : (anime.genres || 'Anime')}
+            {formatGenresList(anime.janrlar || anime.genres)}
           </p>
           <div className="text-[10px] text-white/40 font-mono">
-            {anime.total_episodes ? `${anime.total_episodes} qism` : 'Davom etmoqda'}
+            {epCount ? `${epCount} qism` : 'Davom etmoqda'}
           </div>
         </div>
       </div>
@@ -57,7 +65,7 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({ anime, size = 'normal' }) 
       {/* Poster Container */}
       <div className="relative aspect-[3/4.2] w-full rounded-2xl overflow-hidden shadow-xl border border-white/5 group-hover:border-[#ff006a]/50 transition-all bg-[#12131b]">
         <img
-          src={anime.poster_url}
+          src={posterImg}
           alt={anime.title}
           loading="lazy"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -66,14 +74,13 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({ anime, size = 'normal' }) 
         {/* Top Badges */}
         <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
           {/* Quality / Dub Badge */}
-          <span className="bg-black/70 backdrop-blur-md text-white text-[9px] font-black px-1.5 py-0.5 rounded-md border border-white/10 uppercase tracking-tighter">
-            HD UZ
+          <span className="bg-black/75 backdrop-blur-md text-white text-[9px] font-black px-1.5 py-0.5 rounded-md border border-white/10 uppercase tracking-tighter">
+            {dubText}
           </span>
 
-          {/* Rating */}
-          <div className="flex items-center gap-0.5 bg-black/75 backdrop-blur-md text-amber-400 text-[10px] font-black px-1.5 py-0.5 rounded-md border border-amber-400/30">
-            <Star size={10} className="fill-amber-400" />
-            <span>{anime.rating || '9.5'}</span>
+          {/* Rating Badge (Clean, Star-free) */}
+          <div className="bg-black/80 backdrop-blur-md text-white/95 text-[10px] font-mono font-black px-1.5 py-0.5 rounded-md border border-white/15">
+            <span>{ratingText}</span>
           </div>
         </div>
 
@@ -86,8 +93,8 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({ anime, size = 'normal' }) 
 
         {/* Bottom Episode Count Badge */}
         <div className="absolute bottom-2 left-2 right-2 pointer-events-none">
-          <span className="inline-block bg-black/80 backdrop-blur-md text-white/90 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-white/10 truncate max-w-full">
-            {anime.total_episodes ? `${anime.total_episodes} qism` : 'Yangi qism'}
+          <span className="inline-block bg-black/80 backdrop-blur-md text-white/90 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-white/10 truncate max-w-full font-mono">
+            {epCount ? `${epCount} qism` : 'Yangi qism'}
           </span>
         </div>
       </div>
@@ -98,7 +105,7 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({ anime, size = 'normal' }) 
           {anime.title}
         </h3>
         <p className="text-[10px] text-white/40 truncate">
-          {Array.isArray(anime.genres) ? anime.genres[0] : (anime.genres || 'Anime')}
+          {formatGenresList(anime.janrlar || anime.genres)}
         </p>
       </div>
     </div>

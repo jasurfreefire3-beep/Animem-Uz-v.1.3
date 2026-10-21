@@ -157,3 +157,4 @@ export const FavoritesScreen: React.FC = () => {
     </div>
   );
 };
+

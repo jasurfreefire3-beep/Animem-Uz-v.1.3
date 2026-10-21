@@ -72,3 +72,4 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onSearchClick }) => {
     </header>
   );
 };
+

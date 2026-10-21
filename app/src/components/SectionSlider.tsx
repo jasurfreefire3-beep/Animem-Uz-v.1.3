@@ -53,3 +53,4 @@ export const SectionSlider: React.FC<SectionSliderProps> = ({
     </section>
   );
 };
+

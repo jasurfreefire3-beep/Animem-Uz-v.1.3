@@ -71,3 +71,4 @@ export const DeviceFrame: React.FC<DeviceFrameProps> = ({ children }) => {
     </div>
   );
 };
+

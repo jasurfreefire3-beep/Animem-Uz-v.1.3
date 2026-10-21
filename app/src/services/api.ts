@@ -1,4 +1,4 @@
-import { Anime, User } from '../types';
+import { Anime, Episode, User } from '../types';
 
 // Connect to existing backend. In dev with Vite proxy, it defaults to /api,
 // or fallback to https://animem.uz if running standalone
@@ -154,18 +154,62 @@ export async function fetchAnimes(): Promise<Anime[]> {
   }
 }
 
+export async function fetchAnimeEpisodes(animeId: string | number): Promise<Episode[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/animes/${animeId}/episodes`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data.sort((a, b) => Number(a.episode_number) - Number(b.episode_number));
+      }
+    }
+  } catch (err) {
+    console.warn(`Epizodlarni yuklashda xatolik (${animeId}):`, err);
+  }
+  return [];
+}
+
 export async function fetchAnimeById(id: string | number): Promise<Anime | null> {
+  let animeData: Anime | null = null;
+
   try {
     const res = await fetch(`${API_BASE}/api/animes/${id}`);
     if (res.ok) {
       const data = await res.json();
-      if (data && data.id) return data;
+      if (data && data.id) {
+        animeData = data;
+      }
     }
   } catch (e) {}
 
-  // Fallback
-  const found = SAMPLE_FALLBACK_ANIMES.find(a => String(a.id) === String(id));
-  return found || SAMPLE_FALLBACK_ANIMES[0];
+  if (!animeData) {
+    const found = SAMPLE_FALLBACK_ANIMES.find(a => String(a.id) === String(id));
+    animeData = found ? { ...found } : { ...SAMPLE_FALLBACK_ANIMES[0] };
+  }
+
+  // Fetch real episodes from /api/animes/:id/episodes
+  try {
+    const episodes = await fetchAnimeEpisodes(id);
+    if (episodes.length > 0) {
+      animeData.episodes = episodes;
+    } else if (!animeData.episodes || animeData.episodes.length === 0) {
+      // Create a default episode pointing to anime.video_url if available
+      const videoSrc = animeData.video_url || "https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4";
+      animeData.episodes = [
+        {
+          episode_number: 1,
+          title: "1-qism",
+          duration: "24:00",
+          video_url: videoSrc,
+          server_name: "TAS-IX Ultra (1080p FHD)"
+        }
+      ];
+    }
+  } catch (e) {
+    console.warn("Epizodlarni bog'lashda xatolik:", e);
+  }
+
+  return animeData;
 }
 
 export async function askMikaAI(prompt: string, history: { role: string; text: string }[] = []): Promise<string> {
@@ -191,3 +235,4 @@ export async function askMikaAI(prompt: string, history: { role: string; text: s
   }
   return "Juda qiziq savol! Men sizga Animem Uz orqali eng sara o'zbekcha tarjima animelarni topishda va tomosha qilishda bajonidil yordam beraman! 🌸";
 }
+
