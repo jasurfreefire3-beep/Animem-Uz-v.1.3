@@ -8,7 +8,7 @@ interface TopHeaderProps {
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({ onSearchClick }) => {
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -54,19 +54,28 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onSearchClick }) => {
             <Search size={17} />
           </button>
 
-          {/* User Avatar */}
-          <Link
-            to="/profile"
-            className="relative w-9 h-9 rounded-xl overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center active:scale-95 transition-transform"
-          >
-            {user?.avatar_url ? (
-              <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
-            ) : (
-              <span className="font-black text-xs text-[#ff006a] uppercase">
-                {user?.name ? user.name.charAt(0) : 'U'}
-              </span>
-            )}
-          </Link>
+          {/* User Avatar or Kirish Button */}
+          {user ? (
+            <Link
+              to="/profile"
+              className="relative w-9 h-9 rounded-xl overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center active:scale-95 transition-transform"
+            >
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="font-black text-xs text-[#ff006a] uppercase">
+                  {user?.name ? user.name.charAt(0) : 'U'}
+                </span>
+              )}
+            </Link>
+          ) : (
+            <button
+              onClick={openAuthModal}
+              className="bg-gradient-to-r from-[#ff006a] to-[#7928ca] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-[0_0_12px_rgba(255,0,106,0.4)] active:scale-95 transition-all"
+            >
+              Kirish
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { DeviceFrame } from './components/DeviceFrame';
 import { TopHeader } from './components/TopHeader';
 import { BottomNav } from './components/BottomNav';
+import { AuthScreen } from './pages/AuthScreen';
 
 // Pages
 import { HomeScreen } from './pages/HomeScreen';
@@ -25,6 +26,10 @@ const ScrollToTop: React.FC = () => {
 const AppContent: React.FC = () => {
   const location = useLocation();
   const isWatchScreen = location.pathname.startsWith('/watch');
+  const { user, isGuest, showAuthModal, closeAuthModal } = useAuth();
+
+  // If user is neither logged in nor in guest mode, show the AuthScreen first!
+  const requireAuth = (!user && !isGuest) || showAuthModal;
 
   return (
     <DeviceFrame>
@@ -42,6 +47,11 @@ const AppContent: React.FC = () => {
         </Routes>
       </main>
       <BottomNav />
+
+      {/* Auth Screen Gate */}
+      {requireAuth && (
+        <AuthScreen onClose={closeAuthModal} />
+      )}
     </DeviceFrame>
   );
 };
@@ -55,4 +65,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

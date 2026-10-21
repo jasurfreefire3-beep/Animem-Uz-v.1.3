@@ -17,7 +17,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 export const ProfileScreen: React.FC = () => {
-  const { user, logout, favorites, history } = useAuth();
+  const { user, logout, favorites, history, openAuthModal } = useAuth();
 
   const handleClearCache = () => {
     if (window.confirm("Ilovaning oflayn keshini tozalashni xohlaysizmi?")) {
@@ -173,13 +173,13 @@ export const ProfileScreen: React.FC = () => {
           <span>Akkountdan chiqish</span>
         </button>
       ) : (
-        <a
-          href="/login"
-          className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#ff006a] to-[#7928ca] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,0,106,0.4)] active:scale-95 transition-all"
+        <button
+          onClick={openAuthModal}
+          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#ff006a] to-[#7928ca] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,0,106,0.4)] active:scale-95 transition-all"
         >
           <User size={15} />
           <span>Tizimga kirish / Ro'yxatdan o'tish</span>
-        </a>
+        </button>
       )}
 
       {/* App Version Info */}

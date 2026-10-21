@@ -127,7 +127,9 @@ export function formatGenresList(genresInput?: string[] | string): string {
 export interface User {
   id: number | string;
   name: string;
+  username?: string;
   email?: string;
+  phone?: string;
   role?: string;
   avatar_url?: string;
   banner_url?: string;
