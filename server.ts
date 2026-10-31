@@ -643,6 +643,7 @@ const io = new Server(server, {
     origin: "*",
     methods: ["GET", "POST"],
   },
+  maxHttpBufferSize: 1e7, // 10MB safe headroom for rich media & stickers
 });
 
 // Instant content cache invalidation & real-time broadcast to all connected clients
@@ -3218,13 +3219,18 @@ async function uploadImageBuffer(
 ): Promise<string> {
   let cleanExt = "";
   if (mimeType.includes("webm")) cleanExt = ".webm";
-  else if (mimeType.includes("mp4")) cleanExt = ".mp4";
+  else if (mimeType.includes("mp4") || mimeType.includes("m4a") || mimeType.includes("aac")) cleanExt = ".mp4";
+  else if (mimeType.includes("ogg") || mimeType.includes("opus")) cleanExt = ".ogg";
+  else if (mimeType.includes("wav")) cleanExt = ".wav";
+  else if (mimeType.includes("mp3") || mimeType.includes("mpeg")) cleanExt = ".mp3";
   else if (mimeType.includes("gif")) cleanExt = ".gif";
   else if (mimeType.includes("png")) cleanExt = ".png";
   else if (mimeType.includes("webp")) cleanExt = ".webp";
   else if (mimeType.includes("jpeg") || mimeType.includes("jpg")) cleanExt = ".jpg";
   else cleanExt = path.extname(filename) || ".jpg";
-  const mediaId = "img_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9) + cleanExt;
+  const isAudio = mimeType.startsWith("audio/") || mimeType.includes("ogg") || mimeType.includes("opus");
+  const prefix = isAudio ? "audio_" : "img_";
+  const mediaId = prefix + Date.now() + "_" + Math.random().toString(36).substring(2, 9) + cleanExt;
   const base64String = buffer.toString("base64");
 
   // 1. Save in RAM cache
@@ -3471,7 +3477,7 @@ app.get([
     // call next() so other express static / Vite / SPA routes can process it!
     const host = (req.hostname || req.headers.host || "").toLowerCase();
     const isImageHost = host.includes("image.");
-    const isExplicitMedia = req.path.startsWith("/api/media/") || req.path.startsWith("/media/") || id.startsWith("img_");
+    const isExplicitMedia = req.path.startsWith("/api/media/") || req.path.startsWith("/media/") || id.startsWith("img_") || id.startsWith("audio_") || id.startsWith("voice_");
     if (!isImageHost && !isExplicitMedia) {
       return next();
     }
@@ -3582,6 +3588,71 @@ app.get("/api/gifs", async (req: any, res: any) => {
   const list = (store.gifs && store.gifs.length > 0) ? store.gifs : STATIC_FALLBACK_GIFS;
   setCache("api_all_gifs", list);
   return res.json(list);
+});
+
+// 1.1 Giphy Anime GIFs integration
+app.get("/api/gifs/giphy", async (req: any, res: any) => {
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+  try {
+    const rawQ = String(req.query.q || "").trim();
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit || "32"), 10)));
+    const offset = Math.max(0, parseInt(String(req.query.offset || "0"), 10));
+
+    // Ensure search strictly prioritizes anime GIFs
+    let searchQuery = "anime";
+    if (rawQ) {
+      searchQuery = rawQ.toLowerCase().includes("anime") ? rawQ : `anime ${rawQ}`;
+    }
+
+    const cacheKey = `giphy_${searchQuery}_${limit}_${offset}`;
+    const cached = getCache<any[]>(cacheKey, 180000); // 3 minutes cache
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      return res.json(cached);
+    }
+
+    const GIPHY_API_KEY = process.env.GIPHY_API_KEY || "sXpGFDGZs0Dv1mmNFvYaGUvYwKX0PWIh";
+    const giphyUrl = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(searchQuery)}&limit=${limit}&offset=${offset}&rating=g`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const resp = await fetch(giphyUrl, {
+      signal: controller.signal,
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AnimemUz/1.0)" }
+    });
+    clearTimeout(timeout);
+
+    if (resp.ok) {
+      const data: any = await resp.json();
+      if (data && Array.isArray(data.data) && data.data.length > 0) {
+        const results = data.data.map((item: any) => ({
+          id: item.id,
+          title: item.title || "Anime GIF",
+          url: item.images?.downsized_medium?.url || item.images?.original?.url || item.images?.fixed_height?.url,
+          preview: item.images?.fixed_height?.url || item.images?.fixed_width_small?.url || item.images?.original?.url,
+          width: item.images?.fixed_height?.width ? Number(item.images.fixed_height.width) : 200,
+          height: item.images?.fixed_height?.height ? Number(item.images.fixed_height.height) : 200,
+        })).filter((g: any) => Boolean(g.url));
+
+        if (results.length > 0) {
+          setCache(cacheKey, results);
+          return res.json(results);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn("Giphy API fetch notice:", err?.message || err);
+  }
+
+  // Fallback to static Anime GIFs
+  const fallback = STATIC_FALLBACK_GIFS.map(g => ({
+    id: String(g.id),
+    title: g.title,
+    url: g.url,
+    preview: g.url,
+    width: 200,
+    height: 200
+  }));
+  return res.json(fallback);
 });
 
 // 2. Add GIF via URL (Admin only)
@@ -8378,6 +8449,45 @@ app.post("/api/chat/messages", authenticateToken, async (req: any, res: any) => 
   } catch (err) {
     console.error("Error saving new chat message via API:", err);
     res.status(500).json({ error: "Xabarni saqlashda xatolik" });
+  }
+});
+
+// Upload Voice Message
+app.post("/api/chat/voice", optionalAuth, memoryUpload.single("file"), async (req: any, res: any) => {
+  try {
+    let fileBuffer: Buffer | null = null;
+    let mimeType = "audio/webm";
+    let filename = `voice_${Date.now()}.webm`;
+    let duration = parseFloat(req.body.duration || "0");
+
+    if (req.file) {
+      fileBuffer = req.file.buffer;
+      mimeType = req.file.mimetype || "audio/webm";
+      filename = req.file.originalname || `voice_${Date.now()}.webm`;
+    } else if (req.body && req.body.base64) {
+      const b64Data = req.body.base64;
+      const match = b64Data.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+      if (match) {
+        mimeType = match[1];
+        fileBuffer = Buffer.from(match[2], "base64");
+      } else {
+        fileBuffer = Buffer.from(b64Data, "base64");
+      }
+    }
+
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return res.status(400).json({ error: "Ovozli xabar fayli topilmadi yoki bo'sh" });
+    }
+
+    const audioUrl = await uploadImageBuffer(fileBuffer, filename, mimeType);
+    return res.status(201).json({
+      success: true,
+      url: audioUrl,
+      duration: duration > 0 ? duration : undefined,
+    });
+  } catch (err: any) {
+    console.error("Voice upload error:", err);
+    return res.status(500).json({ error: "Ovozli xabarni yuklashda xatolik yuz berdi" });
   }
 });
 

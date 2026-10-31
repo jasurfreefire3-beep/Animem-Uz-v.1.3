@@ -205,16 +205,18 @@ export default function ChatWidget() {
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingStartTimeRef = useRef<number>(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<any>(null);
+  const recordedMimeTypeRef = useRef<string>('audio/webm');
   const inputRef = useRef<HTMLInputElement>(null);
   
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [typingUsers, setTypingUsers] = useState<{ id: string | number; name: string }[]>([]);
+  const [typingUsers, setTypingUsers] = useState<{ id: string | number; name: string; type: 'text' | 'voice'; expiresAt: number }[]>([]);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleScroll = () => {
@@ -310,17 +312,24 @@ export default function ChatWidget() {
       setMessages((prev) => prev.filter(msg => String(msg.id) !== String(deletedId)));
     });
 
-    socket.on('userTyping', (typingUser: { id: string | number; name: string }) => {
+    socket.on('userTyping', (data: { id: string | number; name: string; type?: 'text' | 'voice' }) => {
+      if (!data || !data.id || String(data.id) === String(user?.id)) return;
+      const actType = data.type === 'voice' ? 'voice' : 'text';
       setTypingUsers((prev) => {
-        if (prev.find(u => String(u.id) === String(typingUser.id))) return prev;
-        return [...prev, typingUser];
+        const filtered = prev.filter(u => String(u.id) !== String(data.id));
+        return [...filtered, {
+          id: data.id,
+          name: data.name || "Foydalanuvchi",
+          type: actType,
+          expiresAt: Date.now() + 4500
+        }];
       });
     });
 
-    socket.on('userStoppedTyping', (typingUser: { id: string | number; name: string }) => {
-      setTypingUsers((prev) => prev.filter(u => String(u.id) !== String(typingUser.id)));
+    socket.on('userStoppedTyping', (data: { id: string | number }) => {
+      if (!data || !data.id) return;
+      setTypingUsers((prev) => prev.filter(u => String(u.id) !== String(data.id)));
     });
-
 
     socket.on('chatCleared', () => {
       setMessages([]);
@@ -330,11 +339,17 @@ export default function ChatWidget() {
       setIsLoading(false);
     });
 
+    const typingCleaner = setInterval(() => {
+      const now = Date.now();
+      setTypingUsers(prev => prev.filter(u => u.expiresAt > now));
+    }, 1500);
+
     const timeout = setTimeout(() => {
       setIsLoading(false);
     }, 1500);
 
     return () => {
+      clearInterval(typingCleaner);
       clearTimeout(timeout);
       socket.disconnect();
     };
@@ -426,20 +441,27 @@ export default function ChatWidget() {
     setInputValue(e.target.value);
     
     if (user && socketRef.current && socketRef.current.connected) {
-      socketRef.current.emit("typing", { id: user.id, name: user.name });
-      
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        if (socketRef.current && socketRef.current.connected) {
-          socketRef.current.emit("stopTyping", { id: user.id, name: user.name });
-        }
-      }, 2000);
+      if (e.target.value.trim()) {
+        socketRef.current.emit("typing", { id: user.id, name: user.name, type: 'text' });
+        
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+          if (socketRef.current && socketRef.current.connected) {
+            socketRef.current.emit("stopTyping", { id: user.id, name: user.name });
+          }
+        }, 2500);
+      } else {
+        socketRef.current.emit("stopTyping", { id: user.id, name: user.name });
+      }
     }
   };
   
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || !user) return;
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit("stopTyping", { id: user.id, name: user.name });
+    }
     await sendChatMessage(inputValue.trim());
   };
 
@@ -487,13 +509,45 @@ export default function ChatWidget() {
     }
   }, []);
 
-  // Voice recording handlers
+  // Voice recording handlers (Multi-platform: Safari iOS, Chrome, Android, Desktop)
   const startRecording = async () => {
     if (!user) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Qurilmangizda mikrofondan foydalanish imkoni yo'q yoki xavfsiz (HTTPS) ulanish talab qilinadi.");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      });
+
       audioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(stream);
+      recordingStartTimeRef.current = Date.now();
+
+      const mimeCandidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/aac',
+        'audio/ogg;codecs=opus',
+        'audio/wav'
+      ];
+      let supportedType = '';
+      for (const t of mimeCandidates) {
+        if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+          supportedType = t;
+          break;
+        }
+      }
+      recordedMimeTypeRef.current = supportedType || 'audio/webm';
+
+      const options = supportedType ? { mimeType: supportedType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -502,54 +556,106 @@ export default function ChatWidget() {
         }
       };
 
-      mediaRecorder.start(100);
+      mediaRecorder.start(250);
       setIsRecording(true);
       setRecordingDuration(0);
       setShowEmojiPicker(false);
 
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit("typing", { id: user.id, name: user.name, type: 'voice' });
+      }
+
       recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
+        const elapsed = Math.round((Date.now() - recordingStartTimeRef.current) / 1000);
+        setRecordingDuration(elapsed);
+      }, 500);
     } catch (err) {
       console.error("Microphone access denied or error:", err);
-      alert("Mikrofondan foydalanishga ruxsat berilmadi yoki mikrofon ulanmagan.");
+      alert("Mikrofondan foydalanishga ruxsat berilmadi yoki xatolik yuz berdi.");
     }
   };
 
   const stopAndSendRecording = () => {
     if (!mediaRecorderRef.current || !isRecording) return;
 
-    const finalDuration = recordingDuration;
     clearInterval(recordingTimerRef.current);
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit("stopTyping", { id: user.id, name: user.name });
+    }
 
-    mediaRecorderRef.current.onstop = async () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder.state === 'recording') {
       try {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        if (audioBlob.size > 0 && finalDuration >= 1) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const base64Audio = reader.result as string;
-            const voicePayload = `[voice duration="${finalDuration}"]${base64Audio}[/voice]`;
-            await sendChatMessage(voicePayload);
-          };
-          reader.readAsDataURL(audioBlob);
+        recorder.requestData();
+      } catch (e) {}
+    }
+
+    recorder.onstop = async () => {
+      try {
+        const finalDuration = Math.max(1, Math.round((Date.now() - recordingStartTimeRef.current) / 1000));
+        const mime = recordedMimeTypeRef.current || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mime });
+
+        if (audioBlob.size > 0) {
+          let uploadedUrl = '';
+          try {
+            const ext = (mime.includes('mp4') || mime.includes('aac')) ? 'mp4' : mime.includes('ogg') ? 'ogg' : 'webm';
+            const formData = new FormData();
+            formData.append('file', audioBlob, `voice_${Date.now()}.${ext}`);
+            formData.append('duration', String(finalDuration));
+
+            const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+            const authToken = token || localStorage.getItem('token') || '';
+            const res = await fetch(`${API_BASE}/api/chat/voice`, {
+              method: 'POST',
+              headers: {
+                ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+              },
+              body: formData
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.url) {
+                uploadedUrl = data.url;
+              }
+            }
+          } catch (uploadErr) {
+            console.warn("API voice upload fallback to base64:", uploadErr);
+          }
+
+          if (uploadedUrl) {
+            await sendChatMessage(`[voice duration="${finalDuration}"]${uploadedUrl}[/voice]`);
+          } else {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              const base64Audio = reader.result as string;
+              await sendChatMessage(`[voice duration="${finalDuration}"]${base64Audio}[/voice]`);
+            };
+            reader.readAsDataURL(audioBlob);
+          }
         }
       } catch (e) {
         console.error("Error sending voice message:", e);
       } finally {
-        if (mediaRecorderRef.current?.stream) {
-          mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+        if (recorder.stream) {
+          recorder.stream.getTracks().forEach(t => t.stop());
         }
         setIsRecording(false);
         setRecordingDuration(0);
+        audioChunksRef.current = [];
       }
     };
 
-    mediaRecorderRef.current.stop();
+    recorder.stop();
   };
 
   const cancelRecording = () => {
     clearInterval(recordingTimerRef.current);
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit("stopTyping", { id: user.id, name: user.name });
+    }
+
     if (mediaRecorderRef.current) {
       if (mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
@@ -821,17 +927,33 @@ export default function ChatWidget() {
             </AnimatePresence>
 
             
-            {/* Typing Indicator */}
+            {/* Real-time Typing / Voice Recording Indicator */}
             {typingUsers.length > 0 && (
-              <div className="absolute bottom-full left-0 w-full px-4 py-1.5 bg-gradient-to-t from-[#0c0c0e] to-transparent pointer-events-none z-10 flex items-center gap-2">
-                <div className="flex gap-0.5 mt-0.5">
-                  <span className="w-1 h-1 bg-[#ff006a] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1 h-1 bg-[#ff006a] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1 h-1 bg-[#ff006a] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-                <span className="text-[10px] font-medium text-[#ff006a] italic">
-                  {typingUsers.map(u => u.name).join(', ')} {typingUsers.length > 1 ? 'yozishmoqda...' : 'yozmoqda...'}
-                </span>
+              <div className="absolute bottom-full left-0 w-full px-4 py-1.5 bg-[#0a0a0f]/95 border-t border-white/5 pointer-events-none z-10 flex items-center gap-2 backdrop-blur-md">
+                {typingUsers.some(u => u.type === 'voice') ? (
+                  <div className="flex items-center gap-1.5 text-rose-400 font-semibold text-[10px] animate-pulse">
+                    <Mic size={12} className="text-[#ff006a]" />
+                    <span>
+                      {typingUsers.filter(u => u.type === 'voice').map(u => u.name).join(', ')} ovozli xabar yozmoqda...
+                    </span>
+                    <span className="flex gap-0.5 ml-0.5">
+                      <span className="w-1 h-1 bg-rose-500 rounded-full animate-bounce [animation-delay:0ms]" />
+                      <span className="w-1 h-1 bg-rose-500 rounded-full animate-bounce [animation-delay:150ms]" />
+                      <span className="w-1 h-1 bg-rose-500 rounded-full animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-cyan-400 font-medium text-[10px]">
+                    <span>
+                      {typingUsers.map(u => u.name).join(', ')} {typingUsers.length > 1 ? 'yozishmoqda' : 'yozmoqda'}
+                    </span>
+                    <span className="flex gap-0.5 ml-0.5">
+                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  </div>
+                )}
               </div>
             )}
   

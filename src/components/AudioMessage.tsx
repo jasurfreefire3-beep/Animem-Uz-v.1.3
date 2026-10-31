@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, AlertCircle } from 'lucide-react';
+import { Play, Pause, Volume2, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface AudioMessageProps {
   src: string;
@@ -15,7 +15,7 @@ export function parseMessageContent(content: string) {
     return {
       isVoice: true,
       duration: voiceMatch[1] ? parseFloat(voiceMatch[1]) : 0,
-      audioUrl: voiceMatch[2],
+      audioUrl: voiceMatch[2]?.trim(),
       text: ''
     };
   }
@@ -40,8 +40,9 @@ export function parseMessageContent(content: string) {
 export default function AudioMessage({ src, duration: initialDuration, isMe }: AudioMessageProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [totalDuration, setTotalDuration] = useState<number>(() => {
-    if (typeof initialDuration === 'number') return initialDuration;
+    if (typeof initialDuration === 'number' && initialDuration > 0) return initialDuration;
     if (typeof initialDuration === 'string') {
       const parsed = parseFloat(initialDuration);
       if (!isNaN(parsed) && parsed > 0) return parsed;
@@ -55,8 +56,11 @@ export default function AudioMessage({ src, duration: initialDuration, isMe }: A
     const audio = audioRef.current;
     if (!audio) return;
 
+    setHasError(false);
+    audio.playbackRate = playbackRate;
+
     const handleLoadedMetadata = () => {
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
         setTotalDuration(audio.duration);
       }
     };
@@ -71,8 +75,11 @@ export default function AudioMessage({ src, duration: initialDuration, isMe }: A
     };
 
     const handleError = () => {
-      setHasError(true);
-      setIsPlaying(false);
+      // Don't error out immediately if metadata is still loading
+      if (audio.error) {
+        setHasError(true);
+        setIsPlaying(false);
+      }
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -87,31 +94,66 @@ export default function AudioMessage({ src, duration: initialDuration, isMe }: A
       audio.removeEventListener('error', handleError);
       audio.pause();
     };
-  }, [src]);
+  }, [src, playbackRate]);
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!audioRef.current || hasError) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
     if (isPlaying) {
-      audioRef.current.pause();
+      audio.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play()
+      setHasError(false);
+      audio.play()
         .then(() => setIsPlaying(true))
         .catch((err) => {
-          console.error("Audio playback error:", err);
-          setHasError(true);
+          console.warn("Audio playback err:", err);
+          // If aborted due to user pause, don't show full error
+          if (err.name !== 'AbortError') {
+            setHasError(true);
+          }
+          setIsPlaying(false);
         });
     }
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleWaveformClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    const newTime = parseFloat(e.target.value);
+    const audio = audioRef.current;
+    if (!audio) return;
+    const dur = totalDuration || audio.duration;
+    if (!dur || isNaN(dur) || !isFinite(dur)) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percent = Math.max(0, Math.min(1, clickX / rect.width));
+    const newTime = percent * dur;
+    audio.currentTime = newTime;
     setCurrentTime(newTime);
+    if (!isPlaying) {
+      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  };
+
+  const cyclePlaybackRate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rates = [1, 1.5, 2];
+    const nextIdx = (rates.indexOf(playbackRate) + 1) % rates.length;
+    const newRate = rates[nextIdx];
+    setPlaybackRate(newRate);
     if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
+      audioRef.current.playbackRate = newRate;
+    }
+  };
+
+  const handleRetry = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setHasError(false);
+    if (audioRef.current) {
+      audioRef.current.load();
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setHasError(true));
     }
   };
 
@@ -124,64 +166,93 @@ export default function AudioMessage({ src, duration: initialDuration, isMe }: A
 
   if (hasError) {
     return (
-      <div className="flex items-center gap-2 text-xs text-red-400 py-1">
-        <AlertCircle size={14} />
-        <span>Ovozli xabarni ijro etib bo'lmadi</span>
+      <div className="flex items-center gap-2 text-xs text-rose-400 py-1.5 px-1 bg-red-950/20 rounded-lg">
+        <AlertCircle size={14} className="shrink-0" />
+        <span className="truncate">Ovozni ochib bo'lmadi</span>
+        <button
+          type="button"
+          onClick={handleRetry}
+          className="ml-auto p-1 hover:text-white transition-colors cursor-pointer"
+          title="Qayta urinish"
+        >
+          <RefreshCw size={12} />
+        </button>
       </div>
     );
   }
 
-  const progressPercent = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
+  const effectiveDuration = totalDuration || (currentTime > 0 ? currentTime : 0);
+  const progressPercent = effectiveDuration > 0 ? (currentTime / effectiveDuration) * 100 : 0;
+
+  // Telegram-style waveform bar heights
+  const bars = [35, 60, 95, 45, 80, 50, 85, 100, 70, 40, 75, 90, 60, 85, 50, 70, 90, 65, 40, 80];
 
   return (
-    <div className="flex items-center gap-3 min-w-[200px] max-w-[280px] sm:max-w-[320px] py-1 select-none">
+    <div className="flex items-center gap-3 min-w-[210px] max-w-[290px] sm:max-w-[340px] py-1 select-none">
       <audio ref={audioRef} src={src} preload="metadata" />
 
       {/* Play/Pause Button */}
       <button
         type="button"
         onClick={togglePlay}
-        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 shadow-md ${
+        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 active:scale-95 shadow-md cursor-pointer ${
           isMe
-            ? 'bg-[#ff006a] text-white hover:bg-[#e0005d]'
-            : 'bg-[#ff006a]/20 text-[#ff006a] hover:bg-[#ff006a] hover:text-white border border-[#ff006a]/30'
+            ? 'bg-white text-[#ff006a] hover:bg-white/90 shadow-black/20'
+            : 'bg-gradient-to-tr from-[#ff006a] to-[#a855f7] text-white hover:opacity-90 shadow-[#ff006a]/30'
         }`}
         title={isPlaying ? "Pauza" : "Tinglash"}
       >
-        {isPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+        {isPlaying ? <Pause size={15} className="fill-current" /> : <Play size={15} className="ml-0.5 fill-current" />}
       </button>
 
       {/* Progress & Waveform */}
-      <div className="flex-1 flex flex-col justify-center gap-1.5 min-w-0">
-        {/* Animated Sound Wave Bars */}
-        <div className="flex items-center gap-1 h-5 overflow-hidden">
-          {[40, 75, 100, 60, 85, 45, 90, 70, 50, 80, 95, 65, 40, 85, 60, 75].map((height, idx) => {
-            const barProgress = (idx / 16) * 100;
+      <div className="flex-1 flex flex-col justify-center gap-1 min-w-0">
+        {/* Interactive Sound Wave Bars */}
+        <div 
+          onClick={handleWaveformClick}
+          className="flex items-center gap-0.5 sm:gap-1 h-6 cursor-pointer py-1 group/wave"
+          title="O'tkazish uchun bosing"
+        >
+          {bars.map((height, idx) => {
+            const barProgress = (idx / bars.length) * 100;
             const isPassed = progressPercent >= barProgress;
             return (
               <div
                 key={idx}
-                className={`w-1 rounded-full transition-all duration-150 ${
+                className={`flex-1 min-w-[2px] max-w-[4px] rounded-full transition-all duration-150 ${
                   isPassed
                     ? isMe ? 'bg-white' : 'bg-[#ff006a]'
                     : isMe ? 'bg-white/30' : 'bg-white/20'
-                } ${isPlaying ? 'animate-pulse' : ''}`}
+                } ${isPlaying ? 'group-hover/wave:opacity-90' : ''}`}
                 style={{
-                  height: `${isPlaying ? Math.max(25, (height * (1 + (idx % 3) * 0.2)) % 100) : height}%`,
-                  animationDuration: `${0.4 + (idx % 5) * 0.15}s`
+                  height: `${isPlaying ? Math.max(25, (height * (1 + (idx % 3) * 0.15)) % 100) : height}%`,
                 }}
               />
             );
           })}
         </div>
 
-        {/* Seek Input (hidden but interactive) + Time Info */}
-        <div className="flex items-center justify-between text-[10px] text-white/60 font-mono">
-          <span>{formatTime(currentTime)}</span>
-          <span className="flex items-center gap-1 text-[9px] text-white/40">
-            <Volume2 size={10} />
-            {formatTime(totalDuration || currentTime)}
-          </span>
+        {/* Time Info & Speed Button */}
+        <div className="flex items-center justify-between text-[10px] text-white/70 font-mono">
+          <span>{isPlaying ? formatTime(currentTime) : formatTime(effectiveDuration)}</span>
+          
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={cyclePlaybackRate}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
+                playbackRate > 1
+                  ? isMe ? 'bg-white/30 text-white font-extrabold' : 'bg-[#ff006a] text-white font-extrabold'
+                  : 'text-white/50 hover:text-white bg-white/5'
+              }`}
+              title="Tezlikni o'zgartirish"
+            >
+              {playbackRate}x
+            </button>
+            <span className="flex items-center gap-0.5 text-[9px] text-white/50">
+              <Volume2 size={10} />
+            </span>
+          </div>
         </div>
       </div>
     </div>

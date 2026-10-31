@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Message } from '../types';
 import { io, Socket } from 'socket.io-client';
-import { Send, ArrowUp, Sparkles, Trash2, CornerUpLeft, X, Mic, Smile, ChevronDown } from 'lucide-react';
+import { Send, ArrowUp, Sparkles, Trash2, CornerUpLeft, X, Mic, ChevronDown, CheckCheck, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import AudioMessage, { parseMessageContent } from '../components/AudioMessage';
@@ -12,8 +12,14 @@ import FormattedContent, { isGifContent } from '../components/FormattedContent';
 import UserAvatar from '../components/UserAvatar';
 import { getSocketUrl } from '../lib/api';
 
-const CHAT_BG_IMAGE = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRbK8qI1E3BjTK74xv_20a3cTlFO8toJzzRqbJmZHUE4Qrg4dAKPrWmyZw&s=10";
+const CHAT_BG_WALLPAPER = "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1920&auto=format&fit=crop";
 
+interface TypingUser {
+  id: string | number;
+  name: string;
+  type: 'text' | 'voice';
+  expiresAt: number;
+}
 
 const MemoizedMessage = memo(({ 
   msg, 
@@ -26,8 +32,8 @@ const MemoizedMessage = memo(({
   handleTouchStart,
   handleTouchEnd
 }: any) => {
-  const isMe = msg.user_id === user?.id;
-  const canDelete = user && (user.role === 'admin' || user.id === msg.user_id);
+  const isMe = String(msg.user_id) === String(user?.id);
+  const canDelete = user && (user.role === 'admin' || String(user.id) === String(msg.user_id));
   const avatarSrc = msg.user_avatar || msg.avatar_url || msg.user?.avatar_url || (isMe ? user?.avatar_url : null);
   const displayName = msg.user_name || msg.name || msg.user?.name || (isMe ? (user?.name || 'Men') : 'Foydalanuvchi');
   const frameSrc = msg.user_avatar_frame || msg.avatar_frame_url || msg.user?.avatar_frame_url || (isMe ? user?.avatar_frame_url : null);
@@ -35,6 +41,7 @@ const MemoizedMessage = memo(({
   const parsedContent = parseMessageContent(msg.content);
   const parsedReply = msg.reply_to_content ? parseMessageContent(msg.reply_to_content) : null;
   const hasValidUserId = Boolean(msg.user_id && msg.user_id !== 'undefined' && msg.user_id !== 'null' && Number(msg.user_id) > 0);
+  const isAdmin = msg.role === 'admin' || msg.user?.role === 'admin';
 
   return (
     <div 
@@ -43,10 +50,17 @@ const MemoizedMessage = memo(({
       onTouchStart={() => handleTouchStart(msg)}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
-      className="flex items-start gap-2.5 group my-1 cursor-pointer select-none"
+      className={`flex items-start gap-2.5 sm:gap-3 group my-2 cursor-pointer select-none transition-all ${
+        isMe ? 'flex-row-reverse' : 'flex-row'
+      }`}
     >
+      {/* Avatar */}
       {hasValidUserId ? (
-        <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 mt-0.5">
+        <Link 
+          to={isMe ? "/profil" : `/user/${msg.user_id}`} 
+          onClick={(e) => e.stopPropagation()} 
+          className="shrink-0 mt-0.5 hover:scale-105 transition-transform"
+        >
           <UserAvatar
             size="md"
             src={avatarSrc}
@@ -65,24 +79,43 @@ const MemoizedMessage = memo(({
         </div>
       )}
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-1">
+      {/* Message Body */}
+      <div className={`flex-1 min-w-0 max-w-[85%] sm:max-w-[78%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+        {/* Name and Meta */}
+        <div className={`flex items-center gap-1.5 mb-1 px-1 text-[11px] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
           {hasValidUserId ? (
-            <Link to={`/user/${msg.user_id}`} onClick={(e) => e.stopPropagation()} className={`font-bold text-xs hover:underline ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}>
-              {msg.user_name}
+            <Link 
+              to={isMe ? "/profil" : `/user/${msg.user_id}`} 
+              onClick={(e) => e.stopPropagation()} 
+              className={`font-bold hover:underline flex items-center gap-1 ${isMe ? 'text-[#ff006a]' : 'text-cyan-400'}`}
+            >
+              <span>{displayName}</span>
+              {isAdmin && (
+                <span title="Admin"><ShieldCheck size={12} className="text-amber-400" /></span>
+              )}
             </Link>
           ) : (
-            <span className={`font-bold text-xs ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}>
-              {msg.user_name}
+            <span className={`font-bold flex items-center gap-1 ${isMe ? 'text-[#ff006a]' : 'text-cyan-400'}`}>
+              <span>{displayName}</span>
+              {isAdmin && (
+                <span title="Admin"><ShieldCheck size={12} className="text-amber-400" /></span>
+              )}
             </span>
           )}
-          <span className="text-white/40 text-[9px]">
-            {format(new Date(msg.created_at), 'HH:mm')}
+
+          <span className="text-white/40 text-[9px] font-mono">
+            {format(new Date(msg.created_at || Date.now()), 'HH:mm')}
           </span>
-          
-          <div className="ml-auto flex items-center gap-1">
+
+          {isMe && (
+            <CheckCheck size={12} className="text-[#ff006a]/70" />
+          )}
+
+          {/* Quick Action buttons */}
+          <div className={`flex items-center gap-1 ${isMe ? 'mr-auto' : 'ml-auto'}`}>
             {user && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setReplyingTo(msg);
@@ -93,38 +126,41 @@ const MemoizedMessage = memo(({
                 title="Javob berish"
               >
                 <CornerUpLeft size={10} />
-                <span>Reply</span>
+                <span className="hidden sm:inline">Reply</span>
               </button>
             )}
 
             {canDelete && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDeleteMessage(msg.id);
                 }}
-                className={`text-red-400 hover:text-red-300 hover:bg-red-950/40 text-[9px] font-bold p-1 rounded-full flex items-center transition-all border border-red-500/20 cursor-pointer ${
+                className={`text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 text-[9px] font-bold p-1 rounded-full flex items-center transition-all border border-rose-500/20 cursor-pointer ${
                   isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}
-                title="O'chirish (yoki o'ng tugmani bosing)"
+                title="O'chirish"
               >
-                <Trash2 size={10} />
+                <Trash2 size={11} />
               </button>
             )}
           </div>
         </div>
 
+        {/* Bubble */}
         <div 
-          className={`px-3 py-2 text-white/95 text-xs inline-block leading-relaxed max-w-full shadow-lg rounded-xl border backdrop-blur-sm ${
+          className={`px-3.5 py-2.5 text-xs inline-block leading-relaxed max-w-full backdrop-blur-xl shadow-xl transition-all ${
             isMe 
-              ? 'bg-[#141418]/90 border-[#ff006a]/30 text-white' 
-              : 'bg-[#16161c]/90 border-white/15 text-white/90'
+              ? 'bg-gradient-to-br from-[#ff006a]/20 via-[#9333ea]/15 to-[#ff006a]/10 border border-[#ff006a]/40 text-white rounded-2xl rounded-tr-xs shadow-[0_4px_24px_rgba(255,0,106,0.14)]' 
+              : 'bg-[#12121a]/95 border border-white/10 hover:border-white/20 text-white/95 rounded-2xl rounded-tl-xs shadow-lg'
           }`}
         >
+          {/* Reply Context Block */}
           {msg.reply_to_id && (
-            <div className="mb-1.5 text-[10px] bg-black/60 border-l-2 border-[#ff006a] p-1.5 rounded-sm text-left opacity-90">
-              <span className="font-bold text-[#ff006a] text-[8px]">@{msg.reply_to_name}</span>
-              <p className="text-white/70 text-[9px] truncate max-w-[180px]">
+            <div className="mb-2 text-[10px] bg-black/50 border-l-2 border-[#ff006a] px-2.5 py-1.5 rounded-r-md text-left">
+              <span className="font-bold text-[#ff006a] text-[9px]">@{msg.reply_to_name}</span>
+              <p className="text-white/70 text-[9px] truncate max-w-[220px]">
                 {parsedReply?.isVoice ? (
                   <span className="flex items-center gap-1 text-[#ff006a]">
                     <Mic size={10} /> Ovozli xabar
@@ -140,6 +176,7 @@ const MemoizedMessage = memo(({
             </div>
           )}
 
+          {/* Message Content */}
           {parsedContent.isVoice ? (
             <AudioMessage
               src={parsedContent.audioUrl}
@@ -162,14 +199,7 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeMsgId, setActiveMsgId] = useState<string | number | null>(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-  // Clear obsolete cache so old wiped messages never appear
-  useEffect(() => {
-    try {
-      localStorage.removeItem('cached_chat_messages');
-    } catch(e) {}
-  }, []);
+  const [showGifPicker, setShowGifPicker] = useState(false);
 
   // Context menu / Long press state for message actions
   const [selectedMsgForAction, setSelectedMsgForAction] = useState<Message | null>(null);
@@ -178,22 +208,26 @@ export default function Chat() {
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingStartTimeRef = useRef<number>(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<any>(null);
+  const recordedMimeTypeRef = useRef<string>('audio/webm');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [typingUsers, setTypingUsers] = useState<{ id: string | number; name: string }[]>([]);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Real-time typing users state
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const typingDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    const isScrolledUp = scrollHeight - scrollTop - clientHeight > 100;
+    const isScrolledUp = scrollHeight - scrollTop - clientHeight > 120;
     setShowScrollBottom(isScrolledUp);
   };
 
@@ -208,12 +242,14 @@ export default function Chat() {
     }
   };
 
+  const scrollToBottom = (smooth = true) => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    }, 100);
+  };
+
+  // Socket and Initial Messages Load
   useEffect(() => {
-
-    if (messages.length === 0) {
-      setIsLoading(true);
-    }
-
     const fetchInitialMessages = async () => {
       try {
         const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -222,16 +258,13 @@ export default function Chat() {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             setMessages(data);
-            try {
-              localStorage.setItem('cached_chat_messages', JSON.stringify(data));
-            } catch (e) {}
           }
         }
       } catch (err) {
-        // Socket listener handles it
+        // Handled by socket
       } finally {
         setIsLoading(false);
-        scrollToBottom();
+        scrollToBottom(false);
       }
     };
     fetchInitialMessages();
@@ -244,12 +277,9 @@ export default function Chat() {
     socket.on('previousMessages', (prevMsgs: Message[]) => {
       if (Array.isArray(prevMsgs) && prevMsgs.length > 0) {
         setMessages(prevMsgs);
-        try {
-          localStorage.setItem('cached_chat_messages', JSON.stringify(prevMsgs));
-        } catch (e) {}
       }
       setIsLoading(false);
-      scrollToBottom();
+      scrollToBottom(false);
     });
 
     socket.on('newMessage', (newMsg: Message) => {
@@ -273,31 +303,38 @@ export default function Chat() {
       setMessages((prev) => prev.filter(msg => String(msg.id) !== String(deletedId)));
     });
 
-    socket.on('userTyping', (typingUser: { id: string | number; name: string }) => {
+    // Handle incoming typing indicators
+    socket.on('userTyping', (data: { id: string | number; name: string; type?: 'text' | 'voice' }) => {
+      if (!data || !data.id || String(data.id) === String(user?.id)) return;
+      const actType = data.type === 'voice' ? 'voice' : 'text';
       setTypingUsers((prev) => {
-        if (prev.find(u => String(u.id) === String(typingUser.id))) return prev;
-        return [...prev, typingUser];
+        const filtered = prev.filter(u => String(u.id) !== String(data.id));
+        return [...filtered, {
+          id: data.id,
+          name: data.name || "Foydalanuvchi",
+          type: actType,
+          expiresAt: Date.now() + 4500
+        }];
       });
     });
 
-    socket.on('userStoppedTyping', (typingUser: { id: string | number; name: string }) => {
-      setTypingUsers((prev) => prev.filter(u => String(u.id) !== String(typingUser.id)));
+    socket.on('userStoppedTyping', (data: { id: string | number }) => {
+      if (!data || !data.id) return;
+      setTypingUsers((prev) => prev.filter(u => String(u.id) !== String(data.id)));
     });
-
 
     socket.on('chatCleared', () => {
       setMessages([]);
-      try {
-        localStorage.removeItem('cached_chat_messages');
-      } catch (e) {}
       setIsLoading(false);
     });
 
-    const timeout = setTimeout(() => {
-      setIsLoading(false);
+    // Cleanup expired typing indicators every 1.5s
+    const typingCleaner = setInterval(() => {
+      const now = Date.now();
+      setTypingUsers(prev => prev.filter(u => u.expiresAt > now));
     }, 1500);
 
-    // Continuous background sync for edge serverless consistency
+    // Sync in background for distributed consistency
     const pollInterval = setInterval(() => {
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
       fetch(`${API_BASE}/api/chat/messages?t=${Date.now()}`)
@@ -313,23 +350,57 @@ export default function Chat() {
           }
         })
         .catch(() => {});
-    }, 3500);
+    }, 4500);
 
     return () => {
-      clearTimeout(timeout);
+      clearInterval(typingCleaner);
       clearInterval(pollInterval);
       socket.disconnect();
     };
-  }, []);
+  }, [user?.id]);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+  // Broadcast typing event
+  const emitTyping = (type: 'text' | 'voice' = 'text') => {
+    if (!socketRef.current || !socketRef.current.connected || !user) return;
+    socketRef.current.emit('typing', {
+      id: user.id,
+      name: user.name,
+      type
+    });
+  };
+
+  const emitStopTyping = () => {
+    if (!socketRef.current || !socketRef.current.connected || !user) return;
+    socketRef.current.emit('stopTyping', {
+      id: user.id,
+      name: user.name
+    });
+  };
+
+  const handleInputChange = (val: string) => {
+    setInput(val);
+    if (!user) return;
+
+    if (val.trim()) {
+      emitTyping('text');
+      if (typingDebounceTimeoutRef.current) {
+        clearTimeout(typingDebounceTimeoutRef.current);
+      }
+      typingDebounceTimeoutRef.current = setTimeout(() => {
+        emitStopTyping();
+      }, 2500);
+    } else {
+      emitStopTyping();
+    }
   };
 
   const sendChatMessage = async (contentToSend: string) => {
     if (!contentToSend || !user) return;
+
+    emitStopTyping();
+    if (typingDebounceTimeoutRef.current) {
+      clearTimeout(typingDebounceTimeoutRef.current);
+    }
 
     const userAvatar = (user as any).avatar_url || (user as any).avatar || null;
     const userAvatarFrame = (user as any).avatar_frame_url || null;
@@ -348,7 +419,6 @@ export default function Chat() {
       created_at: new Date().toISOString(),
     };
 
-    // 0ms darhol ekranda ko'rsatish
     setMessages((prev) => [...prev, optimisticMsg]);
     setIsLoading(false);
     scrollToBottom();
@@ -387,21 +457,18 @@ export default function Chat() {
           },
           body: JSON.stringify(payload)
         });
-        
         if (res.ok) {
           sent = true;
         }
       } catch (err) {
-        console.warn("REST API send fallback failed:", err);
+        console.warn("REST fallback send failed:", err);
       }
     }
 
     if (sent) {
       setInput('');
       setReplyingTo(null);
-      setShowEmojiPicker(false);
-    } else {
-      console.error("Failed to send message via all channels");
+      setShowGifPicker(false);
     }
   };
 
@@ -446,7 +513,7 @@ export default function Chat() {
       }
       setSelectedMsgForAction(msg);
     }, 450);
-  }, []);
+  }, [user]);
 
   const handleTouchEnd = useCallback(() => {
     if (touchTimeoutRef.current) {
@@ -455,13 +522,46 @@ export default function Chat() {
     }
   }, []);
 
-  // Voice recording handlers
+  // Voice recording handlers (Multi-platform: Safari iOS, Chrome, Android, Desktop)
   const startRecording = async () => {
     if (!user) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Qurilmangizda mikrofondan foydalanish imkoni yo'q yoki xavfsiz (HTTPS) ulanish talab qilinadi.");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      });
+
       audioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(stream);
+      recordingStartTimeRef.current = Date.now();
+
+      // Find best supported audio mime type
+      const mimeCandidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/aac',
+        'audio/ogg;codecs=opus',
+        'audio/wav'
+      ];
+      let supportedType = '';
+      for (const t of mimeCandidates) {
+        if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+          supportedType = t;
+          break;
+        }
+      }
+      recordedMimeTypeRef.current = supportedType || 'audio/webm';
+
+      const options = supportedType ? { mimeType: supportedType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -470,54 +570,103 @@ export default function Chat() {
         }
       };
 
-      mediaRecorder.start(100);
+      mediaRecorder.start(250);
       setIsRecording(true);
       setRecordingDuration(0);
-      setShowEmojiPicker(false);
+      setShowGifPicker(false);
+
+      // Emit voice recording indicator
+      emitTyping('voice');
 
       recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
-    } catch (err) {
-      console.error("Microphone access denied or error:", err);
-      alert("Mikrofondan foydalanishga ruxsat berilmadi yoki mikrofon ulanmagan.");
+        const elapsed = Math.round((Date.now() - recordingStartTimeRef.current) / 1000);
+        setRecordingDuration(elapsed);
+      }, 500);
+    } catch (err: any) {
+      console.error("Microphone access error:", err);
+      alert("Mikrofondan foydalanishga ruxsat berilmadi yoki xatolik yuz berdi.");
     }
   };
 
   const stopAndSendRecording = () => {
     if (!mediaRecorderRef.current || !isRecording) return;
 
-    const finalDuration = recordingDuration;
     clearInterval(recordingTimerRef.current);
+    emitStopTyping();
 
-    mediaRecorderRef.current.onstop = async () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder.state === 'recording') {
       try {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        if (audioBlob.size > 0 && finalDuration >= 1) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const base64Audio = reader.result as string;
-            const voicePayload = `[voice duration="${finalDuration}"]${base64Audio}[/voice]`;
-            await sendChatMessage(voicePayload);
-          };
-          reader.readAsDataURL(audioBlob);
+        recorder.requestData();
+      } catch (e) {}
+    }
+
+    recorder.onstop = async () => {
+      try {
+        const finalDuration = Math.max(1, Math.round((Date.now() - recordingStartTimeRef.current) / 1000));
+        const mime = recordedMimeTypeRef.current || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mime });
+
+        if (audioBlob.size > 0) {
+          // 1. Upload to dedicated /api/chat/voice for instant cloud persistence
+          let uploadedUrl = '';
+          try {
+            const ext = (mime.includes('mp4') || mime.includes('aac')) ? 'mp4' : mime.includes('ogg') ? 'ogg' : 'webm';
+            const formData = new FormData();
+            formData.append('file', audioBlob, `voice_${Date.now()}.${ext}`);
+            formData.append('duration', String(finalDuration));
+
+            const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+            const authToken = token || localStorage.getItem('token') || '';
+            const res = await fetch(`${API_BASE}/api/chat/voice`, {
+              method: 'POST',
+              headers: {
+                ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+              },
+              body: formData
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.url) {
+                uploadedUrl = data.url;
+              }
+            }
+          } catch (uploadErr) {
+            console.warn("API voice upload fallback to base64:", uploadErr);
+          }
+
+          if (uploadedUrl) {
+            await sendChatMessage(`[voice duration="${finalDuration}"]${uploadedUrl}[/voice]`);
+          } else {
+            // Fallback to Base64 data URL
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              const base64Audio = reader.result as string;
+              await sendChatMessage(`[voice duration="${finalDuration}"]${base64Audio}[/voice]`);
+            };
+            reader.readAsDataURL(audioBlob);
+          }
         }
       } catch (e) {
-        console.error("Error sending voice message:", e);
+        console.error("Error processing voice message:", e);
       } finally {
-        if (mediaRecorderRef.current?.stream) {
-          mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+        if (recorder.stream) {
+          recorder.stream.getTracks().forEach(t => t.stop());
         }
         setIsRecording(false);
         setRecordingDuration(0);
+        audioChunksRef.current = [];
       }
     };
 
-    mediaRecorderRef.current.stop();
+    recorder.stop();
   };
 
   const cancelRecording = () => {
     clearInterval(recordingTimerRef.current);
+    emitStopTyping();
+
     if (mediaRecorderRef.current) {
       if (mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
@@ -532,19 +681,8 @@ export default function Chat() {
   };
 
   const handleSelectGif = async (gifUrl: string) => {
-    setShowEmojiPicker(false);
+    setShowGifPicker(false);
     await sendChatMessage(`[gif]${gifUrl}[/gif]`);
-  };
-
-  const handleSelectEmoji = (emojiOrGif: string) => {
-    if (emojiOrGif.startsWith('[gif]') || emojiOrGif.startsWith('http')) {
-      handleSelectGif(emojiOrGif.replace(/\[\/?gif\]/g, ''));
-      return;
-    }
-    setInput(prev => prev + emojiOrGif);
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
   };
 
   const formatRecordingTime = (secs: number) => {
@@ -572,24 +710,24 @@ export default function Chat() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#030303] flex items-center justify-center p-4">
-        <div className="bg-[#0c0c0e] border border-[#1a1a1a] p-8 rounded-sm max-w-md w-full text-center space-y-4 shadow-2xl">
-          <div className="w-12 h-12 rounded-full bg-[#ff006a]/10 border border-[#ff006a]/30 flex items-center justify-center mx-auto text-[#ff006a]">
-            <Sparkles size={24} />
+        <div className="bg-[#0b0b10] border border-white/10 p-8 rounded-2xl max-w-md w-full text-center space-y-5 shadow-2xl backdrop-blur-xl">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#ff006a] to-[#a855f7] flex items-center justify-center mx-auto text-white shadow-lg shadow-[#ff006a]/30">
+            <Sparkles size={28} />
           </div>
-          <h2 className="text-xl font-bold text-white tracking-wide">Umumiy chatga xush kelibsiz!</h2>
-          <p className="text-xs text-white/50 leading-relaxed">
-            Boshqa anime muxlislari bilan jonli muloqot qilish, ovozli xabarlar va emojilar yuborish uchun profilingizga kiring.
+          <h2 className="text-xl font-extrabold text-white tracking-wide">Animem Umumiy Chat</h2>
+          <p className="text-xs text-white/60 leading-relaxed">
+            Jonli suhbatda ishtirok etish, ovozli xabarlar va Giphy stikerlar yuborish uchun profilingizga kiring.
           </p>
           <div className="pt-2 flex justify-center gap-3">
             <Link
               to="/login"
-              className="px-6 py-2.5 bg-gradient-to-r from-[#ff0055] to-[#ff006a] hover:opacity-90 text-white font-bold text-xs rounded-sm transition-all shadow-lg shadow-[#ff006a]/20"
+              className="px-6 py-2.5 bg-gradient-to-r from-[#ff0055] to-[#ff006a] hover:opacity-90 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-[#ff006a]/30"
             >
               Kirish
             </Link>
             <Link
               to="/register"
-              className="px-6 py-2.5 bg-[#1a1a1a] hover:bg-[#252525] text-white font-bold text-xs rounded-sm transition-all border border-white/10"
+              className="px-6 py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold text-xs rounded-xl transition-all border border-white/10"
             >
               Ro'yxatdan o'tish
             </Link>
@@ -600,25 +738,27 @@ export default function Chat() {
   }
 
   return (
-    <div className="min-h-screen bg-[#030303] text-white flex flex-col pt-16 pb-6">
+    <div className="min-h-screen bg-[#050508] text-white flex flex-col pt-16 pb-4 sm:pb-6">
       <div className="max-w-4xl w-full mx-auto flex-1 flex flex-col px-2 sm:px-4">
-        {/* Chat Container */}
-        <div className="bg-[#09090b]/95 border border-[#1a1a1a] rounded-sm flex-1 flex flex-col overflow-hidden shadow-2xl h-[calc(100vh-100px)]">
+        {/* Chat Container Card */}
+        <div className="bg-[#09090e]/95 border border-white/10 rounded-2xl flex-1 flex flex-col overflow-hidden shadow-2xl h-[calc(100vh-95px)] relative">
+          
           {/* Header */}
-          <div className="p-3.5 sm:p-4 bg-[#0c0c0e]/95 border-b border-[#1a1a1a] flex items-center justify-between shrink-0">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#ff006a]/10 border border-[#ff006a]/40 flex items-center justify-center text-[#ff006a]">
-                <Sparkles size={16} />
+          <div className="p-3 sm:p-4 bg-[#0c0c14]/95 border-b border-white/10 flex items-center justify-between shrink-0 backdrop-blur-md">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#ff006a] to-[#a855f7] flex items-center justify-center text-white shadow-md shadow-[#ff006a]/30">
+                <Sparkles size={18} />
               </div>
               <div>
                 <h1 className="font-extrabold text-sm sm:text-base text-white tracking-wide flex items-center gap-2">
-                  <span>Umumiy chat</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#ff006a]/20 text-[#ff006a] font-bold border border-[#ff006a]/30">
+                  <span>Animem Chat</span>
+                  <span className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full bg-[#ff006a]/15 text-[#ff006a] font-bold border border-[#ff006a]/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#ff006a] animate-pulse" />
                     Jonli
                   </span>
                 </h1>
-                <p className="text-[10px] text-white/40 hidden sm:block">
-                  Ovozli va matnli xabarlar orqali muloqot qiling
+                <p className="text-[10px] text-white/50 hidden sm:block">
+                  Ovozli va matnli xabarlar, Giphy anime stikerlar
                 </p>
               </div>
             </div>
@@ -626,8 +766,9 @@ export default function Chat() {
             <div className="flex items-center space-x-2">
               {user.role === 'admin' && (
                 <button
+                  type="button"
                   onClick={handleClearChat}
-                  className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-sm text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   title="Barcha xabarlarni o'chirish"
                 >
                   <Trash2 size={13} />
@@ -637,72 +778,114 @@ export default function Chat() {
             </div>
           </div>
 
-          {/* Messages Area with Anime Custom Background Wallpaper */}
+          {/* Messages Area with Anime Custom Wallpaper & Dark Gradient */}
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar relative"
+            className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-2.5 custom-scrollbar relative"
             style={{
-              backgroundImage: `linear-gradient(to bottom, rgba(9, 9, 11, 0.85), rgba(3, 3, 3, 0.90)), url("${CHAT_BG_IMAGE}")`,
+              backgroundImage: `linear-gradient(to bottom, rgba(9, 9, 14, 0.88), rgba(5, 5, 8, 0.94)), url("${CHAT_BG_WALLPAPER}")`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               backgroundAttachment: 'local'
             }}
           >
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-20 space-y-3">
-                <div className="w-8 h-8 border-2 border-[#ff006a] border-t-transparent rounded-full animate-spin"></div>
+              <div className="flex flex-col items-center justify-center py-24 space-y-3">
+                <div className="w-9 h-9 border-2 border-[#ff006a] border-t-transparent rounded-full animate-spin shadow-lg shadow-[#ff006a]/20"></div>
                 <span className="text-white/80 text-xs font-semibold animate-pulse tracking-wide">
-                  Yuklanmoqda...
+                  Xabarlar yuklanmoqda...
                 </span>
               </div>
             ) : messages.length === 0 ? (
-              <div className="text-center py-24 text-white/40 text-xs font-medium">
-                Xabarlar mavjud emas. Suhbatni birinchi bo'lib boshlang!
+              <div className="text-center py-28 text-white/50 text-xs font-medium space-y-2">
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/30">
+                  <Sparkles size={22} />
+                </div>
+                <p>Chat hozircha bo'sh. Birinchi xabarni siz yozing!</p>
               </div>
             ) : (
               messages.map((msg) => (
-                  <MemoizedMessage
-                    key={msg.id}
-                    msg={msg}
-                    user={user}
-                    activeMsgId={activeMsgId}
-                    setActiveMsgId={setActiveMsgId}
-                    setReplyingTo={setReplyingTo}
-                    handleDeleteMessage={handleDeleteMessage}
-                    handleContextMenu={handleContextMenu}
-                    handleTouchStart={handleTouchStart}
-                    handleTouchEnd={handleTouchEnd}
-                  />
-                ))
+                <MemoizedMessage
+                  key={msg.id}
+                  msg={msg}
+                  user={user}
+                  activeMsgId={activeMsgId}
+                  setActiveMsgId={setActiveMsgId}
+                  setReplyingTo={setReplyingTo}
+                  handleDeleteMessage={handleDeleteMessage}
+                  handleContextMenu={handleContextMenu}
+                  handleTouchStart={handleTouchStart}
+                  handleTouchEnd={handleTouchEnd}
+                />
+              ))
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Replying Preview */}
+          {/* Replying Preview Banner */}
           <AnimatePresence>
             {replyingTo && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="px-4 py-2 bg-[#0c0c0e] border-t border-[#1a1a1a] flex items-center justify-between text-xs shrink-0"
+                className="px-4 py-2 bg-[#0c0c14] border-t border-white/10 flex items-center justify-between text-xs shrink-0"
               >
-                <div className="flex items-center space-x-2 border-l-2 border-[#ff006a] pl-2.5">
-                  <CornerUpLeft size={12} className="text-[#ff006a]" />
+                <div className="flex items-center space-x-2 border-l-2 border-[#ff006a] pl-2.5 truncate">
+                  <CornerUpLeft size={13} className="text-[#ff006a] shrink-0" />
                   <div className="truncate">
                     <span className="font-bold text-[#ff006a]">@{replyingTo.user_name}</span>
-                    <span className="text-white/50 ml-2 truncate max-w-xs inline-block align-middle">
+                    <span className="text-white/60 ml-2 truncate max-w-xs inline-block align-middle">
                       {parseMessageContent(replyingTo.content).isVoice ? '🎤 Ovozli xabar' : replyingTo.content}
                     </span>
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setReplyingTo(null)}
-                  className="p-1 text-white/40 hover:text-white cursor-pointer"
+                  className="p-1 text-white/40 hover:text-white rounded-full hover:bg-white/10 cursor-pointer"
+                  title="Bekor qilish"
                 >
-                  <X size={14} />
+                  <X size={15} />
                 </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Real-time Typing / Voice Recording Notification Bar */}
+          <AnimatePresence>
+            {typingUsers.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 4, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: 'auto' }}
+                exit={{ opacity: 0, y: 4, height: 0 }}
+                className="px-4 py-1.5 bg-[#09090e]/95 border-t border-white/5 flex items-center gap-2 text-xs shrink-0 backdrop-blur-md overflow-hidden"
+              >
+                {typingUsers.some(u => u.type === 'voice') ? (
+                  <div className="flex items-center gap-2 text-rose-400 font-semibold animate-pulse">
+                    <Mic size={14} className="text-[#ff006a] animate-bounce" />
+                    <span>
+                      {typingUsers.filter(u => u.type === 'voice').map(u => u.name).join(', ')} ovozli xabar yozmoqda...
+                    </span>
+                    <span className="flex gap-1 ml-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-bounce [animation-delay:0ms]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-bounce [animation-delay:150ms]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-cyan-400 font-medium">
+                    <span>
+                      {typingUsers.map(u => u.name).join(', ')} yozmoqda
+                    </span>
+                    <span className="flex items-center gap-1 ml-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0ms]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:150ms]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -711,15 +894,15 @@ export default function Chat() {
           <AnimatePresence>
             {selectedMsgForAction && (
               <div 
-                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+                className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
                 onClick={() => setSelectedMsgForAction(null)}
               >
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
+                  initial={{ opacity: 0, scale: 0.92 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-[#121216] border border-[#ff006a]/40 rounded-xl p-4 w-80 shadow-2xl space-y-3"
+                  className="bg-[#101018] border border-white/15 rounded-2xl p-4 w-80 shadow-2xl space-y-3"
                 >
                   <div className="border-b border-white/10 pb-2">
                     <p className="text-[11px] text-white/50">Xabar amallari</p>
@@ -729,11 +912,11 @@ export default function Chat() {
                   </div>
 
                   <div className="space-y-1.5">
-                    {(user.role === 'admin' || user.id === selectedMsgForAction.user_id) && (
+                    {(user.role === 'admin' || String(user.id) === String(selectedMsgForAction.user_id)) && (
                       <button
                         type="button"
                         onClick={() => handleDeleteMessage(selectedMsgForAction.id)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg transition-colors cursor-pointer border border-red-500/20"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 rounded-xl transition-colors cursor-pointer border border-rose-500/20"
                       >
                         <Trash2 size={15} />
                         <span>Xabarni o'chirish</span>
@@ -746,7 +929,7 @@ export default function Chat() {
                         setReplyingTo(selectedMsgForAction);
                         setSelectedMsgForAction(null);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-white/80 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-white/90 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
                     >
                       <CornerUpLeft size={15} className="text-[#ff006a]" />
                       <span>Javob berish</span>
@@ -765,13 +948,13 @@ export default function Chat() {
             )}
           </AnimatePresence>
 
-          {/* GIF Picker Popover */}
+          {/* GIPHY Picker Popover */}
           <AnimatePresence>
-            {showEmojiPicker && (
-              <div className="absolute bottom-20 left-4 z-50">
+            {showGifPicker && (
+              <div className="absolute bottom-20 left-2 sm:left-4 z-50">
                 <GifPicker
                   onSelectGif={handleSelectGif}
-                  onClose={() => setShowEmojiPicker(false)}
+                  onClose={() => setShowGifPicker(false)}
                 />
               </div>
             )}
@@ -782,11 +965,11 @@ export default function Chat() {
             {showScrollBottom && (
               <motion.button
                 type="button"
-                initial={{ opacity: 0, scale: 0.6, y: 10 }}
+                initial={{ opacity: 0, scale: 0.7, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.6, y: 10 }}
+                exit={{ opacity: 0, scale: 0.7, y: 10 }}
                 onClick={handleScrollToBottom}
-                className="absolute right-4 sm:right-6 bottom-20 z-40 p-2.5 bg-[#121216]/95 hover:bg-[#ff006a] text-[#ff006a] hover:text-white border border-[#ff006a]/40 hover:border-[#ff006a] rounded-full shadow-2xl shadow-black/80 backdrop-blur-md transition-all duration-200 cursor-pointer flex items-center justify-center group"
+                className="absolute right-4 sm:right-6 bottom-20 z-40 p-2.5 bg-[#12121c]/95 hover:bg-[#ff006a] text-[#ff006a] hover:text-white border border-[#ff006a]/40 hover:border-[#ff006a] rounded-full shadow-2xl backdrop-blur-md transition-all duration-200 cursor-pointer flex items-center justify-center group"
                 title="Pastga tushish"
               >
                 <ChevronDown className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
@@ -795,25 +978,26 @@ export default function Chat() {
           </AnimatePresence>
 
           {/* Input Area */}
-          <div className="p-3.5 bg-[#0c0c0e] border-t border-[#1a1a1a] relative shrink-0">
+          <div className="p-2.5 sm:p-3.5 bg-[#0a0a10] border-t border-white/10 relative shrink-0">
             {isRecording ? (
-              /* Audio Recording Bar */
-              <div className="flex items-center justify-between bg-[#150a10] border border-[#ff006a]/40 rounded-sm px-4 py-2.5 animate-pulse">
+              /* Voice Recording Active Bar */
+              <div className="flex items-center justify-between bg-gradient-to-r from-[#1c0b14] via-[#150a12] to-[#1c0b14] border border-[#ff006a]/50 rounded-2xl px-4 py-2 shadow-lg shadow-[#ff006a]/15">
                 <div className="flex items-center space-x-3">
-                  <div className="w-3.5 h-3.5 rounded-full bg-red-500 animate-ping" />
-                  <span className="text-xs sm:text-sm font-bold text-white tracking-wide">
+                  <div className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
+                  <span className="text-xs sm:text-sm font-mono font-bold text-white tracking-wide">
                     {formatRecordingTime(recordingDuration)}
                   </span>
-                  <span className="text-xs text-[#ff006a] font-semibold hidden sm:inline">
-                    Ovoz yozilmoqda...
+                  <span className="text-xs text-[#ff006a] font-semibold hidden sm:inline flex items-center gap-1">
+                    <Mic size={14} className="animate-pulse" />
+                    Ovozli xabar yozilmoqda...
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-2.5">
+                <div className="flex items-center space-x-2">
                   <button
                     type="button"
                     onClick={cancelRecording}
-                    className="p-1.5 text-white/50 hover:text-red-400 hover:bg-white/10 rounded transition-colors cursor-pointer"
+                    className="p-2 text-white/50 hover:text-rose-400 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
                     title="Bekor qilish"
                   >
                     <Trash2 size={16} />
@@ -821,7 +1005,7 @@ export default function Chat() {
                   <button
                     type="button"
                     onClick={stopAndSendRecording}
-                    className="px-3.5 py-1.5 bg-[#ff006a] hover:bg-[#d40058] text-white rounded font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#ff006a]/30 transition-all cursor-pointer"
+                    className="px-4 py-1.5 bg-gradient-to-r from-[#ff006a] to-[#d40058] hover:opacity-90 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#ff006a]/30 transition-all cursor-pointer"
                     title="Yuborish"
                   >
                     <Send size={13} />
@@ -830,44 +1014,47 @@ export default function Chat() {
                 </div>
               </div>
             ) : (
-              /* Standard Input Bar */
+              /* Standard Message Input Bar */
               <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
-                {/* GIF Trigger Button */}
+                {/* GIPHY Trigger Button */}
                 <button
                   type="button"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className={`px-3 py-1.5 rounded-sm text-xs font-black tracking-wider transition-all cursor-pointer border ${
-                    showEmojiPicker
-                      ? 'text-white bg-[#ff006a] border-[#ff006a] shadow-sm shadow-[#ff006a]/40 scale-105'
+                  onClick={() => setShowGifPicker(!showGifPicker)}
+                  className={`px-3 py-2 rounded-xl text-xs font-black tracking-wider transition-all cursor-pointer border shrink-0 flex items-center gap-1 ${
+                    showGifPicker
+                      ? 'text-white bg-gradient-to-r from-[#ff006a] to-[#a855f7] border-[#ff006a] shadow-md shadow-[#ff006a]/40 scale-105'
                       : 'text-[#ff006a] bg-[#ff006a]/10 border-[#ff006a]/30 hover:bg-[#ff006a] hover:text-white hover:border-[#ff006a]'
                   }`}
-                  title="Anime GIF Stikerlar"
+                  title="Giphy Anime GIF Stikerlar"
                 >
-                  GIF
+                  <Sparkles size={13} />
+                  <span>GIF</span>
                 </button>
 
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={replyingTo ? "Javob yozing..." : "Fikringizni yozing..."}
-                  className="flex-1 bg-[#030303] border border-[#1a1a1a] rounded-sm px-4 py-2.5 text-xs sm:text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#ff006a]/50 transition-colors"
-                />
+                <div className="flex-1 relative flex items-center">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={input}
+                    onChange={(e) => handleInputChange(e.target.value)}
+                    placeholder={replyingTo ? "Javob yozing..." : "Xabaringizni yozing..."}
+                    className="w-full bg-[#12121a] border border-white/10 focus:border-[#ff006a]/60 rounded-2xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-white/35 focus:outline-none transition-colors shadow-inner"
+                  />
+                </div>
 
                 {input.trim() ? (
                   <button
                     type="submit"
-                    className="w-9 h-9 rounded-full text-white bg-[#ff006a] hover:bg-[#d40058] transition-all flex items-center justify-center shadow shadow-[#ff006a]/20 cursor-pointer shrink-0"
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl text-white bg-gradient-to-r from-[#ff0055] to-[#ff006a] hover:opacity-90 transition-all flex items-center justify-center shadow-lg shadow-[#ff006a]/30 cursor-pointer shrink-0"
                     title="Yuborish"
                   >
-                    <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                    <ArrowUp className="w-5 h-5 stroke-[2.5]" />
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={startRecording}
-                    className="p-2.5 text-white/70 hover:text-white bg-[#1a1a1e] hover:bg-[#ff006a] rounded-sm transition-all flex items-center justify-center border border-white/10 cursor-pointer"
+                    className="p-2.5 sm:p-3 text-white/70 hover:text-white bg-[#14141c] hover:bg-[#ff006a] rounded-2xl transition-all flex items-center justify-center border border-white/10 hover:border-[#ff006a] cursor-pointer shrink-0 shadow-md"
                     title="Ovozli xabar yozish"
                   >
                     <Mic className="w-4 h-4 text-[#ff006a] hover:text-white" />
