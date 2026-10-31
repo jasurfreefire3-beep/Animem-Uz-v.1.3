@@ -7484,7 +7484,7 @@ Siz saytga xavfsiz va tezkor kirish uchun saytdagi <b>"Telegram bilan kirish"</b
   };
   poll();
 }
-var SUPPORT_BOT_TOKEN = "8839170706:AAFrabCF7EylydXZDDVy9gSFtRuQN2Mo_n0";
+var SUPPORT_BOT_TOKEN = process.env.SUPPORT_BOT_TOKEN || "9211966550:AAExFZHnSrbPT80IX6mA_qea3nNukgiuIiU";
 var SUPPORT_ADMIN_ID = "8991315532";
 var supportMsgToUserMap = /* @__PURE__ */ new Map();
 var activeAdminReplyTargetUserId = null;
@@ -7516,7 +7516,7 @@ async function sendSupportBotMessage(chatId, text, replyMarkup) {
   }
 }
 async function runSupportTelegramBot() {
-  console.log("Starting Support Telegram Bot (@animem_support_bot) long polling loop...");
+  console.log("Starting Support Telegram Bot (@Animem_uz_support_bot) long polling loop...");
   let offset = 0;
   const poll = async () => {
     try {
@@ -7636,7 +7636,7 @@ Admin ko'rib chiqib, tez orada sizga javob qaytaradi. Rahmat!`
                 const tgUsername = from.username ? `@${from.username}` : "Mavjud emas";
                 const tgName = `${from.first_name || ""} ${from.last_name || ""}`.trim() || "Foydalanuvchi";
                 const userTgLink = from.username ? `https://t.me/${from.username}` : `tg://user?id=${fromId}`;
-                const adminMsgText = `\u{1F4E9} <b>YANGI MUROJAAT (animem_support_bot)</b>
+                const adminMsgText = `\u{1F4E9} <b>YANGI MUROJAAT (@Animem_uz_support_bot)</b>
 
 \u{1F464} <b>Ism:</b> ${tgName}
 \u{1F194} <b>Telegram ID:</b> <code>${fromId}</code>

@@ -8886,8 +8886,8 @@ async function runTelegramBot() {
   poll();
 }
 
-// --- SUPPORT TELEGRAM BOT ENGINE (@animem_support_bot) ---
-const SUPPORT_BOT_TOKEN = "8839170706:AAFrabCF7EylydXZDDVy9gSFtRuQN2Mo_n0";
+// --- SUPPORT TELEGRAM BOT ENGINE (@Animem_uz_support_bot) ---
+const SUPPORT_BOT_TOKEN = process.env.SUPPORT_BOT_TOKEN || "9211966550:AAExFZHnSrbPT80IX6mA_qea3nNukgiuIiU";
 const SUPPORT_ADMIN_ID = "8991315532";
 
 // Store mapping of admin notification message_id -> user chat_id
@@ -8923,9 +8923,9 @@ async function sendSupportBotMessage(chatId: number | string, text: string, repl
   }
 }
 
-// Background Support Bot Long Polling (@animem_support_bot)
+// Background Support Bot Long Polling (@Animem_uz_support_bot)
 async function runSupportTelegramBot() {
-  console.log("Starting Support Telegram Bot (@animem_support_bot) long polling loop...");
+  console.log("Starting Support Telegram Bot (@Animem_uz_support_bot) long polling loop...");
   let offset = 0;
 
   const poll = async () => {
@@ -9056,7 +9056,7 @@ async function runSupportTelegramBot() {
                 const userTgLink = from.username ? `https://t.me/${from.username}` : `tg://user?id=${fromId}`;
 
                 const adminMsgText = 
-                  `📩 <b>YANGI MUROJAAT (animem_support_bot)</b>\n\n` +
+                  `📩 <b>YANGI MUROJAAT (@Animem_uz_support_bot)</b>\n\n` +
                   `👤 <b>Ism:</b> ${tgName}\n` +
                   `🆔 <b>Telegram ID:</b> <code>${fromId}</code>\n` +
                   `🏷 <b>Username:</b> ${tgUsername}\n\n` +
@@ -11705,7 +11705,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz �
     }
   });
 
-  // Contact form submission endpoint -> forwards to Admin Telegram via @animem_support_bot
+  // Contact form submission endpoint -> forwards to Admin Telegram via @Animem_uz_support_bot
   app.post("/api/contact", async (req, res) => {
     try {
       const { name, email, message } = req.body;
@@ -11717,7 +11717,7 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz �
       const userDomainEmail = email || "Kiritilmagan";
       const msgText = message.trim();
 
-      // Send notification to Admin Telegram ID (8991315532) via @animem_support_bot
+      // Send notification to Admin Telegram ID (8991315532) via @Animem_uz_support_bot
       const adminMsgText = 
         `🌐 <b>YANGI MUROJAAT (Animem.uz Saytidan)</b>\n\n` +
         `👤 <b>Ismi:</b> ${userName}\n` +

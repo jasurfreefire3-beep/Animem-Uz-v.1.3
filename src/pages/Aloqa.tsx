@@ -83,8 +83,8 @@ export default function Aloqa() {
             <a href="https://t.me/AnimemUzb" target="_blank" rel="noreferrer" className="text-xs text-[#0088cc] font-bold block hover:underline">
               @AnimemUzb (Kanal)
             </a>
-            <a href="https://t.me/animem_support_bot" target="_blank" rel="noreferrer" className="text-xs text-white/60 font-bold block hover:underline">
-              @animem_support_bot (Bot)
+            <a href="https://t.me/Animem_uz_support_bot" target="_blank" rel="noreferrer" className="text-xs text-white/60 font-bold block hover:underline">
+              @Animem_uz_support_bot (Bot)
             </a>
           </div>
 
