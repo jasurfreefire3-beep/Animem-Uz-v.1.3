@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import Hls from 'hls.js';
 import { Song } from '../types';
-import initialSongsData from '../data/initialSongs.json';
+import initialSongsData from '../data/initialSongs';
 
 interface MusicContextType {
   currentSong: Song | null;

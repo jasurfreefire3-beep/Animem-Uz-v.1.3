@@ -9,7 +9,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Song } from '../types';
 import ImageUploader from './ImageUploader';
-import initialSongsData from '../data/initialSongs.json';
+import initialSongsData from '../data/initialSongs';
 
 function formatDuration(seconds: number): string {
   if (isNaN(seconds) || seconds < 0) return '0:00';

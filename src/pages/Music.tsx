@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Song } from '../types';
-import initialSongsData from '../data/initialSongs.json';
+import initialSongsData from '../data/initialSongs';
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds) || seconds < 0) return '0:00';
