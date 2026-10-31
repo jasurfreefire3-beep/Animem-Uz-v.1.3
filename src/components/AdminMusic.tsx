@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Hls from 'hls.js';
 import { useAuth } from '../context/AuthContext';
 import { 
   Music, Upload, Link as LinkIcon, Trash2, Edit2, Play, Pause, 
@@ -29,6 +30,16 @@ export default function AdminMusic() {
   // Audio preview player inside admin
   const [previewSongId, setPreviewSongId] = useState<string | number | null>(null);
   const adminAudioRef = useRef<HTMLAudioElement | null>(null);
+  const adminHlsRef = useRef<Hls | null>(null);
+
+  const destroyAdminHls = () => {
+    if (adminHlsRef.current) {
+      try {
+        adminHlsRef.current.destroy();
+      } catch {}
+      adminHlsRef.current = null;
+    }
+  };
 
   // Form Mode: 'upload' or 'url'
   const [audioInputMode, setAudioInputMode] = useState<'upload' | 'url'>('upload');
@@ -113,19 +124,45 @@ export default function AdminMusic() {
       if (adminAudioRef.current) {
         adminAudioRef.current.pause();
       }
+      destroyAdminHls();
       setPreviewSongId(null);
     } else {
       if (!adminAudioRef.current) {
         adminAudioRef.current = new Audio();
       }
-      adminAudioRef.current.src = song.audio_url;
-      adminAudioRef.current.play().then(() => {
-        setPreviewSongId(song.id);
-      }).catch((err) => {
-        console.warn("Audio preview error:", err);
-      });
+      destroyAdminHls();
+
+      const url = (song.audio_url || '').trim();
+      const isHls = url.toLowerCase().includes('.m3u8') || url.toLowerCase().includes('/tghls/') || url.toLowerCase().includes('/hls/');
+
+      if (isHls) {
+        if (adminAudioRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+          adminAudioRef.current.src = url;
+          adminAudioRef.current.play().then(() => setPreviewSongId(song.id)).catch(() => {});
+        } else if (Hls.isSupported()) {
+          const hls = new Hls({ enableWorker: true });
+          hls.loadSource(url);
+          hls.attachMedia(adminAudioRef.current);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            adminAudioRef.current?.play().then(() => setPreviewSongId(song.id)).catch(() => {});
+          });
+          adminHlsRef.current = hls;
+        } else {
+          adminAudioRef.current.src = url;
+          adminAudioRef.current.play().then(() => setPreviewSongId(song.id)).catch(() => {});
+        }
+      } else {
+        adminAudioRef.current.src = url;
+        adminAudioRef.current.play().then(() => {
+          setPreviewSongId(song.id);
+        }).catch((err) => {
+          console.warn("Audio preview error:", err);
+        });
+      }
+
       adminAudioRef.current.onended = () => {
         setPreviewSongId(null);
+        destroyAdminHls();
       };
     }
   };
@@ -502,7 +539,7 @@ export default function AdminMusic() {
                     type="url"
                     value={audioUrl}
                     onChange={(e) => setAudioUrl(e.target.value)}
-                    placeholder="https://.../song.mp3"
+                    placeholder="https://.../song.mp3 yoki HLS (.m3u8) oqim manzili"
                     className="w-full bg-[#181820] border border-white/10 text-white text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#00c8ff]"
                   />
                 )}

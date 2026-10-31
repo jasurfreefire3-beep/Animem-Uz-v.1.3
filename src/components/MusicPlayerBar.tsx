@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds) || seconds < 0) return '0:00';
+  if (!isFinite(seconds)) return 'LIVE';
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
@@ -104,7 +105,7 @@ export default function MusicPlayerBar() {
   }
 
   const isLiked = likedSongIds.has(currentSong.id);
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const progressPercent = duration > 0 && isFinite(duration) ? (currentTime / duration) * 100 : 0;
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!progressBarRef.current || duration <= 0) return;

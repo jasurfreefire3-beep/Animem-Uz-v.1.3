@@ -4,22 +4,25 @@ FROM node:22-alpine
 WORKDIR /app
 
 # Install ffmpeg for media and video streaming transcoding
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg python3 make g++
 
 # Copy package descriptors
 COPY package*.json ./
 
-# Install all dependencies
-RUN npm install
+# Install all dependencies (including devDependencies required for compilation)
+RUN npm install --include=dev
 
-# Copy application source code
+# Copy application source code (including prebuilt dist/ if available)
 COPY . .
+
+# Increase memory limit for compilation in container
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 # Build both frontend (Vite -> dist/) and backend (esbuild -> dist/server.cjs)
 RUN npm run build
 
-# Ensure Hugging Face Spaces user (UID 1000) owns the app and data directory
-RUN mkdir -p /app/data && chown -R 1000:1000 /app
+# Ensure Hugging Face Spaces user (UID 1000) owns the app, uploads, and data directory
+RUN mkdir -p /app/data /app/uploads && chown -R 1000:1000 /app
 
 USER 1000
 

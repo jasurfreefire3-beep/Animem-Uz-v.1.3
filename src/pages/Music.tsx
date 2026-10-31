@@ -16,6 +16,7 @@ import initialSongsData from '../data/initialSongs.json';
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds) || seconds < 0) return '0:00';
+  if (!isFinite(seconds)) return 'LIVE';
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;

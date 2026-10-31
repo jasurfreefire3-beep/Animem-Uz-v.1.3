@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import Hls from 'hls.js';
 import { Song } from '../types';
 import initialSongsData from '../data/initialSongs.json';
 
@@ -78,6 +79,33 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+
+  const destroyHls = () => {
+    if (hlsRef.current) {
+      try {
+        hlsRef.current.stopLoad();
+        hlsRef.current.detachMedia();
+        hlsRef.current.destroy();
+      } catch (e) {
+        console.warn("HLS destroy error:", e);
+      }
+      hlsRef.current = null;
+    }
+  };
+
+  const isHlsUrl = (url: string | null | undefined): boolean => {
+    if (!url) return false;
+    const lower = url.toLowerCase().trim();
+    return (
+      lower.includes('.m3u8') ||
+      lower.includes('/tghls/') ||
+      lower.includes('/hls/') ||
+      lower.includes('type=hls') ||
+      lower.includes('format=hls') ||
+      lower.includes('format=m3u8')
+    );
+  };
 
   // Initialize Audio element once
   useEffect(() => {
@@ -90,6 +118,12 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     };
 
     const handleLoadedMetadata = () => {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
+
+    const handleDurationChange = () => {
       if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
@@ -113,6 +147,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     };
 
     const handleError = (e: any) => {
+      // If HLS is active, let Hls error handler manage recovery/fatal errors
+      if (hlsRef.current) {
+        return;
+      }
       console.warn("Audio playback/load error:", e);
       // Auto-recover by moving to next track if audio fails to play
       setTimeout(() => {
@@ -122,14 +160,17 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
 
     return () => {
+      destroyHls();
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('ended', handleEnded);
@@ -172,6 +213,22 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const currentIndex = playlist.findIndex((s) => String(s.id) === String(currentSong?.id));
 
+  const startPlayback = (song: Song) => {
+    if (!audioRef.current) return;
+    const playPromise = audioRef.current.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        setIsPlaying(true);
+        // Increment play count asynchronously
+        fetch(`/api/music/${song.id}/play`, { method: 'POST' }).catch(() => {});
+      }).catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.warn("Auto-play blocked or playback error:", err.message);
+        }
+      });
+    }
+  };
+
   const playSong = (song: Song, newPlaylist?: Song[]) => {
     if (!audioRef.current) return;
 
@@ -186,21 +243,79 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       audioRef.current.pause();
     } catch {}
 
-    audioRef.current.src = song.audio_url;
-    audioRef.current.currentTime = 0;
-    audioRef.current.load();
+    // Clean up any active HLS stream first
+    destroyHls();
 
-    const playPromise = audioRef.current.play();
-    if (playPromise !== undefined) {
-      playPromise.then(() => {
-        setIsPlaying(true);
-        // Increment play count asynchronously
-        fetch(`/api/music/${song.id}/play`, { method: 'POST' }).catch(() => {});
-      }).catch((err) => {
-        if (err.name !== 'AbortError') {
-          console.warn("Auto-play blocked or audio load error:", err.message);
-        }
-      });
+    const audioUrl = (song.audio_url || '').trim();
+
+    if (isHlsUrl(audioUrl)) {
+      // 1. Native HLS support (Safari on iOS / macOS)
+      if (audioRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.currentTime = 0;
+        audioRef.current.load();
+        startPlayback(song);
+      } else if (Hls.isSupported()) {
+        // 2. Hls.js for Chrome, Firefox, Edge, Android
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 90,
+          xhrSetup: (xhr) => {
+            xhr.withCredentials = false;
+          }
+        });
+
+        hls.loadSource(audioUrl);
+        hls.attachMedia(audioRef.current);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          startPlayback(song);
+        });
+
+        hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+          if (data?.details?.totalduration && isFinite(data.details.totalduration)) {
+            setDuration(data.details.totalduration);
+          }
+        });
+
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) {
+            console.warn("HLS Fatal error:", data.type, data.details);
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.warn("HLS recovering from network error...");
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.warn("HLS recovering from media error...");
+                hls.recoverMediaError();
+                break;
+              default:
+                console.error("HLS unrecoverable error, skipping...", data);
+                destroyHls();
+                setTimeout(() => {
+                  handleNextSong();
+                }, 1200);
+                break;
+            }
+          }
+        });
+
+        hlsRef.current = hls;
+      } else {
+        // Fallback to direct src
+        audioRef.current.src = audioUrl;
+        audioRef.current.currentTime = 0;
+        audioRef.current.load();
+        startPlayback(song);
+      }
+    } else {
+      // Standard audio file (.mp3, .wav, .aac, .ogg, .flac)
+      audioRef.current.src = audioUrl;
+      audioRef.current.currentTime = 0;
+      audioRef.current.load();
+      startPlayback(song);
     }
   };
 
@@ -357,6 +472,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const closePlayer = () => {
     pause();
+    destroyHls();
     setCurrentSong(null);
     setIsPlayerBarDismissed(true);
   };
