@@ -87,7 +87,7 @@ export default function ShaxsiyRoyxat() {
   };
 
   // Build combined items for the list
-  const listItems = Object.entries(userLists).map(([aid, item]) => {
+  const listItems = Object.entries(userLists).map(([aid, item]: [string, any]) => {
     const fullAnime = animes.find(a => String(a.id) === String(aid)) || item.anime;
     const watchedMap = getWatchedEpisodesMap(aid);
     const watchedCount = Object.keys(watchedMap).length;

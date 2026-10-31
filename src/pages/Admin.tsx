@@ -5,7 +5,7 @@ import {
   ShieldAlert, Plus, Link as LinkIcon, Image, Type, AlignLeft, 
   Calendar, Building, ListOrdered, Tag, Film, Tv, Video, 
   Trash2, Edit2, Search, X, Check, Eye, Bell, BookOpen, Users, Radio,
-  Sparkles, Layers, Zap, Save, RefreshCw, FileText, ShoppingBag, Heart
+  Sparkles, Layers, Zap, Save, RefreshCw, FileText, ShoppingBag, Heart, Music
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Anime, GENRE_MAP, translateGenre } from '../types';
@@ -17,11 +17,12 @@ import AdminDonatlar from '../components/AdminDonatlar';
 import OnlineUsersTab from '../components/OnlineUsersTab';
 import ImageUploader from '../components/ImageUploader';
 import AdminMikaReports from '../components/AdminMikaReports';
+import AdminMusic from '../components/AdminMusic';
 
 export default function Admin() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'donations'>('manage_animes');
+  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'donations' | 'music'>('manage_animes');
   
   // Anime Form States
   const [title, setTitle] = useState('');
@@ -911,6 +912,18 @@ export default function Admin() {
         >
           <Heart size={16} className="text-[#ff006a]" />
           <span>Donatlar ❤️</span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('music');
+            setMessage({ type: '', text: '' });
+          }}
+          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
+            activeTab === 'music' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
+          }`}
+        >
+          <Music size={16} className="text-[#00c8ff]" />
+          <span>Musiqa 🎵</span>
         </button>
       </div>
 
@@ -1963,6 +1976,11 @@ export default function Admin() {
       {/* Tab: Donatlar Boshqaruvi */}
       {activeTab === 'donations' && (
         <AdminDonatlar />
+      )}
+
+      {/* Tab: Musiqa Boshqaruvi */}
+      {activeTab === 'music' && (
+        <AdminMusic />
       )}
     </div>
   );

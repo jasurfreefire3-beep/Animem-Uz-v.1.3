@@ -5,6 +5,7 @@ import App from './App.tsx';
 import './index.css';
 import { AuthProvider } from './context/AuthContext.tsx';
 import { LanguageProvider } from './context/LanguageContext.tsx';
+import { MusicProvider } from './context/MusicContext.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { getApiBase } from './lib/api';
 
@@ -71,7 +72,9 @@ if (rootElement) {
         <BrowserRouter>
           <AuthProvider>
             <LanguageProvider>
-              <App />
+              <MusicProvider>
+                <App />
+              </MusicProvider>
             </LanguageProvider>
           </AuthProvider>
         </BrowserRouter>

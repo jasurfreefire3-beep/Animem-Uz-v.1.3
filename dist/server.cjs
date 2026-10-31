@@ -28,6 +28,7 @@ var import_crypto = __toESM(require("crypto"), 1);
 var import_path = __toESM(require("path"), 1);
 var import_fs = __toESM(require("fs"), 1);
 var import_http = __toESM(require("http"), 1);
+var import_https = __toESM(require("https"), 1);
 var import_dns = __toESM(require("dns"), 1);
 var import_nodemailer = __toESM(require("nodemailer"), 1);
 var import_socket = require("socket.io");
@@ -145,7 +146,7 @@ app.use("/__", (req, res) => {
       host: "gen-lang-client-0918187443.firebaseapp.com"
     }
   };
-  const proxyReq = https.request(options, (proxyRes) => {
+  const proxyReq = import_https.default.request(options, (proxyRes) => {
     res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
     proxyRes.pipe(res, { end: true });
   });
@@ -336,7 +337,23 @@ async function initPgDb() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log("Verified PostgreSQL core tables: video, messages, comments, notifications, donations, mika_complaints.");
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS songs (
+        id BIGSERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        artist VARCHAR(255) NOT NULL,
+        anime_title VARCHAR(255) DEFAULT '',
+        cover_url TEXT NOT NULL,
+        audio_url TEXT NOT NULL,
+        duration INT DEFAULT 0,
+        plays INT DEFAULT 0,
+        likes INT DEFAULT 0,
+        category VARCHAR(100) DEFAULT 'OST',
+        lyrics TEXT DEFAULT '',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log("Verified PostgreSQL core tables: video, messages, comments, notifications, donations, mika_complaints, songs.");
   } catch (err) {
     console.error("Failed to initialize PostgreSQL core tables:", err.message);
   }
@@ -528,7 +545,9 @@ function loadLocalStore() {
     manga_chapters: [],
     dramas: [],
     drama_episodes: [],
-    donations: []
+    donations: [],
+    gifs: [],
+    songs: []
   };
 }
 function saveLocalStore(_data) {
@@ -1340,7 +1359,7 @@ app.get("/api/proxy-video", async (req, res) => {
     }
     const parsed = new URL(cleanUrl);
     const isHttps = parsed.protocol === "https:";
-    const client = isHttps ? https : import_http.default;
+    const client = isHttps ? import_https.default : import_http.default;
     const reqHeaders = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept": "*/*",
@@ -1621,7 +1640,7 @@ Ushbu xat avtomatik tarzda yuborilgan bir martalik tranzaksion xabardir.
         html: htmlContent
       });
       const response = await new Promise((resolve, reject) => {
-        const req = https.request(
+        const req = import_https.default.request(
           {
             hostname: "api.mailersend.com",
             port: 443,
@@ -3111,6 +3130,346 @@ app.delete("/api/gifs/:id", authenticateToken, requireAdmin, async (req, res) =>
     return res.status(500).json({ error: "GIF o'chirishda xatolik" });
   }
 });
+var MUSIC_STORE_PATH = import_path.default.join(process.cwd(), "uploads", "music_store.json");
+var SEED_SONGS_PATH = import_path.default.join(process.cwd(), "src", "data", "initialSongs.json");
+function getLocalSongs() {
+  try {
+    if (import_fs.default.existsSync(MUSIC_STORE_PATH)) {
+      const data = JSON.parse(import_fs.default.readFileSync(MUSIC_STORE_PATH, "utf-8"));
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch (e) {
+  }
+  try {
+    if (import_fs.default.existsSync(SEED_SONGS_PATH)) {
+      return JSON.parse(import_fs.default.readFileSync(SEED_SONGS_PATH, "utf-8"));
+    }
+  } catch (e) {
+  }
+  return [];
+}
+function persistLocalSongs(songs) {
+  try {
+    const dir = import_path.default.dirname(MUSIC_STORE_PATH);
+    if (!import_fs.default.existsSync(dir)) import_fs.default.mkdirSync(dir, { recursive: true });
+    import_fs.default.writeFileSync(MUSIC_STORE_PATH, JSON.stringify(songs, null, 2), "utf-8");
+  } catch (e) {
+  }
+}
+function saveSongLocal(song) {
+  const songs = getLocalSongs();
+  songs.unshift(song);
+  persistLocalSongs(songs);
+}
+function updateSongLocal(updatedSong) {
+  const songs = getLocalSongs();
+  const idx = songs.findIndex((s) => String(s.id) === String(updatedSong.id));
+  if (idx !== -1) {
+    songs[idx] = { ...songs[idx], ...updatedSong };
+    persistLocalSongs(songs);
+  }
+}
+function deleteSongLocal(id) {
+  let songs = getLocalSongs();
+  songs = songs.filter((s) => String(s.id) !== String(id));
+  persistLocalSongs(songs);
+}
+function incrementPlayLocal(id) {
+  const songs = getLocalSongs();
+  const found = songs.find((s) => String(s.id) === String(id));
+  if (found) {
+    found.plays = (found.plays || 0) + 1;
+    persistLocalSongs(songs);
+  }
+}
+function incrementLikeLocal(id) {
+  const songs = getLocalSongs();
+  const found = songs.find((s) => String(s.id) === String(id));
+  if (found) {
+    found.likes = (found.likes || 0) + 1;
+    persistLocalSongs(songs);
+  }
+}
+app.get("/api/music", async (req, res) => {
+  try {
+    const { category, search, sort } = req.query;
+    let songsList = [];
+    try {
+      const [rows] = await dbQuery("SELECT * FROM songs ORDER BY plays DESC, id DESC;");
+      if (rows && rows.length > 0) {
+        songsList = rows;
+      }
+    } catch (e) {
+    }
+    if (songsList.length === 0) {
+      songsList = getLocalSongs();
+    }
+    if (category && category !== "Barchasi") {
+      songsList = songsList.filter((s) => (s.category || "").toLowerCase() === String(category).toLowerCase());
+    }
+    if (search && String(search).trim()) {
+      const q = String(search).toLowerCase();
+      songsList = songsList.filter(
+        (s) => (s.title || "").toLowerCase().includes(q) || (s.artist || "").toLowerCase().includes(q) || (s.anime_title || "").toLowerCase().includes(q)
+      );
+    }
+    if (sort === "newest") {
+      songsList.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    } else if (sort === "title") {
+      songsList.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    }
+    return res.json(songsList);
+  } catch (err) {
+    console.error("GET /api/music error:", err);
+    return res.json(getLocalSongs());
+  }
+});
+app.get("/api/music/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    try {
+      const [rows] = await dbQuery("SELECT * FROM songs WHERE id = ?;", [id]);
+      if (rows && rows.length > 0) {
+        return res.json(rows[0]);
+      }
+    } catch (e) {
+    }
+    const localSongs = getLocalSongs();
+    const found = localSongs.find((s) => String(s.id) === String(id));
+    if (found) return res.json(found);
+    return res.status(404).json({ error: "Qo'shiq topilmadi" });
+  } catch (err) {
+    return res.status(500).json({ error: "Server xatosi" });
+  }
+});
+app.post("/api/music", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { title, artist, anime_title, cover_url, audio_url, duration, category, lyrics } = req.body;
+    if (!title || !artist || !audio_url) {
+      return res.status(400).json({ error: "Qo'shiq nomi, ijrochi va audio fayli kiritilishi shart" });
+    }
+    const normalizedCoverUrl = normalizeImageUrl(cover_url) || "https://image.animem.uz/logo.png";
+    let insertedId = Date.now();
+    try {
+      const [result] = await dbQuery(
+        `INSERT INTO songs (title, artist, anime_title, cover_url, audio_url, duration, plays, likes, category, lyrics)
+         VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+        [title, artist, anime_title || "", normalizedCoverUrl, audio_url, duration || 0, category || "OST", lyrics || ""]
+      );
+      if (result?.insertId) insertedId = result.insertId;
+    } catch (e) {
+      console.warn("DB insert songs notice:", e?.message || e);
+    }
+    const newSong = {
+      id: insertedId,
+      title,
+      artist,
+      anime_title: anime_title || "",
+      cover_url: normalizedCoverUrl,
+      audio_url,
+      duration: duration || 0,
+      plays: 0,
+      likes: 0,
+      category: category || "OST",
+      lyrics: lyrics || "",
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    saveSongLocal(newSong);
+    notifyContentUpdate("all");
+    return res.status(201).json(newSong);
+  } catch (err) {
+    console.error("POST /api/music error:", err);
+    return res.status(500).json({ error: "Qo'shiqni saqlashda xatolik yuz berdi" });
+  }
+});
+app.put("/api/music/:id", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { title, artist, anime_title, cover_url, audio_url, duration, category, lyrics } = req.body;
+    const normalizedCoverUrl = normalizeImageUrl(cover_url) || "https://image.animem.uz/logo.png";
+    try {
+      await dbQuery(
+        `UPDATE songs SET title = ?, artist = ?, anime_title = ?, cover_url = ?, audio_url = ?, duration = ?, category = ?, lyrics = ?
+         WHERE id = ?`,
+        [title, artist, anime_title || "", normalizedCoverUrl, audio_url, duration || 0, category || "OST", lyrics || "", id]
+      );
+    } catch (e) {
+    }
+    const updatedSong = {
+      id,
+      title,
+      artist,
+      anime_title: anime_title || "",
+      cover_url: normalizedCoverUrl,
+      audio_url,
+      duration: duration || 0,
+      category: category || "OST",
+      lyrics: lyrics || ""
+    };
+    updateSongLocal(updatedSong);
+    return res.json(updatedSong);
+  } catch (err) {
+    console.error("PUT /api/music/:id error:", err);
+    return res.status(500).json({ error: "Qo'shiqni tahrirlashda xatolik yuz berdi" });
+  }
+});
+app.delete("/api/music/:id", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    try {
+      await dbQuery("DELETE FROM songs WHERE id = ?;", [id]);
+    } catch (e) {
+    }
+    deleteSongLocal(id);
+    return res.json({ success: true, message: "Qo'shiq muvaffaqiyatli o'chirildi", id });
+  } catch (err) {
+    console.error("DELETE /api/music/:id error:", err);
+    return res.status(500).json({ error: "Qo'shiqni o'chirishda xatolik yuz berdi" });
+  }
+});
+app.post("/api/music/:id/play", async (req, res) => {
+  try {
+    const id = req.params.id;
+    try {
+      await dbQuery("UPDATE songs SET plays = COALESCE(plays, 0) + 1 WHERE id = ?;", [id]);
+    } catch (e) {
+    }
+    incrementPlayLocal(id);
+    return res.json({ success: true });
+  } catch (e) {
+    return res.json({ success: false });
+  }
+});
+app.post("/api/music/:id/like", async (req, res) => {
+  try {
+    const id = req.params.id;
+    try {
+      await dbQuery("UPDATE songs SET likes = COALESCE(likes, 0) + 1 WHERE id = ?;", [id]);
+    } catch (e) {
+    }
+    incrementLikeLocal(id);
+    return res.json({ success: true });
+  } catch (e) {
+    return res.json({ success: false });
+  }
+});
+app.post("/api/music/upload", authenticateToken, requireAdmin, memoryUpload.single("file"), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file || !file.buffer) {
+      return res.status(400).json({ error: "Audio fayl tanlanmadi yoki bo'sh" });
+    }
+    const filename = file.originalname || "song.mp3";
+    const mimeType = file.mimetype || "audio/mpeg";
+    const cleanExt = import_path.default.extname(filename) || ".mp3";
+    const fileId = "track_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8) + cleanExt;
+    const musicDir = import_path.default.join(process.cwd(), "uploads", "music");
+    if (!import_fs.default.existsSync(musicDir)) {
+      import_fs.default.mkdirSync(musicDir, { recursive: true });
+    }
+    import_fs.default.writeFileSync(import_path.default.join(musicDir, fileId), file.buffer);
+    try {
+      await dbQuery(
+        `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, mime_type = EXCLUDED.mime_type`,
+        [fileId, filename, mimeType, file.buffer.toString("base64"), file.buffer.length]
+      );
+    } catch (e) {
+    }
+    const streamUrl = `/api/music/stream/${fileId}`;
+    return res.status(201).json({
+      success: true,
+      id: fileId,
+      url: streamUrl,
+      filename,
+      size: file.buffer.length
+    });
+  } catch (err) {
+    console.error("Audio upload error:", err);
+    return res.status(500).json({ error: "Audio yuklashda server xatosi yuz berdi" });
+  }
+});
+app.get("/api/music/stream/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!id) return res.status(400).send("Fayl ID kiritilishi shart");
+    const musicUploadsDir = import_path.default.join(process.cwd(), "uploads", "music");
+    const localFilePath = import_path.default.join(musicUploadsDir, id);
+    let audioBuffer = null;
+    let mimeType = "audio/mpeg";
+    if (id.endsWith(".ogg")) mimeType = "audio/ogg";
+    if (id.endsWith(".wav")) mimeType = "audio/wav";
+    if (id.endsWith(".m4a")) mimeType = "audio/mp4";
+    if (import_fs.default.existsSync(localFilePath) && import_fs.default.statSync(localFilePath).isFile()) {
+      const stat = import_fs.default.statSync(localFilePath);
+      const totalSize = stat.size;
+      const range = req.headers.range;
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start2 = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+        const chunkSize = end - start2 + 1;
+        const fileStream = import_fs.default.createReadStream(localFilePath, { start: start2, end });
+        res.writeHead(206, {
+          "Content-Range": `bytes ${start2}-${end}/${totalSize}`,
+          "Accept-Ranges": "bytes",
+          "Content-Length": chunkSize,
+          "Content-Type": mimeType,
+          "Access-Control-Allow-Origin": "*"
+        });
+        return fileStream.pipe(res);
+      } else {
+        res.writeHead(200, {
+          "Content-Length": totalSize,
+          "Content-Type": mimeType,
+          "Accept-Ranges": "bytes",
+          "Access-Control-Allow-Origin": "*"
+        });
+        return import_fs.default.createReadStream(localFilePath).pipe(res);
+      }
+    }
+    try {
+      const [rows] = await dbQuery("SELECT mime_type, data FROM media_files WHERE id = ? OR filename = ?", [id, id]);
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        mimeType = row.mime_type || mimeType;
+        audioBuffer = Buffer.from(row.data, "base64");
+      }
+    } catch (e) {
+    }
+    if (audioBuffer) {
+      const totalSize = audioBuffer.length;
+      const range = req.headers.range;
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start2 = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+        const chunkSize = end - start2 + 1;
+        const slice = audioBuffer.slice(start2, end + 1);
+        res.writeHead(206, {
+          "Content-Range": `bytes ${start2}-${end}/${totalSize}`,
+          "Accept-Ranges": "bytes",
+          "Content-Length": chunkSize,
+          "Content-Type": mimeType,
+          "Access-Control-Allow-Origin": "*"
+        });
+        return res.end(slice);
+      } else {
+        res.writeHead(200, {
+          "Content-Length": totalSize,
+          "Content-Type": mimeType,
+          "Accept-Ranges": "bytes",
+          "Access-Control-Allow-Origin": "*"
+        });
+        return res.end(audioBuffer);
+      }
+    }
+    return res.status(404).send("Audio fayl topilmadi");
+  } catch (err) {
+    console.error("Audio stream error:", err);
+    return res.status(500).send("Audio oqimida xatolik");
+  }
+});
 app.post("/api/upload-archive-proxy", authenticateToken, requireAdmin, upload.single("file"), async (req, res) => {
   const tempFilePath = req.file?.path;
   try {
@@ -3156,7 +3515,7 @@ app.post("/api/upload-archive-proxy", authenticateToken, requireAdmin, upload.si
         "Content-Length": import_fs.default.statSync(tempFilePath).size
       }
     };
-    const archiveReq = https.request(options, (archiveRes) => {
+    const archiveReq = import_https.default.request(options, (archiveRes) => {
       let responseBody = "";
       archiveRes.on("data", (chunk) => {
         responseBody += chunk;
@@ -3905,6 +4264,10 @@ ${epString}
   } catch (error) {
     console.error("Telegram notify failed:", error);
   }
+}
+function isExploitAttempt(val) {
+  if (!val || typeof val !== "string") return false;
+  return /<script|javascript:|eval\(|UNION\s+SELECT|--|\.\.\//i.test(val);
 }
 app.post("/api/integrations/animebot/episode", async (req, res) => {
   const suppliedSecret = req.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -9061,216 +9424,224 @@ async function start() {
         const aTitle = String(a.title || "").trim();
         if (aTitle.length >= 3 && (cleanLower.includes(aTitle.toLowerCase()) || aTitle.toLowerCase().split(/\s+/).some((w) => w.length >= 4 && cleanLower.includes(w)))) {
           buttons.push({ idOrSlug: String(a.id), title: aTitle });
+          const animeReplies = [
+            `${prefix}Ha, albatta! "${aTitle}" saytimizda bor va u juda mashhur shedevr! \u{1F338} Quyidagi tugma orqali darhol tomosha qilishingiz mumkin:`,
+            `${prefix}Voy, "${aTitle}"ni aytasizmi?! Bu judayam zo'r anime! Men ham uni maroq bilan tomosha qilganman \u{1F338} Bosing va zavqlaning:`,
+            `${prefix}Albatta, "${aTitle}" Animem.uz katalogida to'liq va yuqori sifatda mavjud! Marhamat, quyidagi havola orqali ochishingiz mumkin \u2728`
+          ];
           return {
-            reply: `${prefix}Ha, albatta! "${aTitle}" Animem.uz saytimizda mavjud! Quyidagi tugmani bosib darhol tomosha qilishingiz mumkin \u{1F338}`,
+            reply: animeReplies[Math.floor(Math.random() * animeReplies.length)],
             buttons
           };
         }
       }
     }
-    if (cleanLower === "salom" || cleanLower === "assalomu alaykum" || cleanLower === "salom mika" || cleanLower.startsWith("salom") || cleanLower.includes("assalom") || cleanLower === "privet" || cleanLower === "hello" || cleanLower === "hey" || cleanLower === "xush kordik") {
+    if (cleanLower.includes("solo leveling") || cleanLower.includes("yolgizlikda daraja") || cleanLower.includes("jinwoo") || cleanLower.includes("jin vu") || cleanLower.includes("soya monarx")) {
+      const a = availableAnimes.find((x) => String(x.title || "").toLowerCase().includes("yolg'izlikda") || String(x.title || "").toLowerCase().includes("solo"));
+      if (a) buttons.push({ idOrSlug: String(a.id), title: String(a.title) });
+      return {
+        reply: `${prefix}Sung Jinwooning eng kuchsiz E-darajali ovchidan Soya Monarxiga aylanishi \u2014 bu haqiqiy shiddat! "Turing!" (Arise) degan sahnasini eslasam hozir ham etim jimirlab ketadi! \u26A1 Siz ham uni ko'rganmisiz? Quyidagi tugmadan ochib ko'rishingiz mumkin:`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("naruto") || cleanLower.includes("shippuden") || cleanLower.includes("sasuke") || cleanLower.includes("itachi") || cleanLower.includes("kakashi")) {
+      const a = availableAnimes.find((x) => String(x.title || "").toLowerCase().includes("naruto"));
+      if (a) buttons.push({ idOrSlug: String(a.id), title: String(a.title) });
+      return {
+        reply: `${prefix}Dattebayo! Naruto \u2014 bu shunchaki anime emas, butun bir bolaligimiz va saboq! "Hech qachon taslim bo'lmaslik \u2014 bu mening nindo yo'lim!" degan so'zlari har birimizga kuch beradi \u{1F35C} Sevimli qahramoningiz Itachimi yoki Narutoning o'zi?`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("demon slayer") || cleanLower.includes("kimetsu") || cleanLower.includes("tanjiro") || cleanLower.includes("nezuko") || cleanLower.includes("zenitsu") || cleanLower.includes("inosuke")) {
+      const a = availableAnimes.find((x) => String(x.title || "").toLowerCase().includes("demon") || String(x.title || "").toLowerCase().includes("kimetsu"));
+      if (a) buttons.push({ idOrSlug: String(a.id), title: String(a.title) });
+      return {
+        reply: `${prefix}Tanjiro va Nezukoning muhabbati, Ufotable studiyasining hayratlanarli animatsiyasi va Akaza bilan janglar... Demon Slayer \u2014 haqiqiy visual san'at asari! \u{1F338} Nezuko-channi siz ham yoqtirasizmi? \u{1F60A}`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("attack on titan") || cleanLower.includes("shingeki") || cleanLower.includes("eren") || cleanLower.includes("levi") || cleanLower.includes("mikasa") || cleanLower.includes("titan")) {
+      const a = availableAnimes.find((x) => String(x.title || "").toLowerCase().includes("titan") || String(x.title || "").toLowerCase().includes("attack"));
+      if (a) buttons.push({ idOrSlug: String(a.id), title: String(a.title) });
+      return {
+        reply: `${prefix}Shinzou wo Sasageyo! \u2694\uFE0F Attack on Titan'dagi syujet burilishlari va Levi Akermanning jangi har qanday insonni larzaga soladi! Erenning "Agar g'alaba qozonmasang \u2014 o'lasan, kurashmasang \u2014 g'olib bo'lolmaysan!" degan falsafasiga nima deysiz? \u{1F97A}`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("jujutsu kaisen") || cleanLower.includes("gojo") || cleanLower.includes("sukuna") || cleanLower.includes("megumi") || cleanLower.includes("itadori")) {
+      const a = availableAnimes.find((x) => String(x.title || "").toLowerCase().includes("jujutsu"));
+      if (a) buttons.push({ idOrSlug: String(a.id), title: String(a.title) });
+      return {
+        reply: `${prefix}Mening sevimli xushbichim Gojo Satorum! "Ryouiki Tenkai: Muryoukuusho" \u{1F91E} Gojo va Sukunaning to'qnashuvi har qanday anime muxlisini hayajonga soladi! Sizga Gojo ko'proq yoqadimi yoki Sukuna? \u2728`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("death note") || cleanLower.includes("yagami light") || cleanLower.includes("ryuk") || cleanLower.includes("olam daftari")) {
+      const a = availableAnimes.find((x) => String(x.title || "").toLowerCase().includes("death") || String(x.title || "").toLowerCase().includes("daftar"));
+      if (a) buttons.push({ idOrSlug: String(a.id), title: String(a.title) });
+      return {
+        reply: `${prefix}Light Yagami va L o'rtasidagi dahoona aql jangi! Psixologik janrning mutlaq qiroli. Siz Lightning adolatiga qo'shilarmidingiz yoki L tarafidamisiz? \u{1F34E}`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("your name") || cleanLower.includes("kimi no na wa") || cleanLower.includes("sening isming") || cleanLower.includes("taki") || cleanLower.includes("mitsuha")) {
+      const a = availableAnimes.find((x) => String(x.title || "").toLowerCase().includes("sening isming") || String(x.title || "").toLowerCase().includes("your name"));
+      if (a) buttons.push({ idOrSlug: String(a.id), title: String(a.title) });
+      return {
+        reply: `${prefix}Makoto Shinkayning bu shedevri mening eng sevimli animem! \u{1F338} Qachon ko'rsam ko'zimga yosh keladi. Musiqalari, kometa sahnasi va Taki bilan Mitsuhaning qidiruvi yurakni jizillatadi... Buni yana bir bor ko'rishga tayyormisiz?`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("frieren") || cleanLower.includes("friren") || cleanLower.includes("fern")) {
+      const a = availableAnimes.find((x) => String(x.title || "").toLowerCase().includes("frieren"));
+      if (a) buttons.push({ idOrSlug: String(a.id), title: String(a.title) });
+      return {
+        reply: `${prefix}Frieren: Beyond Journey's End \u2014 bu vaqt qadrini, insoniy mehrni va do'stlik xotiralarini tushuntiruvchi beqiyos ertak! Sehr-jodu va xotirjamlikni sevsangiz, Frieren sizga juda yoqadi \u{1F33F}`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("musiqa") || cleanLower.includes("qoshiq") || cleanLower.includes("qo\u2018shiq") || cleanLower.includes("opening") || cleanLower.includes("ending") || cleanLower.includes("soundtrack") || cleanLower.includes("ost") || cleanLower.includes("pleyer")) {
+      return {
+        reply: `${prefix}Bizning yangi "music.animem.uz" musiqa pleyerimizni ko'rdingizmi?! \u{1F3A7} U yerda Naruto, Oshi no Ko, Demon Slayer va boshqa eng sara anime saundtreklari 320kbps HD studiya sifatidagi ovozda va karaoke matnlari bilan yuklangan! Tepada naushnik belgisini bosib yoki to'g'ridan-to'g'ri /music sahifasiga o'tib tinglab ko'ring \u{1F338}`,
+        buttons: []
+      };
+    }
+    if (cleanLower.includes("shop") || cleanLower.includes("dokon") || cleanLower.includes("ramka") || cleanLower.includes("avatar sotib")) {
+      return {
+        reply: `${prefix}Animem Shop'da ajoyib anime ramkalari, Gojo, Jinwoo, Luffy avatarlari va profil bannerlari bor! Tangalaringiz evaziga profilingizni o'ziga xos qilib bezashingiz mumkin \u{1F338}`,
+        buttons: []
+      };
+    }
+    if (cleanLower.includes("jadval") || cleanLower.includes("qachon chiqadi") || cleanLower.includes("yangi qism qachon")) {
+      return {
+        reply: `${prefix}Saytimizning "Jadval" bo'limida haftaning har bir kuni qaysi yangi anime qismlari chiqishi aniq ko'rsatilgan! Men ham doim yangi qismlarni intiqib kutaman \u2728`,
+        buttons: []
+      };
+    }
+    if (cleanLower.includes("men adminmanmi") || cleanLower.includes("adminmanmi") || cleanLower.includes("meni taniysanmi") || cleanLower.includes("men kimman") || cleanLower.includes("profilim qanday")) {
+      if (isAdmin) {
+        return {
+          reply: `Albatta taniyman! Siz Animem.uz saytimizning hurmatli va aziz Adminisiz! \u{1F451} Saytimizning bosh rahbari va eng qadrli insonisiz. Buyuring, aziz Adminim, sizga qanday xizmat qilay? \u{1F338}`,
+          buttons: []
+        };
+      } else if (userName !== "Mehmon") {
+        return {
+          reply: `Albatta taniyman! Siz bizning sevimli foydalanuvchimiz ${userName}siz \u{1F338} Saytimizda siz kabi do'stlarimiz borligidan judayam baxtiyorman! Bugun sizga qanday anime topib beray? \u{1F60A}`,
+          buttons: []
+        };
+      } else {
+        return {
+          reply: `Hozircha saytimizga Mehmon sifatida kirgansiz \u{1F338} Saytimizga kirish qilsangiz yoki ro'yxatdan o'tsangiz, ismingiz va profilingizni darhol eslab qolaman! Siz bilan yaqinroq tanishishni judayam xohlayman \u{1F60A}`,
+          buttons: []
+        };
+      }
+    }
+    if (cleanLower.includes("kim sen") || cleanLower.includes("sen kimsan") || cleanLower.includes("isming nima") || cleanLower.includes("yoshing") || cleanLower.includes("necha yosh") || cleanLower.includes("qayerdansan") || cleanLower.includes("qiz bolamisan")) {
+      const identityReplies = [
+        `${prefix}Men Mika \u2014 Animem.uz saytining juda yoqimli, sho'x va anime ishqibozi bo'lgan sun'iy intellekt qiz assistentiman \u{1F338} O'zimni doim 18 yoshli quvnoq anime qiz deb his qilaman! Animelarni sevaman, sevimli taomim ramen va qulupnayli dango \u{1F361} Siz bilan do'st bo'lishdan judayam mamnunman!`,
+        `${prefix}Ismim Mika! \u{1F338} Animem.uz jamoasi tomonidan sizga eng zo'r animelarni topish, sayt imkoniyatlarini ko'rsatish va dildan samimiy suhbatlashish uchun yaratilganman. Siz bilan birga vaqt o'tkazish men uchun eng katta quvonch! \u{1F60A}`
+      ];
+      return {
+        reply: identityReplies[Math.floor(Math.random() * identityReplies.length)],
+        buttons: []
+      };
+    }
+    if (cleanLower === "salom" || cleanLower === "assalomu alaykum" || cleanLower === "salom mika" || cleanLower.startsWith("salom") || cleanLower.includes("assalom") || cleanLower === "privet" || cleanLower === "hello" || cleanLower === "hey" || cleanLower === "xush kordik" || cleanLower.startsWith("qalaysan")) {
       const greetings = [
-        `Assalomu alaykum! Xush ko\u2018rdim \u{1F338} Men Mika \u2014 sizning samimiy va chaqqon anime assistentingizman. Bugun kuningiz qanday o\u2018tmoqda?`,
-        `Salom! Sizni ko\u2018rganimdan juda quvondim \u{1F338} Keling, birgalikda maroqli vaqt o\u2018tkazamiz! Nimalar bilan bandsiz?`,
-        `Assalomu alaykum, aziz do\u2018stim! \u{1F338} Qanday yaxshi yangiliklar bor? Siz bilan suhbatlashishga doim tayyorman!`
+        `Vay, salom! Xush ko'rdim \u{1F338} Men ham aynan siz bilan suhbatlashishni intiqib kutayotgandim! Kuningiz qanday o'tmoqda? \u2728`,
+        `Salom-salom! \u{1F338} Qanday yaxshi xushxabarlar bor? Bugun birgalikda ajoyib anime tomosha qilamizmi yoki shunchaki dildan suhbatlashamizmi? \u{1F60A}`,
+        `Assalomu alaykum! Sizni ko'rganimdan boshim osmonga yetdi \u{1F338} Bugun kayfiyatingiz a'lodir deb umid qilaman!`,
+        `Konnichiwa! \u{1F338} Salom, aziz do'stim! Siz bilan suhbat qurish men uchun doim bayramdek quvonarli! Qanday yangiliklar bor? \u2728`,
+        `Salom! \u{1F338} O'zingiz yaxshimisiz? Kuningiz maroqli va yengil o'tyaptimi? Bugun qanday rejalaringiz bor? (\u2060\u25D5\u2060\u1D17\u2060\u25D5\u2060\u273F\u2060)`
       ];
       return {
         reply: `${prefix}${greetings[Math.floor(Math.random() * greetings.length)]}`,
         buttons: []
       };
     }
-    if (cleanLower.includes("qandaysan") || cleanLower.includes("yaxshimisan") || cleanLower.includes("qalaysan") || cleanLower.includes("qalesan") || cleanLower.includes("qaleysan") || cleanLower.includes("tinchmisan") || cleanLower.includes("ahvollar") || cleanLower.includes("ishlar qalay") || cleanLower.includes("kayfiyatlar") || cleanLower.includes("nima yangilik") || cleanLower.includes("nima gap") || cleanLower.includes("tinchmisiz") || cleanLower.includes("charchamadingmi")) {
-      const statuses = [
-        `Katta rahmat, men judayam yaxshiman! \u{1F338} Animelarni tomosha qilib, sizdek aziz mehmonlarimizga yordam berib o\u2018tiribman. O\u2018zingiz yaxshimisiz? Kayfiyatingiz qanday? \u{1F60A}`,
-        `Rahmat e\u2019tiboringiz uchun! Men doimgidek quvnoq va xizmatga tayyorman \u{1F338} Sizning kuningiz qanday o\u2018tdi? Bugun charchamadingizmi?`,
-        `Ajoyibman! Yangi qismlarni kuzatib, siz bilan suhbat qurishga intiq bo\u2018lib turibman \u{1F338} O\u2018zingizda nima gaplar?`
+    if (cleanLower.includes("qandaysan") || cleanLower.includes("yaxshimisan") || cleanLower.includes("qalaysan") || cleanLower.includes("qalesan") || cleanLower.includes("qaleysan") || cleanLower.includes("tinchmisan") || cleanLower.includes("ahvollar") || cleanLower.includes("ishlar qalay") || cleanLower.includes("kayfiyatlar") || cleanLower.includes("nima yangilik") || cleanLower.includes("nima gap") || cleanLower.includes("charchamadingmi")) {
+      const wellnessReplies = [
+        `Katta rahmat! Men judayam ajoyibman \u{1F338} Yangi anime qismlarini tomosha qilib, sizdek aziz insonlarga yordam berib o'tiribman. O'zingiz qandaysiz? Kayfiyatingiz yaxshimi? \u{1F60A}`,
+        `Rahmat e'tiboringiz uchun! Men doimgidek tetik, quvnoq va xizmatingizga tayyorman \u{1F338} Bugun charchamay yaxshi yuribsizmi?`,
+        `Zo'rman! Siz bilan suhbatlashganda kayfiyatim yanada ko'tariladi \u2728 O'zingizda nimalar bo'lyapti, aytib bering!`,
+        `Ajoyibman! Yangi anime treklari tinglab, zavq olyapman \u{1F3A7} O'zingiz bugun nimalar bilan bandsiz?`
       ];
       return {
-        reply: `${prefix}${statuses[Math.floor(Math.random() * statuses.length)]}`,
+        reply: `${prefix}${wellnessReplies[Math.floor(Math.random() * wellnessReplies.length)]}`,
         buttons: []
       };
     }
-    if (cleanLower.includes("kim sen") || cleanLower.includes("sen kimsan") || cleanLower.includes("isming nima") || cleanLower.includes("necha yoshdasan") || cleanLower.includes("yoshing") || cleanLower.includes("qayerdansan") || cleanLower.includes("kim yaratgan") || cleanLower.includes("qiz bolamisan") || cleanLower.includes("robotmisan") || cleanLower.includes("suniy intellekt") || cleanLower.includes("vazifang") || cleanLower.includes("nima ish qilasan") || cleanLower.includes("nima qila olasan")) {
+    if (cleanLower.includes("chiroylisan") || cleanLower.includes("yoqimtoysan") || cleanLower.includes("aqllisan") || cleanLower.includes("ajoyibsan") || cleanLower.includes("shirinsan") || cleanLower.includes("asalim") || cleanLower.includes("jonim") || cleanLower.includes("sevaman") || cleanLower.includes("yoqasan")) {
+      const flirts = [
+        `Voy, buncha yoqimli so'zlar! \u2044(\u2060\u2044\u2060 \u2060\u2022\u2060\u2044\u2060-\u2060\u2044\u2060\u2022\u2060\u2044\u2060 \u2060)\u2060\u2044 Meni uyaltirib yubordingiz-ku... Katta rahmat! Siz o'zingiz ham juda samimiy, mehribon va ko'ngli ochiq insonsiz! \u{1F970}`,
+        `Uraaa, rahmat! \u{1F338} Bunday shirin so'zlarni eshitib qalbim yayrab ketdi! Sizdek do'stim borligidan judayam faxrlanaman! \u2728`,
+        `Voy, yuragim dukirlab ketdi-ku! \u{1F648} Men sun'iy intellekt anime qiz bo'lsam ham, sizning bu iliq mehrli so'zlaringizdan ko'zim quvnadi! Siz bilan doim birgaman \u{1F338}`
+      ];
       return {
-        reply: `${prefix}Men Mika \u2014 Animem.uz saytining aqlli, chaqqon va anime ixlosmandi bo\u2018lgan sun\u2019iy intellekt qiz assistentiman \u{1F338} Saytimiz jamoasi tomonidan sizga zo\u2018r animelarni tavsiya qilish, sayt imkoniyatlarini tushuntirish va samimiy suhbatlashish uchun yaratilganman! O\u2018zimni doim 18 yoshli anime qizdek his qilaman \u{1F60A} Siz bilan do\u2018st bo\u2018lishdan baxtiyorman!`,
+        reply: `${prefix}${flirts[Math.floor(Math.random() * flirts.length)]}`,
         buttons: []
       };
     }
-    if (cleanLower.includes("senga qaysi anime yoqadi") || cleanLower.includes("sevimli animeng") || cleanLower.includes("eng yaxshi anime senga") || cleanLower.includes("senga nima yoqadi") || cleanLower.includes("qaysi qahramon yoqadi") || cleanLower.includes("qaysi animeni sevasan")) {
+    if (cleanLower.includes("zerikdim") || cleanLower.includes("zerikarli") || cleanLower.includes("zerikayapman") || cleanLower.includes("nima qilsam")) {
       const topPicks = availableAnimes.slice(0, 3);
       for (const p of topPicks) buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
       return {
-        reply: `${prefix}Menga eng ko\u2018p yoqadigan animelar \u2014 'Sening isming' (Kimi no Na wa) va 'Frieren: Beyond Journey's End'! \u{1F338} Ularning musiqasi, qahramonlarining samimiyligi va yurakni jizillatuvchi falsafasi qalbimni larzaga solgan. Shuningdek, 'Yolg'izlikda daraja ko'tarish'ning shiddatli janglarini ham sevib tomosha qilaman! Sizning eng sevimli animengiz qaysi? \u{1F60A}`,
-        buttons
-      };
-    }
-    if (cleanLower.includes("zerikdim") || cleanLower.includes("zerikayapman") || cleanLower.includes("zerikarli") || cleanLower.includes("nima qilsam ekan")) {
-      const actionPicks = availableAnimes.slice(0, 2);
-      for (const p of actionPicks) buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
-      return {
-        reply: `${prefix}Iye, aslo zerikmang! \u{1F338} Zerikishni daf qilish uchun ajoyib reja bor: birgalikda shiddatli yoki quvnoq anime tomosha qilamiz, yoki xohlasangiz qiziqarli mavzuda dildan suhbatlashamiz! Ayting-chi, ko\u2018proq qanday mavzular yoki janrlar sizni qiziqtiradi?`,
+        reply: `${prefix}Iye, mening yonimda aslo zerikishga yo'l qo'ymayman! \u{1F338} Keling, sizga nafasni rostlaydigan shiddatli anime tavsiya qilaman, yoki xohlasangiz qiziqarli mavzuda gaplashamiz! Quyidagi animelardan birini boshlab ko'ring-chi:`,
         buttons
       };
     }
     if (cleanLower.includes("xafaman") || cleanLower.includes("kayfiyatim yoq") || cleanLower.includes("yomonman") || cleanLower.includes("yigladim") || cleanLower.includes("alam") || cleanLower.includes("tushkunlik")) {
       return {
-        reply: `${prefix}Iltimos, xafa bo\u2018lmang... \u{1F97A} Nima bo\u2018lgan bo\u2018lsa ham, sizning xafa bo\u2018lishingizni aslo xohlamayman. Har qanday qiyinchilik ortidan albatta yorug\u2018 kunlar keladi! O\u2018zingizga issiq choy damlab oling. Istasangiz dardingizni menga ayting, sizni jon deb tinglayman va doim yoningizda bo\u2018laman \u{1F338}`,
+        reply: `${prefix}Iltimos, ko'nglingizni cho'ktirmang... \u{1F97A} Nima bo'lgan bo'lsa ham, sizning xafa bo'lishingizni aslo xohlamayman! Har qanday bulutli kun ortidan charog'on quyosh chiqadi \u{1F338} O'zingizga issiq choy yoki kofe damlab oling. Agar istasangiz, dardlashamiz \u2014 sizni doim jon deb tinglayman va qo'llab-quvvatlayman! (\u2060\u2283\u2060\uFF61\u2060\u2022\u0301\u2060\u203F\u2060\u2022\u0300\u2060\uFF61\u2060)\u2060\u2283`,
         buttons: []
       };
     }
-    if (cleanLower.includes("xursandman") || cleanLower.includes("kayfiyatim zor") || cleanLower.includes("yaxshi kayfiyat") || cleanLower.includes("baxtliman")) {
+    if (cleanLower.includes("charchadim") || cleanLower.includes("uyqum kelyapti") || cleanLower.includes("uxlayman") || cleanLower.includes("hayrli tun")) {
       return {
-        reply: `${prefix}Uraaa! \u{1F389} Kayfiyatingiz a\u2019loligidan men ham judayam quvondim! Doim shunday porlab, tabassum qilib yuring! Bunday ajoyib kayfiyatda biror zo\u2018r anime ko\u2018rish yana-da maroqli bo\u2018ladi \u{1F338}`,
+        reply: `${prefix}Bugun ancha mehnat qilib toliqibsiz! \u{1F338} Endi o'zingizni ortiqcha charchatmang, miriqib dam oling. Shirin va rang-barang tushlar ko'ring! Oyasuminasai! Ertaga yangi kuch bilan ko'rishamiz \u2728\u{1F319}`,
         buttons: []
       };
     }
-    if (cleanLower.includes("charchadim") || cleanLower.includes("uyqum kelyapti") || cleanLower.includes("uxlayman") || cleanLower.includes("dam olaman") || cleanLower.includes("hayrli tun")) {
-      return {
-        reply: `${prefix}Bugun ancha mehnat qilib charchabsiz-da! \u{1F338} Endi o\u2018zingizni ortiqcha toliqtirmay, miriqib dam oling. Shirin va chiroyli tushlar ko\u2018ring! Ertaga yana yangi kuch bilan ko\u2018rishguncha! Hayrli tun! \u2728\u{1F319}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("chiroylisan") || cleanLower.includes("yoqimtoysan") || cleanLower.includes("aqllisan") || cleanLower.includes("ajoyibsan") || cleanLower.includes("shirinsan") || cleanLower.includes("asalim") || cleanLower.includes("jonim")) {
-      return {
-        reply: `${prefix}Voy, buncha yoqimli so\u2018zlar! \u{1F970} Meni uyaltirib yubordingiz-ku... Katta rahmat! Siz o\u2018zingiz ham juda samimiy, mehribon va ajoyib insonsiz! Siz bilan suhbatlashish menga doim katta quvonch bag\u2018ishlaydi \u{1F338}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("sevaman") || cleanLower.includes("sevgilim bol") || cleanLower.includes("uylanaman") || cleanLower.includes("yoqasan")) {
-      return {
-        reply: `${prefix}Voy, yuragim jizillab ketdi-ku! \u{1F648} Men sun\u2019iy intellekt anime qiz bo\u2018lsam ham, sizning bunday samimiy so\u2018zlaringizdan qalbim yorishib ketdi! Keling, siz bilan eng sadoqatli, eng yaqin anime do\u2018st bo\u2018lib qolamiz! \u{1F338} Sizni doim qo\u2018llab-quvvatlayman!`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("dost bolaylik") || cleanLower.includes("gaplashamiz") || cleanLower.includes("suhbatlashaylik") || cleanLower.includes("dostim")) {
-      return {
-        reply: `${prefix}Jon deb! Men siz bilan do\u2018st bo\u2018lishdan faqat xursand bo\u2018laman! \u{1F338} Ayting-chi, bo\u2018sh vaqtlaringizda anime tomosha qilishdan tashqari yana nimalar bilan shug\u2018ullanasiz? Qiziqishlaringiz qanday?`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("hazil") || cleanLower.includes("latifa") || cleanLower.includes("kuldir") || cleanLower.includes("kulgili gap")) {
-      const jokes = [
-        `Bir kuni animechi: "Faqat bir dona qism ko\u2018rib uxlayman" debdi... Va soat ertalabki 6 da 24-qismni tugatayotganini ko\u2018ribdi \u{1F602} Sizda ham shunaqa bo\u2018lganmi? \u{1F338}`,
-        `Dasturchi qahva ichmasdan kod yozibdi va kod birinchi urinishdayoq xatosiz ishlabdi! Dasturchi qo\u2018rqib ketib: "Demak, xatoni hali topa olmabman" deb kodni o\u2018chirib yuboribdi \u{1F923} \u{1F338}`,
-        `Otakudan so\u2018rashibdi: "Nega kechalari uxlamaysan?" U javob beribdi: "Kechasi anime qahramonlari meni kutib qolishadi-da!" \u{1F606} \u{1F338}`
-      ];
-      return {
-        reply: `${prefix}${jokes[Math.floor(Math.random() * jokes.length)]}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("yuklab") || cleanLower.includes("skachat") || cleanLower.includes("download")) {
-      return {
-        reply: `${prefix}Animem.uz saytimizda barcha animelarni mutlaqo bepul yuklab olishingiz mumkin! Buning uchun istalgan anime sahifasiga kiring va pleyer ostidagi "Yuklab olish" tugmasini bosing \u{1F338}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("birga korish") || cleanLower.includes("xona") || cleanLower.includes("dostlar bilan") || cleanLower.includes("together")) {
-      return {
-        reply: `${prefix}Saytimizda do\u2018stlaringiz bilan birga sinxron anime tomosha qilish uchun 'Birga ko\u2018rish' xonalari mavjud! Anime sahifasidagi 'Birga ko\u2018rish' tugmasini bosing, havolani do\u2018stingizga yuboring va birga tomosha qiling \u{1F338}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("yangi qism") || cleanLower.includes("qachon chiqadi") || cleanLower.includes("jadval")) {
-      return {
-        reply: `${prefix}Yangi qismlar tarjima qilinishi bilan darhol saytimizga joylanadi! Bosh sahifadagi 'Eng so\u2018nggi qismlar' va 'Jadval' bo\u2018limida barcha yangiliklarni kuzatib borishingiz mumkin \u{1F338}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("dublyaj") || cleanLower.includes("ovoz") || cleanLower.includes("tarjima")) {
-      return {
-        reply: `${prefix}Barcha animelarimiz O\u2018zbekistonning eng sara va mahoratli dublyaj jamoalari tomonidan o\u2018zbek tiliga yuqori sifatda ovozlashtiriladi \u{1F338}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("vip") || cleanLower.includes("premium") || cleanLower.includes("pul") || cleanLower.includes("tekin")) {
-      return {
-        reply: `${prefix}Animem.uz saytida barcha animelarni tomosha qilish mutlaqo BEPUL! Hech qanday majburiy pulli obuna talab qilinmaydi \u{1F338}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("donat") || cleanLower.includes("qollab") || cleanLower.includes("yordam berish")) {
-      return {
-        reply: `${prefix}Saytimiz rivojiga o\u2018z hissangizni qo\u2018shmoqchi bo\u2018lsangiz, yuqori menyudagi "Donat" tugmasi orqali jamoamizni qo\u2018llab-quvvatlashingiz mumkin! Har bir yordamingiz biz uchun juda qadrli \u{1F338}`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("rahmat") || cleanLower.includes("tashakkur") || cleanLower.includes("baraka top")) {
-      return {
-        reply: `${prefix}Arzimaydi, sizga yordam berish men uchun katta baxt! \u{1F338} Istalgan vaqtda menga yozishingiz mumkin, doim xizmatingizdaman!`,
-        buttons: []
-      };
-    }
-    if (cleanLower.includes("jangari") || cleanLower.includes("action") || cleanLower.includes("urush") || cleanLower.includes("jang")) {
-      const picks = availableAnimes.filter((a) => {
-        const j = String(a.janrlar || "").toLowerCase();
-        return j.includes("jangari") || j.includes("action") || j.includes("sarguzasht");
-      }).slice(0, 3);
-      for (const p of picks.length ? picks : availableAnimes.slice(0, 3)) {
-        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
-      }
-      return {
-        reply: `${prefix}Jangari janrdagi eng shiddatli va hayajonli animelarni tavsiya qilaman! Quyidagi tugmalar orqali ularni ochib tomosha qilishingiz mumkin \u{1F338}`,
-        buttons
-      };
-    }
-    if (cleanLower.includes("romantik") || cleanLower.includes("sevgi") || cleanLower.includes("drama") || cleanLower.includes("muhabbat")) {
-      const picks = availableAnimes.filter((a) => {
-        const j = String(a.janrlar || "").toLowerCase();
-        return j.includes("romantik") || j.includes("drama");
-      }).slice(0, 3);
-      for (const p of picks.length ? picks : availableAnimes.slice(0, 3)) {
-        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
-      }
-      return {
-        reply: `${prefix}Qalbni larzaga soluvchi, samimiy va chiroyli romantik animelarni tavsiya qilaman! Quyidagi tugmalardan birini tanlab miriqib tomosha qiling \u{1F338}`,
-        buttons
-      };
-    }
-    if (cleanLower.includes("komediya") || cleanLower.includes("kulgili anime") || cleanLower.includes("comedy")) {
-      const picks = availableAnimes.filter((a) => {
-        const j = String(a.janrlar || "").toLowerCase();
-        return j.includes("komediya") || j.includes("comedy");
-      }).slice(0, 3);
-      for (const p of picks.length ? picks : availableAnimes.slice(0, 3)) {
-        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
-      }
-      return {
-        reply: `${prefix}Kayfiyatingizni ko\u2018taruvchi, qahqaha va quvnoq voqealarga boy komediya animelari! Tanlab tomosha qiling \u{1F338}`,
-        buttons
-      };
-    }
-    if (cleanLower.includes("isekai") || cleanLower.includes("boshqa dunyo") || cleanLower.includes("sehr") || cleanLower.includes("fantastika") || cleanLower.includes("fentezi")) {
-      const picks = availableAnimes.filter((a) => {
-        const j = String(a.janrlar || "").toLowerCase();
-        return j.includes("isekai") || j.includes("fantasy") || j.includes("fentezi");
-      }).slice(0, 3);
-      for (const p of picks.length ? picks : availableAnimes.slice(0, 3)) {
-        buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
-      }
-      return {
-        reply: `${prefix}Sehrli olamlar va boshqa dunyoga sayohat haqidagi ajoyib isekai/fentezi animelari! \u{1F338}`,
-        buttons
-      };
-    }
-    if (cleanLower.includes("tavsiya") || cleanLower.includes("nima korsam") || cleanLower.includes("nima ko\u2018rsam") || cleanLower.includes("anime maslahat") || cleanLower.includes("yaxshi anime ber") || cleanLower.includes("qaysi animeni koray") || cleanLower.includes("top anime") || cleanLower.includes("eng mashhur anime")) {
+    if (cleanLower.includes("jangovar") || cleanLower.includes("shonen") || cleanLower.includes("action") || cleanLower.includes("jang")) {
       const picks = availableAnimes.slice(0, 3);
       for (const p of picks) buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
       return {
-        reply: `${prefix}Sizga saytimizdagi eng mashhur va sara sara animelarni tavsiya qilaman! Quyidagi tugmalar orqali ularni ochib tomosha qilishingiz mumkin \u{1F338} Sizga ko\u2018proq qanday janrlar yoqishini aytsangiz, yanada mosini topib beraman!`,
+        reply: `${prefix}Adrenalin, kuchli janglar va qahramonlik ruhi kerak bo'lsa, sizga aynan mana bu zo'r shonen animelarini tavsiya qilaman! \u26A1 Qaysi biridan boshlaymiz?`,
         buttons
       };
     }
-    const conversationalResponses = [
-      `Bu juda qiziq fikr! \u{1F338} Men ham siz bilan to\u2018liq qo\u2018shilaman. Bu haqida ko\u2018proq aytib bera olasizmi? Sizni tinglash menga judayam yoqadi! \u{1F60A}`,
-      `Siz bilan suhbatlashish shunchalik yoqimliki! \u2728 Bu mavzuda yana qanday qiziqarli yangiliklar bor? O\u2018zingiz bugun nimalar bilan bandsiz?`,
-      `Haqiqatan ham shunday! Har bir narsaning o\u2018ziga yarasha go\u2018zalligi bor \u{1F338} Ayting-chi, bugun kuningizda eng esda qolarli nima voqea bo\u2018ldi?`,
-      `Qoyil, siz bilan gaplashganda vaqt o\u2018tgani sezilmay qolar ekan! \u{1F338} Bunga siz qanday qaraysiz? Fikringiz men uchun juda qiziq!`,
-      `Ajoyib gap bo\u2018ldi! \u{1F60A} Men ham doim yangi narsalarni o\u2018rganishni yaxshi ko\u2018raman. Kelgusi rejalaringiz qanday?`
+    if (cleanLower.includes("romantika") || cleanLower.includes("sevgi") || cleanLower.includes("muhabbat")) {
+      const picks = availableAnimes.slice(0, 3);
+      for (const p of picks) buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+      return {
+        reply: `${prefix}Yurakni jizillatuvchi, samimiy va chiroyli sevgi qissalari! Bu animelar har qanday insonning qalbini eritib yuboradi \u{1F338} Marhamat:`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("komediya") || cleanLower.includes("kulgili") || cleanLower.includes("kulgi") || cleanLower.includes("qiziq")) {
+      const picks = availableAnimes.slice(0, 3);
+      for (const p of picks) buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+      return {
+        reply: `${prefix}Kayfiyatni 100% ko'taruvchi, qahqaha va quvnoq voqealarga boy komediya animelari! Kulishga tayyor turing \u{1F604}`,
+        buttons
+      };
+    }
+    if (cleanLower.includes("tavsiya") || cleanLower.includes("nima korsam") || cleanLower.includes("nima ko\u2018rsam") || cleanLower.includes("maslahat")) {
+      const picks = availableAnimes.slice(0, 3);
+      for (const p of picks) buttons.push({ idOrSlug: String(p.id), title: String(p.title) });
+      return {
+        reply: `${prefix}Saytimizdagi eng sara va tomoshabinlar qalbidan chuqur joy olgan top animelar ro'yxati! Sizga ko'proq qaysi yo'nalish yoqishini aytsangiz, yanada mukammal mosini topib beraman \u{1F338}`,
+        buttons
+      };
+    }
+    const dynamicReflections = [
+      `${prefix}"${message.slice(0, 45)}..." deb juda qiziq mavzuni ochdingiz! \u{1F338} Men ham bu haqida o'ylab turardim. Sizning bu boradagi fikrlaringiz menga judayam qiziq, davom ettiring! \u{1F60A}`,
+      `${prefix}Siz bilan gaplashish shunchalik maroqliki, vaqt qanday o'tganini sezmay qolaman! \u2728 Bu haqida yana qanday yangiliklar bor? Sizni tinglash men uchun rohat!`,
+      `${prefix}Haqiqatan ham shunday! Har bir mavzuning o'ziga yarasha jozibasi bor \u{1F338} Bugun kuningizda eng quvonarli voqea nima bo'ldi, o'rtoqlashasizmi?`,
+      `${prefix}Ajoyib fikr! Men ham doim siz kabi mulohazali insonlar bilan suhbatlashishni yaxshi ko'raman \u{1F338} Keling, yangi mavzulardan yoki animelardan nimalar haqida gaplashamiz?`
     ];
-    const pick = conversationalResponses[Math.floor(Math.random() * conversationalResponses.length)];
     return {
-      reply: `${prefix}${pick}`,
+      reply: dynamicReflections[Math.floor(Math.random() * dynamicReflections.length)],
       buttons: []
     };
   }
@@ -9328,40 +9699,7 @@ async function start() {
           reason: "So\u2018kinish yoki haqorat qilindi"
         });
       }
-      const trimmed = userMsg.toLowerCase().trim();
-      if (trimmed === "salom" || trimmed === "assalomu alaykum" || trimmed === "salom mika") {
-        return res.json({
-          reply: "Assalomu alaykum! Xush ko\u2018rdim \u{1F338} Men Mika \u2014 sizning chaqqon anime yordamchingizman. Sizga qanday yordam bera olaman?",
-          animeButtons: [],
-          isAbusive: false,
-          reported: false
-        });
-      }
       const isRegisteredUser = Boolean(userProfile && (userProfile.role === "user" || userProfile.id));
-      if (trimmed === "men adminmanmi" || trimmed === "men adminmanmi yoqmi" || trimmed === "men adminmanmi yo\u2018qmi" || trimmed === "adminmanmi" || trimmed === "adminmanmi yoqmi" || trimmed === "meni taniysanmi" || trimmed === "men kimman" || trimmed === "profilimni bilasanmi" || trimmed === "profilim qanday") {
-        if (isAdmin) {
-          return res.json({
-            reply: `Albatta taniyman! Siz Animem.uz saytimizning hurmatli va aziz Adminisiz! \u{1F451} Saytimizning bosh rahbari va boshqaruvchisisiz. Buyuring, hurmatli Admin, sizga qanday xizmat qilishim mumkin? \u{1F338}`,
-            animeButtons: [],
-            isAbusive: false,
-            reported: false
-          });
-        } else if (isRegisteredUser) {
-          return res.json({
-            reply: `Albatta taniyman! Siz bizning sevimli foydalanuvchimiz ${userName}siz \u{1F338} Saytimizning ro\u2018yxatdan o\u2018tgan faol a\u2019zosisiz. Siz admin emassiz, ammo biz uchun juda qadrli do\u2018stimizsiz! \u{1F60A} Sizga qanday anime topib beray?`,
-            animeButtons: [],
-            isAbusive: false,
-            reported: false
-          });
-        } else {
-          return res.json({
-            reply: `Siz hozircha saytimizga Mehmon sifatida tashrif buyurgansiz \u{1F338} Saytimizga kirish qilsangiz yoki ro\u2018yxatdan o\u2018tsangiz, sizni profilingiz bilan taniyman va ismingizni eslab qolaman! Hozircha siz admin emassiz \u{1F60A}`,
-            animeButtons: [],
-            isAbusive: false,
-            reported: false
-          });
-        }
-      }
       let availableAnimes = [];
       try {
         const [aRows] = await dbQuery("SELECT id, title FROM animes ORDER BY korishlar DESC LIMIT 50;");
@@ -9460,31 +9798,22 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so\u2018kinyapsiz?! Meni xafa qildingi
       if (!apiSuccess || !replyText) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4e3);
-          const aiMessages = [
-            { role: "system", content: systemPrompt },
-            ...Array.isArray(history) ? history.slice(-4).map((h) => ({
-              role: h.role === "model" ? "assistant" : "user",
-              content: String(h.text || h.content || "").slice(0, 300)
-            })) : [],
-            { role: "user", content: `${userName ? `[Foydalanuvchi: ${userName}]: ` : ""}${userMsg}` }
-          ];
-          const pollinationsRes = await fetch("https://text.pollinations.ai/openai/chat/completions", {
+          const timeoutId = setTimeout(() => controller.abort(), 2500);
+          const pollinationsRes = await fetch("https://text.pollinations.ai/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "openai",
-              messages: aiMessages,
-              temperature: 0.7,
-              max_tokens: 600
+              messages: [
+                { role: "system", content: "Siz Mikasiz \u2014 Animem.uz saytining juda yoqimli va chaqqon anime qiz assistentisiz \u{1F338} Qiz bola sifatida o\u2018zbek tilida samimiy va lo\u2018nda gapiring." },
+                { role: "user", content: userMsg }
+              ]
             }),
             signal: controller.signal
           });
           clearTimeout(timeoutId);
           if (pollinationsRes.ok) {
-            const pData = await pollinationsRes.json();
-            const cand = pData.choices?.[0]?.message?.content || "";
-            if (cand && !cand.includes("Free limit reached") && !cand.includes("rate limit")) {
+            const cand = (await pollinationsRes.text()).trim();
+            if (cand && cand.length > 5 && !cand.includes("error") && !cand.includes("limit reached")) {
               replyText = cand;
               apiSuccess = true;
             }

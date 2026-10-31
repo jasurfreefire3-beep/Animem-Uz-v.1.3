@@ -47,6 +47,7 @@ export interface Translations {
   navFavorites: string;
   navHistory: string;
   navChat: string;
+  navMusic: string;
   navSettings: string;
   
   // Home Page
@@ -249,6 +250,7 @@ export const translations: Record<Language, Translations> = {
     navFavorites: "Sevimlilar",
     navHistory: "Tarix",
     navChat: "Jonli Chat",
+    navMusic: "Musiqa",
     navSettings: "Sozlamalar",
     
     popularAnimes: "Mashhur Animelar",
@@ -439,6 +441,7 @@ export const translations: Record<Language, Translations> = {
     navFavorites: "Избранное",
     navHistory: "История",
     navChat: "Онлайн Чат",
+    navMusic: "Музыка",
     navSettings: "Настройки",
     
     popularAnimes: "Популярные Аниме",
@@ -629,6 +632,7 @@ export const translations: Record<Language, Translations> = {
     navFavorites: "Favorites",
     navHistory: "History",
     navChat: "Live Chat",
+    navMusic: "Music",
     navSettings: "Settings",
     
     popularAnimes: "Popular Anime",

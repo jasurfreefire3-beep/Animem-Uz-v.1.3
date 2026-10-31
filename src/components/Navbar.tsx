@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Notification, Anime, toSlug } from '../types';
-import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe, ShoppingBag } from 'lucide-react';
+import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe, ShoppingBag, Headphones } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   getNotificationPermission, 
@@ -23,6 +23,8 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
   const { user, logout } = useAuth();
   const { language, setLanguage, t, getLocalizedPath } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isMusicPage = location.pathname.includes('/music') || location.pathname.includes('/musiqa');
   const [searchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -255,7 +257,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           <img 
             src={logoImg} 
             alt="AnimeUz" 
-            className="h-8 min-[380px]:h-9 w-auto object-contain max-w-[110px]" 
+            className="h-7 min-[380px]:h-8 w-auto object-contain max-w-[95px] min-[380px]:max-w-[110px]" 
           />
         </Link>
 
@@ -339,7 +341,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
       </div>
 
       {/* Right side: Actions & Profile */}
-      <div className="flex items-center space-x-1 min-[400px]:space-x-2 md:space-x-3.5 shrink-0">
+      <div className="flex items-center gap-1 min-[380px]:gap-1.5 md:gap-3 shrink-0">
         
         {/* Mobile Search Icon */}
         <button 
@@ -352,11 +354,11 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         {/* Donat Button */}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('open-donat-modal'))}
-          className="flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:px-3 md:py-1.5 rounded-lg bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 hover:from-[#ff006a]/30 hover:to-purple-600/30 border border-[#ff006a]/40 text-[#ff006a] hover:text-white text-xs font-black transition-all shadow-sm shadow-[#ff006a]/10 cursor-pointer shrink-0"
+          className="flex items-center justify-center w-7 h-7 min-[380px]:w-8 min-[380px]:h-8 md:w-auto md:h-auto md:px-3 md:py-1.5 rounded-lg bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 hover:from-[#ff006a]/30 hover:to-purple-600/30 border border-[#ff006a]/40 text-[#ff006a] hover:text-white text-xs font-black transition-all shadow-sm shadow-[#ff006a]/10 cursor-pointer shrink-0"
           title="Saytni qo'llab-quvvatlash (Donat)"
           aria-label="Donat qilish"
         >
-          <Heart size={15} className="fill-[#ff006a] text-[#ff006a] shrink-0" />
+          <Heart size={14} className="fill-[#ff006a] text-[#ff006a] shrink-0" />
           <span className="hidden md:inline ml-1.5">Donat</span>
         </button>
 
@@ -364,11 +366,11 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         <div className="relative" ref={langRef}>
           <button
             onClick={() => setShowLangDropdown(!showLangDropdown)}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#ff006a]/40 text-xs font-bold text-white/80 transition-all cursor-pointer"
+            className="flex items-center gap-1 px-1.5 py-1 min-[380px]:px-2 min-[380px]:py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#ff006a]/40 text-xs font-bold text-white/80 transition-all cursor-pointer"
             title="Tilni o'zgartirish"
           >
-            <Globe size={14} className="text-[#ff006a]" />
-            <span className="uppercase text-[11px] font-black">{language}</span>
+            <Globe size={13} className="text-[#ff006a]" />
+            <span className="uppercase text-[10px] min-[380px]:text-[11px] font-black">{language}</span>
           </button>
 
           <AnimatePresence>
@@ -403,6 +405,20 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Music Quick Link */}
+        <Link
+          to={getLocalizedPath('/music')}
+          className={`flex items-center justify-center w-7 h-7 min-[380px]:w-8 min-[380px]:h-8 md:w-auto md:h-auto md:px-2.5 md:py-1.5 rounded-lg transition-all shrink-0 ${
+            isMusicPage 
+              ? 'bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 shadow-[0_0_12px_rgba(0,240,255,0.4)]' 
+              : 'text-white/60 hover:text-[#00c8ff] hover:bg-white/5 border border-transparent'
+          }`}
+          title="Animem Musiqa (music.animem.uz)"
+        >
+          <Headphones size={15} />
+          <span className="hidden xl:inline text-xs font-bold text-white/80 hover:text-[#00c8ff] ml-1.5">Musiqa</span>
+        </Link>
 
         {/* Upload/Add Anime Quick-link (Admins only) */}
         {user?.role === 'admin' && (

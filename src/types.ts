@@ -304,3 +304,19 @@ export interface ShopOrder {
   item_title?: string;
   user_name?: string;
 }
+
+export interface Song {
+  id: number | string;
+  title: string;
+  artist: string;
+  anime_title?: string;
+  cover_url: string;
+  audio_url: string;
+  duration?: number;
+  plays?: number;
+  likes?: number;
+  category?: string;
+  lyrics?: string;
+  created_at?: string;
+}
+

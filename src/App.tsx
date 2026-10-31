@@ -43,6 +43,9 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const DMCA = lazy(() => import('./pages/DMCA'));
 const Aloqa = lazy(() => import('./pages/Aloqa'));
+const Music = lazy(() => import('./pages/Music'));
+import MusicPlayerBar from './components/MusicPlayerBar';
+import MusicExpandedPlayer from './components/MusicExpandedPlayer';
 
 function PageLoader() {
   return <LoadingScreen size="lg" />;
@@ -57,6 +60,8 @@ export default function App() {
   const location = useLocation();
   const rawPath = location.pathname.replace(/^\/(uz|ru|ing|en)(\/|$)/, '/');
   const isSupportBot = rawPath === '/support' || location.pathname === '/support';
+  const isMusicSubdomain = typeof window !== 'undefined' && 
+    (window.location.hostname === 'music.animem.uz' || window.location.hostname.startsWith('music.'));
 
   // Scroll to top on route change
   useEffect(() => {
@@ -199,8 +204,13 @@ export default function App() {
           <Suspense fallback={<PageLoader />}>
             <ErrorBoundary key={location.pathname}>
               <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/:lang" element={<Home />} />
+              <Route path="/" element={isMusicSubdomain ? <Music /> : <Home />} />
+              <Route path="/:lang" element={isMusicSubdomain ? <Music /> : <Home />} />
+
+              <Route path="/music" element={<Music />} />
+              <Route path="/:lang/music" element={<Music />} />
+              <Route path="/musiqa" element={<Navigate to="/music" replace />} />
+              <Route path="/:lang/musiqa" element={<Navigate to="/music" replace />} />
 
               <Route path="/login" element={<Login />} />
               <Route path="/:lang/login" element={<Login />} />
@@ -312,6 +322,8 @@ export default function App() {
 
       {/* 4. Overlay Chat widgets, Mobile Navigation, Ad Modal, Notification Prompt, Donat Modal & PWA Install Button */}
       <MobileBottomNav />
+      <MusicPlayerBar />
+      <MusicExpandedPlayer />
       <ChatWidget />
       <MikaAiWidget />
       <DonatModal />

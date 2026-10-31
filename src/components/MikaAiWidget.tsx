@@ -3,6 +3,7 @@ import { X, Send, Volume2, VolumeX, Maximize2, Minimize2, Trash2, AlertTriangle,
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useMusic } from '../context/MusicContext';
 
 export type AnimeButton = {
   idOrSlug: string;
@@ -54,6 +55,8 @@ export const stripStars = (text: string) => {
 
 export default function MikaAiWidget() {
   const { user } = useAuth();
+  const { currentSong, isPlayerBarDismissed } = useMusic();
+  const isMusicActive = Boolean(currentSong && !isPlayerBarDismissed);
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
@@ -222,7 +225,9 @@ export default function MikaAiWidget() {
             }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className={`fixed bottom-36 right-4 sm:bottom-24 sm:right-6 z-40 flex items-center group/btn transition-all duration-200 ${
+            className={`fixed ${
+              isMusicActive ? 'bottom-52' : 'bottom-36'
+            } right-4 sm:bottom-24 sm:right-6 z-40 flex items-center group/btn transition-all duration-300 ${
               isMainChatOpen ? 'pointer-events-none opacity-0 -z-10' : ''
             }`}
           >

@@ -17,7 +17,8 @@ import {
   Sun,
   Shield,
   X,
-  MessageSquare
+  MessageSquare,
+  Music
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { translateGenre } from '../types';
@@ -78,6 +79,7 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
     { name: t.navMyList, path: '/shaxsiy-royxat', icon: Bookmark },
     { name: t.navFavorites, path: '/sevimlilar', icon: Heart },
     { name: t.navHistory, path: '/tarix', icon: History },
+    { name: t.navMusic || 'Musiqa', path: '/music', icon: Music, badge: 'New' },
     { name: t.navChat, path: '/chat', icon: MessageSquare },
     { name: 'Donat qilish', path: '/donat', icon: Heart },
     { name: t.navSettings, path: '/sozlamalar', icon: Settings },
@@ -144,7 +146,12 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
                 }`}
               >
                 <Icon size={18} className={active ? 'text-white' : 'text-white/50'} />
-                <span>{item.name}</span>
+                <span className="flex-1 truncate">{item.name}</span>
+                {item.badge && (
+                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-gradient-to-r from-[#ff006a] to-[#00c8ff] text-white shadow-sm shadow-[#ff006a]/30">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}

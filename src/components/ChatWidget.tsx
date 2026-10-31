@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useMusic } from '../context/MusicContext';
 import { MessageCircle, X, Send, ArrowUp, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, Smile, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -172,6 +173,8 @@ const MemoizedMessage = memo(({
 
 export default function ChatWidget() {
   const { user, token } = useAuth();
+  const { currentSong, isPlayerBarDismissed } = useMusic();
+  const isMusicActive = Boolean(currentSong && !isPlayerBarDismissed);
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -606,7 +609,9 @@ export default function ChatWidget() {
             setIsOpen(true);
             fetchMessages();
           }}
-          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 p-4 bg-gradient-to-r from-[#ff0055] to-[#ff006a] hover:opacity-90 text-white rounded-full shadow-2xl transition-transform hover:scale-110 z-50 flex items-center justify-center shadow-[#ff006a]/20 cursor-pointer"
+          className={`fixed ${
+            isMusicActive ? 'bottom-36' : 'bottom-20'
+          } right-4 sm:bottom-6 sm:right-6 p-4 bg-gradient-to-r from-[#ff0055] to-[#ff006a] hover:opacity-90 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 z-50 flex items-center justify-center shadow-[#ff006a]/20 cursor-pointer`}
         >
           <MessageCircle className="w-6 h-6" />
         </button>

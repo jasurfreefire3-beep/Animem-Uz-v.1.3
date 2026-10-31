@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import React from 'react';
 
 interface AdBanner728x90Props {
   className?: string;
