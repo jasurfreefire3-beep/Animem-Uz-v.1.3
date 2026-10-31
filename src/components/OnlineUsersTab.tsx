@@ -17,6 +17,8 @@ import {
 import { Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, query } from 'firebase/firestore';
+import { io, Socket } from 'socket.io-client';
+import { getSocketUrl } from '../lib/api';
 
 export interface OnlineUserItem {
   sessionId: string;
@@ -53,68 +55,115 @@ export const OnlineUsersTab: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Real-time Firestore Listener
+  const fetchBackendUsers = async () => {
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_BASE}/api/presence/online-users`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.users)) {
+          setOnlineUsers(data.users);
+          setLastRefreshedAt(new Date());
+          setLoading(false);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch online users from backend:', err);
+    }
+    return false;
+  };
+
+  // Real-time Backend Presence & Socket.IO Listener + Firestore fallback
   useEffect(() => {
     setLoading(true);
 
-    let unsubscribe = () => {};
+    // 1. Initial direct fetch from server
+    fetchBackendUsers();
 
+    // 2. Connect to Socket.IO for live instant presence broadcasts
+    let socket: Socket | null = null;
+    try {
+      const socketUrl = getSocketUrl();
+      socket = io(socketUrl);
+      socket.on('online_users_update', (users: OnlineUserItem[]) => {
+        if (Array.isArray(users)) {
+          setOnlineUsers(users);
+          setLastRefreshedAt(new Date());
+          setLoading(false);
+        }
+      });
+    } catch (e) {
+      console.warn('Socket presence connection warning:', e);
+    }
+
+    // 3. Fallback interval polling every 4 seconds
+    const pollInterval = setInterval(() => {
+      fetchBackendUsers();
+    }, 4000);
+
+    // 4. Optional Firestore listener (if active)
+    let unsubscribeFirestore = () => {};
     try {
       if (db) {
         const presenceColRef = collection(db, 'presence');
         const q = query(presenceColRef);
 
-        unsubscribe = onSnapshot(q, (snapshot) => {
-          const currentTime = Date.now();
-          const ACTIVE_TIMEOUT_MS = 60 * 1000; // 1 minute active threshold
+        unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+          if (!snapshot.empty) {
+            const currentTime = Date.now();
+            const ACTIVE_TIMEOUT_MS = 60 * 1000;
+            const users: OnlineUserItem[] = [];
 
-          const users: OnlineUserItem[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            const lastSeenTime = data.lastSeen || (data.updatedAt?.toMillis ? data.updatedAt.toMillis() : currentTime);
-            
-            // Only include users who sent heartbeat within the last 60 seconds
-            if (currentTime - lastSeenTime <= ACTIVE_TIMEOUT_MS) {
-              users.push({
-                sessionId: docSnap.id,
-                userId: data.userId || null,
-                username: data.username || 'Mehmon',
-                avatar: data.avatar || null,
-                role: data.role || 'guest',
-                email: data.email || null,
-                currentPath: data.currentPath || '/',
-                pageLabel: data.pageLabel || 'Bosh sahifa',
-                animeTitle: data.animeTitle || null,
-                animeSlug: data.animeSlug || null,
-                episodeNumber: data.episodeNumber || null,
-                poster: data.poster || null,
-                isWatching: Boolean(data.isWatching || data.animeTitle),
-                userAgent: data.userAgent || '',
-                lastSeen: lastSeenTime,
-                joinedAt: data.joinedAt || lastSeenTime
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data();
+              const lastSeenTime = data.lastSeen || (data.updatedAt?.toMillis ? data.updatedAt.toMillis() : currentTime);
+              
+              if (currentTime - lastSeenTime <= ACTIVE_TIMEOUT_MS) {
+                users.push({
+                  sessionId: docSnap.id,
+                  userId: data.userId || null,
+                  username: data.username || 'Mehmon',
+                  avatar: data.avatar || null,
+                  role: data.role || 'guest',
+                  email: data.email || null,
+                  currentPath: data.currentPath || '/',
+                  pageLabel: data.pageLabel || 'Bosh sahifa',
+                  animeTitle: data.animeTitle || null,
+                  animeSlug: data.animeSlug || null,
+                  episodeNumber: data.episodeNumber || null,
+                  poster: data.poster || null,
+                  isWatching: Boolean(data.isWatching || data.animeTitle),
+                  userAgent: data.userAgent || '',
+                  lastSeen: lastSeenTime,
+                  joinedAt: data.joinedAt || lastSeenTime
+                });
+              }
+            });
+
+            if (users.length > 0) {
+              setOnlineUsers((prev) => {
+                // Merge unique sessions
+                const map = new Map<string, OnlineUserItem>();
+                users.forEach(u => map.set(u.sessionId, u));
+                prev.forEach(u => { if (!map.has(u.sessionId)) map.set(u.sessionId, u); });
+                const merged = Array.from(map.values()).sort((a, b) => b.lastSeen - a.lastSeen);
+                return merged;
               });
+              setLastRefreshedAt(new Date());
+              setLoading(false);
             }
-          });
-
-          // Sort most recently active first
-          users.sort((a, b) => b.lastSeen - a.lastSeen);
-          setOnlineUsers(users);
-          setLastRefreshedAt(new Date());
-          setLoading(false);
-        }, (error) => {
-          console.warn('Firestore onSnapshot presence warning:', error);
-          setLoading(false);
-        });
-      } else {
-        setLoading(false);
+          }
+        }, () => {});
       }
     } catch (err) {
-      console.warn('Error setting up presence listener:', err);
-      setLoading(false);
+      // Ignored
     }
 
     return () => {
-      unsubscribe();
+      clearInterval(pollInterval);
+      if (socket) socket.disconnect();
+      unsubscribeFirestore();
     };
   }, []);
 
@@ -275,12 +324,15 @@ export const OnlineUsersTab: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setLastRefreshedAt(new Date())}
+            onClick={() => {
+              setLoading(true);
+              fetchBackendUsers();
+            }}
             className="p-2.5 bg-[#181818] hover:bg-white/10 border border-[#222] rounded-sm text-white/80 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
             title="Yangilash"
           >
             <RefreshCw size={14} className="text-[#ff006a]" />
-            <span className="hidden sm:inline">Jonli</span>
+            <span className="hidden sm:inline">Yangilash</span>
           </button>
         </div>
       </div>

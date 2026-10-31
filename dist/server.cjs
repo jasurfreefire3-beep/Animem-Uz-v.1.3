@@ -20,8 +20,11 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // server.ts
+var server_exports = {};
+module.exports = __toCommonJS(server_exports);
 var import_express = __toESM(require("express"), 1);
 var import_cors = __toESM(require("cors"), 1);
 var import_crypto = __toESM(require("crypto"), 1);
@@ -1020,6 +1023,31 @@ setTimeout(() => {
 }, 500);
 var watchRooms = /* @__PURE__ */ new Map();
 var socketToWatchRoom = /* @__PURE__ */ new Map();
+var activePresenceUsers = /* @__PURE__ */ new Map();
+var socketToSession = /* @__PURE__ */ new Map();
+var getActivePresenceList = () => {
+  const now = Date.now();
+  const ACTIVE_THRESHOLD_MS = 65e3;
+  const list = [];
+  for (const [sid, user] of activePresenceUsers.entries()) {
+    if (now - user.lastSeen <= ACTIVE_THRESHOLD_MS) {
+      list.push(user);
+    } else {
+      activePresenceUsers.delete(sid);
+    }
+  }
+  list.sort((a, b) => b.lastSeen - a.lastSeen);
+  return list;
+};
+var broadcastPresenceUpdate = () => {
+  try {
+    const list = getActivePresenceList();
+    io.emit("online_users_count", list.length);
+    io.emit("online_users_update", list);
+  } catch (e) {
+  }
+};
+setInterval(broadcastPresenceUpdate, 1e4);
 io.on("connection", (socket) => {
   console.log("A user connected to socket:", socket.id);
   socket.on("joinWatchRoom", (data) => {
@@ -1154,8 +1182,51 @@ io.on("connection", (socket) => {
   socket.on("leaveWatchRoom", () => {
     leaveCurrentWatchRoom();
   });
+  socket.on("presencePing", (data) => {
+    try {
+      const sid = data?.sessionId || `sid_${socket.id}`;
+      socketToSession.set(socket.id, sid);
+      const existing = activePresenceUsers.get(sid);
+      activePresenceUsers.set(sid, {
+        sessionId: sid,
+        socketId: socket.id,
+        userId: data?.userId ? String(data.userId) : existing?.userId || null,
+        username: data?.username || existing?.username || "Mehmon",
+        avatar: data?.avatar || existing?.avatar || null,
+        role: data?.role || existing?.role || "guest",
+        email: data?.email || existing?.email || null,
+        currentPath: data?.currentPath || "/",
+        pageLabel: data?.pageLabel || "Bosh sahifa",
+        animeTitle: data?.animeTitle || null,
+        animeSlug: data?.animeSlug || null,
+        episodeNumber: data?.episodeNumber || null,
+        poster: data?.poster || null,
+        isWatching: Boolean(data?.isWatching || data?.animeTitle),
+        userAgent: data?.userAgent || "",
+        lastSeen: Date.now(),
+        joinedAt: existing?.joinedAt || Date.now()
+      });
+      if (data?.userId) {
+        dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [data.userId]).catch(() => {
+        });
+      }
+    } catch (e) {
+      console.warn("Error in socket presencePing:", e);
+    }
+  });
   socket.on("disconnect", () => {
     leaveCurrentWatchRoom();
+    const sid = socketToSession.get(socket.id);
+    if (sid) {
+      socketToSession.delete(socket.id);
+      setTimeout(() => {
+        const u = activePresenceUsers.get(sid);
+        if (u && Date.now() - u.lastSeen > 35e3) {
+          activePresenceUsers.delete(sid);
+          broadcastPresenceUpdate();
+        }
+      }, 35e3);
+    }
   });
   socket.on("typing", (data) => {
     socket.broadcast.emit("userTyping", data);
@@ -7214,6 +7285,51 @@ app.delete("/api/chat/clear", authenticateToken, requireAdmin, async (req, res) 
   } catch (err) {
     console.error("Clear chat error:", err);
     res.status(500).json({ error: "Failed to clear chat" });
+  }
+});
+app.post("/api/presence/ping", async (req, res) => {
+  try {
+    const data = req.body || {};
+    const sid = data.sessionId || `sid_http_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const existing = activePresenceUsers.get(sid);
+    activePresenceUsers.set(sid, {
+      sessionId: sid,
+      socketId: existing?.socketId || "",
+      userId: data.userId ? String(data.userId) : existing?.userId || null,
+      username: data.username || existing?.username || "Mehmon",
+      avatar: data.avatar || existing?.avatar || null,
+      role: data.role || existing?.role || "guest",
+      email: data.email || existing?.email || null,
+      currentPath: data.currentPath || "/",
+      pageLabel: data.pageLabel || "Bosh sahifa",
+      animeTitle: data.animeTitle || null,
+      animeSlug: data.animeSlug || null,
+      episodeNumber: data.episodeNumber || null,
+      poster: data.poster || null,
+      isWatching: Boolean(data.isWatching || data.animeTitle),
+      userAgent: data.userAgent || req.headers["user-agent"] || "",
+      lastSeen: Date.now(),
+      joinedAt: existing?.joinedAt || Date.now()
+    });
+    if (data.userId) {
+      dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [data.userId]).catch(() => {
+      });
+    }
+    res.json({ success: true, timestamp: Date.now() });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to record presence" });
+  }
+});
+app.get("/api/presence/online-users", (req, res) => {
+  try {
+    const list = getActivePresenceList();
+    res.json({
+      onlineCount: list.length,
+      users: list,
+      timestamp: Date.now()
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to get online users", users: [], onlineCount: 0 });
   }
 });
 var BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8699829863:AAHk_-1c8R9xpE8QPNAdIQwPcY3XQn72NLc";

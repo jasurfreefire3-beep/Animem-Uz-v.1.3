@@ -1155,6 +1155,55 @@ interface WatchRoom {
 const watchRooms = new Map<string, WatchRoom>();
 const socketToWatchRoom = new Map<string, string>(); // socketId -> roomId
 
+// --- Real-time Online Users Presence Store ---
+export interface PresenceUser {
+  sessionId: string;
+  socketId: string;
+  userId?: string | null;
+  username: string;
+  avatar?: string | null;
+  role?: string;
+  email?: string | null;
+  currentPath: string;
+  pageLabel: string;
+  animeTitle?: string | null;
+  animeSlug?: string | null;
+  episodeNumber?: number | string | null;
+  poster?: string | null;
+  isWatching: boolean;
+  userAgent?: string;
+  lastSeen: number;
+  joinedAt?: number;
+}
+
+const activePresenceUsers = new Map<string, PresenceUser>();
+const socketToSession = new Map<string, string>();
+
+const getActivePresenceList = (): PresenceUser[] => {
+  const now = Date.now();
+  const ACTIVE_THRESHOLD_MS = 65000; // 65 seconds
+  const list: PresenceUser[] = [];
+  for (const [sid, user] of activePresenceUsers.entries()) {
+    if (now - user.lastSeen <= ACTIVE_THRESHOLD_MS) {
+      list.push(user);
+    } else {
+      activePresenceUsers.delete(sid);
+    }
+  }
+  list.sort((a, b) => b.lastSeen - a.lastSeen);
+  return list;
+};
+
+const broadcastPresenceUpdate = () => {
+  try {
+    const list = getActivePresenceList();
+    io.emit("online_users_count", list.length);
+    io.emit("online_users_update", list);
+  } catch (e) {}
+};
+
+setInterval(broadcastPresenceUpdate, 10000);
+
 // --- Socket.io Real-time Chat & Watch Together Logic ---
 io.on("connection", (socket) => {
   console.log("A user connected to socket:", socket.id);
@@ -1317,8 +1366,53 @@ io.on("connection", (socket) => {
     leaveCurrentWatchRoom();
   });
 
+  // Handle Presence Ping from connected client
+  socket.on("presencePing", (data: any) => {
+    try {
+      const sid = data?.sessionId || `sid_${socket.id}`;
+      socketToSession.set(socket.id, sid);
+      const existing = activePresenceUsers.get(sid);
+      activePresenceUsers.set(sid, {
+        sessionId: sid,
+        socketId: socket.id,
+        userId: data?.userId ? String(data.userId) : (existing?.userId || null),
+        username: data?.username || existing?.username || "Mehmon",
+        avatar: data?.avatar || existing?.avatar || null,
+        role: data?.role || existing?.role || "guest",
+        email: data?.email || existing?.email || null,
+        currentPath: data?.currentPath || "/",
+        pageLabel: data?.pageLabel || "Bosh sahifa",
+        animeTitle: data?.animeTitle || null,
+        animeSlug: data?.animeSlug || null,
+        episodeNumber: data?.episodeNumber || null,
+        poster: data?.poster || null,
+        isWatching: Boolean(data?.isWatching || data?.animeTitle),
+        userAgent: data?.userAgent || "",
+        lastSeen: Date.now(),
+        joinedAt: existing?.joinedAt || Date.now(),
+      });
+
+      if (data?.userId) {
+        dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [data.userId]).catch(() => {});
+      }
+    } catch (e) {
+      console.warn("Error in socket presencePing:", e);
+    }
+  });
+
   socket.on("disconnect", () => {
     leaveCurrentWatchRoom();
+    const sid = socketToSession.get(socket.id);
+    if (sid) {
+      socketToSession.delete(socket.id);
+      setTimeout(() => {
+        const u = activePresenceUsers.get(sid);
+        if (u && Date.now() - u.lastSeen > 35000) {
+          activePresenceUsers.delete(sid);
+          broadcastPresenceUpdate();
+        }
+      }, 35000);
+    }
   });
 
   // 2. Synchronously register Global chat socket listeners
@@ -8553,6 +8647,55 @@ app.delete("/api/chat/clear", authenticateToken, requireAdmin, async (req: any, 
   } catch (err) {
     console.error("Clear chat error:", err);
     res.status(500).json({ error: "Failed to clear chat" });
+  }
+});
+
+// --- Presence / Online Users Endpoints ---
+app.post("/api/presence/ping", async (req: any, res: any) => {
+  try {
+    const data = req.body || {};
+    const sid = data.sessionId || `sid_http_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const existing = activePresenceUsers.get(sid);
+    activePresenceUsers.set(sid, {
+      sessionId: sid,
+      socketId: existing?.socketId || "",
+      userId: data.userId ? String(data.userId) : (existing?.userId || null),
+      username: data.username || existing?.username || "Mehmon",
+      avatar: data.avatar || existing?.avatar || null,
+      role: data.role || existing?.role || "guest",
+      email: data.email || existing?.email || null,
+      currentPath: data.currentPath || "/",
+      pageLabel: data.pageLabel || "Bosh sahifa",
+      animeTitle: data.animeTitle || null,
+      animeSlug: data.animeSlug || null,
+      episodeNumber: data.episodeNumber || null,
+      poster: data.poster || null,
+      isWatching: Boolean(data.isWatching || data.animeTitle),
+      userAgent: data.userAgent || req.headers["user-agent"] || "",
+      lastSeen: Date.now(),
+      joinedAt: existing?.joinedAt || Date.now(),
+    });
+
+    if (data.userId) {
+      dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [data.userId]).catch(() => {});
+    }
+
+    res.json({ success: true, timestamp: Date.now() });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to record presence" });
+  }
+});
+
+app.get("/api/presence/online-users", (req: any, res: any) => {
+  try {
+    const list = getActivePresenceList();
+    res.json({
+      onlineCount: list.length,
+      users: list,
+      timestamp: Date.now(),
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to get online users", users: [], onlineCount: 0 });
   }
 });
 

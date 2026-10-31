@@ -121,8 +121,8 @@ const MemoizedMessage = memo(({
             <CheckCheck size={12} className="text-[#ff006a]/70" />
           )}
 
-          {/* Quick Action buttons */}
-          <div className={`flex items-center gap-1 ${isMe ? 'mr-auto' : 'ml-auto'}`}>
+          {/* Quick Action buttons - Ultra-comfortable High Contrast Glass Styling */}
+          <div className={`flex items-center gap-1.5 ${isMe ? 'mr-auto' : 'ml-auto'}`}>
             {user && (
               <button
                 type="button"
@@ -130,13 +130,13 @@ const MemoizedMessage = memo(({
                   e.stopPropagation();
                   setReplyingTo(msg);
                 }}
-                className={`text-[#ff006a] hover:bg-[#ff006a]/20 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 transition-all border border-[#ff006a]/20 cursor-pointer ${
-                  isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                className={`bg-[#0c0d18]/90 hover:bg-[#ff006a] text-white hover:text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 transition-all border border-white/20 hover:border-[#ff006a] shadow-lg shadow-black/80 backdrop-blur-md cursor-pointer ${
+                  isActive ? 'opacity-100 ring-2 ring-[#ff006a]' : 'opacity-80 sm:opacity-0 sm:group-hover:opacity-100'
                 }`}
-                title="Javob berish"
+                title="Javob berish (Reply)"
               >
-                <CornerUpLeft size={10} />
-                <span className="hidden sm:inline">Reply</span>
+                <CornerUpLeft size={11} className="text-[#ff006a] group-hover:text-white" />
+                <span>Reply</span>
               </button>
             )}
 
@@ -147,12 +147,13 @@ const MemoizedMessage = memo(({
                   e.stopPropagation();
                   handleDeleteMessage(msg.id);
                 }}
-                className={`text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 text-[9px] font-bold p-1 rounded-full flex items-center transition-all border border-rose-500/20 cursor-pointer ${
-                  isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                className={`bg-rose-950/85 hover:bg-rose-600 text-rose-200 hover:text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 transition-all border border-rose-500/40 hover:border-rose-400 shadow-lg shadow-black/80 backdrop-blur-md cursor-pointer ${
+                  isActive ? 'opacity-100 ring-2 ring-rose-500' : 'opacity-80 sm:opacity-0 sm:group-hover:opacity-100'
                 }`}
                 title="O'chirish"
               >
                 <Trash2 size={11} />
+                <span className="text-[9px]">O'chirish</span>
               </button>
             )}
           </div>

@@ -79,7 +79,17 @@ export const usePresenceTracker = () => {
         updatedAt: serverTimestamp()
       };
 
-      // 1. Broadcast via local BroadcastChannel
+      // 1. Send to Backend Presence API (Node.js & PostgreSQL)
+      try {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+        fetch(`${API_BASE}/api/presence/ping`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch (err) {}
+
+      // 2. Broadcast via local BroadcastChannel
       try {
         if (typeof BroadcastChannel !== 'undefined') {
           const channel = new BroadcastChannel('animem_presence_sync');
@@ -90,7 +100,7 @@ export const usePresenceTracker = () => {
         // ignore broadcast channel error
       }
 
-      // 2. Sync to Firebase Firestore
+      // 3. Sync to Firebase Firestore (fallback)
       try {
         if (db) {
           const presenceDocRef = doc(db, 'presence', sid);
@@ -100,7 +110,7 @@ export const usePresenceTracker = () => {
         console.warn('Presence firestore ping warning:', err);
       }
 
-      // 3. Heartbeat ping to PostgreSQL backend for authentic last_seen and online tracking
+      // 4. Heartbeat ping to user table
       try {
         if (typeof window !== 'undefined') {
           const token = localStorage.getItem('token');
