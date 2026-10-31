@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
-import { MessageCircle, X, Send, ArrowUp, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, Smile, ChevronDown } from 'lucide-react';
+import { MessageCircle, X, Send, ArrowUp, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, ChevronDown, CheckCheck, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { io, Socket } from 'socket.io-client';
@@ -13,8 +13,14 @@ import FormattedContent, { isGifContent } from './FormattedContent';
 import UserAvatar from './UserAvatar';
 import { getSocketUrl } from '../lib/api';
 
-const CHAT_BG_IMAGE = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRbK8qI1E3BjTK74xv_20a3cTlFO8toJzzRqbJmZHUE4Qrg4dAKPrWmyZw&s=10";
+const CHAT_BG_WALLPAPER = "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1920&auto=format&fit=crop";
 
+interface TypingUser {
+  id: string | number;
+  name: string;
+  type: 'text' | 'voice';
+  expiresAt: number;
+}
 
 const MemoizedMessage = memo(({ 
   msg, 
@@ -28,8 +34,8 @@ const MemoizedMessage = memo(({
   handleTouchEnd,
   onCloseChat
 }: any) => {
-  const isMe = msg.user_id === user?.id;
-  const canDelete = user && (user.role === 'admin' || user.id === msg.user_id);
+  const isMe = String(msg.user_id) === String(user?.id);
+  const canDelete = user && (user.role === 'admin' || String(user.id) === String(msg.user_id));
   const avatarSrc = msg.user_avatar || msg.avatar_url || msg.user?.avatar_url || (isMe ? user?.avatar_url : null);
   const displayName = msg.user_name || msg.name || msg.user?.name || (isMe ? (user?.name || 'Men') : 'Foydalanuvchi');
   const frameSrc = msg.user_avatar_frame || msg.avatar_frame_url || msg.user?.avatar_frame_url || (isMe ? user?.avatar_frame_url : null);
@@ -37,6 +43,7 @@ const MemoizedMessage = memo(({
   const parsedContent = parseMessageContent(msg.content);
   const parsedReply = msg.reply_to_content ? parseMessageContent(msg.reply_to_content) : null;
   const hasValidUserId = Boolean(msg.user_id && msg.user_id !== 'undefined' && msg.user_id !== 'null' && Number(msg.user_id) > 0);
+  const isAdmin = msg.role === 'admin' || msg.user?.role === 'admin';
 
   return (
     <div 
@@ -45,8 +52,11 @@ const MemoizedMessage = memo(({
       onTouchStart={() => handleTouchStart(msg)}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
-      className="flex items-start gap-2.5 group my-1 cursor-pointer select-none"
+      className={`flex items-start gap-2 sm:gap-2.5 group my-2 cursor-pointer select-none transition-all ${
+        isMe ? 'flex-row-reverse' : 'flex-row'
+      }`}
     >
+      {/* User Avatar */}
       {hasValidUserId ? (
         <Link 
           to={isMe ? "/profil" : `/user/${msg.user_id}`} 
@@ -54,7 +64,7 @@ const MemoizedMessage = memo(({
             e.stopPropagation();
             onCloseChat?.();
           }} 
-          className="shrink-0 mt-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+          className="shrink-0 mt-0.5 hover:scale-105 transition-transform"
         >
           <UserAvatar
             size="md"
@@ -74,8 +84,10 @@ const MemoizedMessage = memo(({
         </div>
       )}
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-1">
+      {/* Message Content Container */}
+      <div className={`flex-1 min-w-0 max-w-[85%] sm:max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+        {/* Name and Meta Header */}
+        <div className={`flex items-center gap-1.5 mb-1 px-1 text-[11px] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
           {hasValidUserId ? (
             <Link 
               to={isMe ? "/profil" : `/user/${msg.user_id}`} 
@@ -83,22 +95,35 @@ const MemoizedMessage = memo(({
                 e.stopPropagation();
                 onCloseChat?.();
               }} 
-              className={`font-bold text-xs hover:underline cursor-pointer ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}
+              className={`font-bold hover:underline flex items-center gap-1 ${isMe ? 'text-[#ff006a]' : 'text-cyan-400'}`}
             >
-              {msg.user_name}
+              <span>{displayName}</span>
+              {isAdmin && (
+                <span title="Admin"><ShieldCheck size={12} className="text-amber-400" /></span>
+              )}
             </Link>
           ) : (
-            <span className={`font-bold text-xs ${isMe ? 'text-[#ff006a]' : 'text-[#4fd1c5]'}`}>
-              {msg.user_name}
+            <span className={`font-bold flex items-center gap-1 ${isMe ? 'text-[#ff006a]' : 'text-cyan-400'}`}>
+              <span>{displayName}</span>
+              {isAdmin && (
+                <span title="Admin"><ShieldCheck size={12} className="text-amber-400" /></span>
+              )}
             </span>
           )}
-          <span className="text-white/40 text-[9px]">
-            {format(new Date(msg.created_at), 'HH:mm')}
+
+          <span className="text-white/40 text-[9px] font-mono">
+            {format(new Date(msg.created_at || Date.now()), 'HH:mm')}
           </span>
-          
-          <div className="ml-auto flex items-center gap-1">
+
+          {isMe && (
+            <CheckCheck size={12} className="text-[#ff006a]/70" />
+          )}
+
+          {/* Quick Action buttons */}
+          <div className={`flex items-center gap-1 ${isMe ? 'mr-auto' : 'ml-auto'}`}>
             {user && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setReplyingTo(msg);
@@ -109,38 +134,41 @@ const MemoizedMessage = memo(({
                 title="Javob berish"
               >
                 <CornerUpLeft size={10} />
-                <span>Reply</span>
+                <span className="hidden sm:inline">Reply</span>
               </button>
             )}
 
             {canDelete && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDeleteMessage(msg.id);
                 }}
-                className={`text-red-400 hover:text-red-300 hover:bg-red-950/40 text-[9px] font-bold p-1 rounded-full flex items-center transition-all border border-red-500/20 cursor-pointer ${
+                className={`text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 text-[9px] font-bold p-1 rounded-full flex items-center transition-all border border-rose-500/20 cursor-pointer ${
                   isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}
-                title="O'chirish (yoki o'ng tugmani bosing)"
+                title="O'chirish"
               >
-                <Trash2 size={10} />
+                <Trash2 size={11} />
               </button>
             )}
           </div>
         </div>
 
+        {/* Message Bubble */}
         <div 
-          className={`px-3 py-2 text-white/95 text-xs inline-block leading-relaxed max-w-full shadow-lg rounded-xl border backdrop-blur-sm ${
+          className={`px-3 py-2 text-xs inline-block leading-relaxed max-w-full backdrop-blur-xl shadow-xl transition-all ${
             isMe 
-              ? 'bg-[#141418]/90 border-[#ff006a]/30 text-white' 
-              : 'bg-[#16161c]/90 border-white/15 text-white/90'
+              ? 'bg-gradient-to-br from-[#ff006a]/20 via-[#9333ea]/15 to-[#ff006a]/10 border border-[#ff006a]/40 text-white rounded-2xl rounded-tr-xs shadow-[0_4px_24px_rgba(255,0,106,0.14)]' 
+              : 'bg-[#12121a]/95 border border-white/10 hover:border-white/20 text-white/95 rounded-2xl rounded-tl-xs shadow-lg'
           }`}
         >
+          {/* Reply Context Block */}
           {msg.reply_to_id && (
-            <div className="mb-1.5 text-[10px] bg-black/60 border-l-2 border-[#ff006a] p-1.5 rounded-sm text-left opacity-90">
-              <span className="font-bold text-[#ff006a] text-[8px]">@{msg.reply_to_name}</span>
-              <p className="text-white/70 text-[9px] truncate max-w-[180px]">
+            <div className="mb-2 text-[10px] bg-black/50 border-l-2 border-[#ff006a] px-2.5 py-1.5 rounded-r-md text-left">
+              <span className="font-bold text-[#ff006a] text-[9px]">@{msg.reply_to_name}</span>
+              <p className="text-white/70 text-[9px] truncate max-w-[200px]">
                 {parsedReply?.isVoice ? (
                   <span className="flex items-center gap-1 text-[#ff006a]">
                     <Mic size={10} /> Ovozli xabar
@@ -156,6 +184,7 @@ const MemoizedMessage = memo(({
             </div>
           )}
 
+          {/* Message Content */}
           {parsedContent.isVoice ? (
             <AudioMessage
               src={parsedContent.audioUrl}
@@ -184,7 +213,7 @@ export default function ChatWidget() {
   const [activeMsgId, setActiveMsgId] = useState<string | number | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  // Clear obsolete cache so old wiped messages never appear
+  // Clear obsolete cache
   useEffect(() => {
     try {
       localStorage.removeItem('cached_chat_messages');
@@ -216,7 +245,7 @@ export default function ChatWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [typingUsers, setTypingUsers] = useState<{ id: string | number; name: string; type: 'text' | 'voice'; expiresAt: number }[]>([]);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleScroll = () => {
@@ -240,41 +269,31 @@ export default function ChatWidget() {
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-      }, 50);
+        scrollToBottom();
+      }, 200);
     }
   }, [isOpen]);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
-  };
-
-  const fetchMessages = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-      const res = await fetch(`${API_BASE}/api/chat/messages`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setMessages(data);
+  useEffect(() => {
+    const fetchInitialMessages = async () => {
+      try {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+        const res = await fetch(`${API_BASE}/api/chat/messages`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setMessages(data);
+          }
         }
+      } catch (err) {
+        // Handled by socket
+      } finally {
+        setIsLoading(false);
+        scrollToBottom();
       }
-    } catch (err) {
-      // Socket listener will provide backup
-    } finally {
-      setIsLoading(false);
-      scrollToBottom();
-    }
-  }, []);
+    };
+    fetchInitialMessages();
 
-  useEffect(() => {
-    fetchMessages();
-  }, [fetchMessages]);
-
-  useEffect(() => {
     // Connect to the socket server
     const socketUrl = getSocketUrl();
     const socket = io(socketUrl);
@@ -283,9 +302,6 @@ export default function ChatWidget() {
     socket.on('previousMessages', (prevMsgs: Message[]) => {
       if (Array.isArray(prevMsgs) && prevMsgs.length > 0) {
         setMessages(prevMsgs);
-        try {
-          localStorage.setItem('cached_chat_messages', JSON.stringify(prevMsgs));
-        } catch (e) {}
       }
       setIsLoading(false);
       scrollToBottom();
@@ -333,9 +349,6 @@ export default function ChatWidget() {
 
     socket.on('chatCleared', () => {
       setMessages([]);
-      try {
-        localStorage.removeItem('cached_chat_messages');
-      } catch (e) {}
       setIsLoading(false);
     });
 
@@ -353,10 +366,20 @@ export default function ChatWidget() {
       clearTimeout(timeout);
       socket.disconnect();
     };
-  }, []);
+  }, [user?.id]);
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
 
   const sendChatMessage = async (contentToSend: string) => {
     if (!contentToSend || !user) return;
+
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit("stopTyping", { id: user.id, name: user.name });
+    }
 
     const userAvatar = (user as any).avatar_url || (user as any).avatar || null;
     const userAvatarFrame = (user as any).avatar_frame_url || null;
@@ -375,7 +398,6 @@ export default function ChatWidget() {
       created_at: new Date().toISOString(),
     };
 
-    // 0ms darhol ekranda ko'rsatish
     setMessages((prev) => [...prev, optimisticMsg]);
     setIsLoading(false);
     scrollToBottom();
@@ -419,24 +441,17 @@ export default function ChatWidget() {
           sent = true;
         }
       } catch (err) {
-        console.warn("REST API send fallback failed:", err);
+        console.warn("REST fallback failed:", err);
       }
     }
 
     if (sent) {
       setInputValue('');
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    if (user && socketRef.current && socketRef.current.connected) {
-      socketRef.current.emit("stopTyping", { id: user.id, name: user.name });
-    }
       setReplyingTo(null);
       setShowEmojiPicker(false);
-    } else {
-      console.error("Failed to send message via all channels");
     }
   };
 
-  
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
     
@@ -674,17 +689,6 @@ export default function ChatWidget() {
     await sendChatMessage(`[gif]${gifUrl}[/gif]`);
   };
 
-  const handleSelectEmoji = (emojiOrGif: string) => {
-    if (emojiOrGif.startsWith('[gif]') || emojiOrGif.startsWith('http')) {
-      handleSelectGif(emojiOrGif.replace(/\[\/?gif\]/g, ''));
-      return;
-    }
-    setInputValue(prev => prev + emojiOrGif);
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  };
-
   const formatRecordingTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
@@ -692,7 +696,7 @@ export default function ChatWidget() {
   };
 
   const handleClearChat = async () => {
-    if (window.confirm("Haqiqatan ham barcha xabarlarni o'chirmoqchimisiz?")) {
+    if (window.confirm("Barcha xabarlarni o'chirib tashlamoqchimisiz?")) {
       try {
         const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
         await fetch(`${API_BASE}/api/chat/clear`, {
@@ -709,38 +713,48 @@ export default function ChatWidget() {
 
   return (
     <>
-      {!isOpen && (
-        <button
-          onClick={() => {
-            setIsOpen(true);
-            fetchMessages();
-          }}
-          className={`fixed ${
-            isMusicActive ? 'bottom-36' : 'bottom-20'
-          } right-4 sm:bottom-6 sm:right-6 p-4 bg-gradient-to-r from-[#ff0055] to-[#ff006a] hover:opacity-90 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 z-50 flex items-center justify-center shadow-[#ff006a]/20 cursor-pointer`}
-        >
-          <MessageCircle className="w-6 h-6" />
-        </button>
-      )}
+      {/* Floating Chat Trigger Button */}
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className={`fixed right-4 z-40 transition-all duration-300 ${
+              isMusicActive ? 'bottom-28 sm:bottom-28' : 'bottom-6'
+            }`}
+          >
+            <button
+              onClick={() => setIsOpen(true)}
+              className="relative group p-3.5 bg-gradient-to-tr from-[#ff006a] to-[#a855f7] hover:opacity-95 text-white rounded-full shadow-2xl shadow-[#ff006a]/40 transition-all hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer border border-white/20"
+              title="Umumiy chatni ochish"
+            >
+              <MessageCircle className="w-6 h-6 stroke-[2.2]" />
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#09090b] animate-pulse" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* Floating Chat Modal Panel */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.95 }}
-            className={`fixed z-[60] bg-[#09090b]/95 backdrop-blur-md border border-[#1a1a1a] shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
+            className={`fixed z-[60] bg-[#09090e]/98 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
               isExpanded 
-                ? 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[calc(100vw-32px)] sm:max-w-[800px] h-full sm:h-[85vh] rounded-none sm:rounded-sm' 
-                : 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[380px] h-full sm:h-[550px] sm:max-h-[calc(100vh-120px)] rounded-none sm:rounded-sm'
+                ? 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[calc(100vw-32px)] sm:max-w-[800px] h-full sm:h-[85vh] rounded-none sm:rounded-2xl' 
+                : 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[400px] h-full sm:h-[580px] sm:max-h-[calc(100vh-100px)] rounded-none sm:rounded-2xl'
             }`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-3.5 border-b border-[#1a1a1a] bg-[#0c0c0e]/95 backdrop-blur-sm shrink-0">
+            <div className="flex items-center justify-between p-3.5 border-b border-white/10 bg-[#0c0c14]/95 backdrop-blur-md shrink-0">
               <div className="flex items-center space-x-2">
                 <button 
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="hidden sm:inline-flex p-1.5 hover:bg-[#1a1a1a] rounded text-white/50 hover:text-white transition-colors cursor-pointer"
+                  className="hidden sm:inline-flex p-1.5 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-colors cursor-pointer"
                   title={isExpanded ? "Kichraytirish" : "Kattalashtirish"}
                 >
                   {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -748,7 +762,7 @@ export default function ChatWidget() {
                 {user?.role === 'admin' && (
                   <button 
                     onClick={handleClearChat}
-                    className="p-1.5 hover:bg-red-950/20 text-red-500/80 hover:text-red-400 rounded transition-colors cursor-pointer"
+                    className="p-1.5 hover:bg-rose-950/20 text-rose-400 hover:text-rose-300 rounded-lg transition-colors cursor-pointer"
                     title="Tozalash"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -757,8 +771,13 @@ export default function ChatWidget() {
               </div>
               
               <div className="flex items-center space-x-2">
-                <Sparkles size={15} className="text-[#ff006a]" />
-                <h3 className="font-black text-[#ff006a] tracking-wider text-xs uppercase">Umumiy chat</h3>
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-[#ff006a] to-[#a855f7] flex items-center justify-center text-white shadow-sm shadow-[#ff006a]/30">
+                  <Sparkles size={13} />
+                </div>
+                <h3 className="font-extrabold text-white tracking-wide text-xs uppercase flex items-center gap-1.5">
+                  <span>Umumiy Chat</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                </h3>
               </div>
               
               <button 
@@ -770,13 +789,13 @@ export default function ChatWidget() {
               </button>
             </div>
 
-            {/* Messages Body with Anime Custom Background Wallpaper */}
+            {/* Messages Body with Anime Custom Wallpaper */}
             <div 
               ref={scrollContainerRef}
               onScroll={handleScroll}
-              className="flex-1 overflow-y-auto p-4 space-y-3.5 custom-scrollbar relative"
+              className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 custom-scrollbar relative"
               style={{
-                backgroundImage: `linear-gradient(to bottom, rgba(9, 9, 11, 0.85), rgba(3, 3, 3, 0.90)), url("${CHAT_BG_IMAGE}")`,
+                backgroundImage: `linear-gradient(to bottom, rgba(9, 9, 14, 0.90), rgba(5, 5, 8, 0.95)), url("${CHAT_BG_WALLPAPER}")`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundAttachment: 'local'
@@ -788,8 +807,11 @@ export default function ChatWidget() {
                   <span className="text-white/80 text-xs font-semibold animate-pulse tracking-wide">Yuklanmoqda...</span>
                 </div>
               ) : messages.length === 0 ? (
-                <div className="text-center py-20 text-white/40 text-xs font-medium">
-                  Xabarlar mavjud emas. Suhbatni boshlang...
+                <div className="text-center py-24 text-white/40 text-xs font-medium space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/30">
+                    <Sparkles size={18} />
+                  </div>
+                  <p>Xabarlar mavjud emas. Suhbatni boshlang!</p>
                 </div>
               ) : (
                 messages.map((msg) => (
@@ -811,29 +833,30 @@ export default function ChatWidget() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Replying Preview */}
+            {/* Replying Preview Banner */}
             <AnimatePresence>
               {replyingTo && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="px-4 py-1.5 bg-[#0c0c0e] border-t border-[#1a1a1a] flex items-center justify-between text-[11px] shrink-0"
+                  className="px-3.5 py-1.5 bg-[#0c0c14] border-t border-white/10 flex items-center justify-between text-xs shrink-0"
                 >
-                  <div className="flex items-center space-x-2 border-l-2 border-[#ff006a] pl-2">
-                    <CornerUpLeft size={10} className="text-[#ff006a]" />
-                    <div className="truncate">
+                  <div className="flex items-center space-x-2 border-l-2 border-[#ff006a] pl-2 truncate">
+                    <CornerUpLeft size={12} className="text-[#ff006a] shrink-0" />
+                    <div className="truncate text-[11px]">
                       <span className="font-bold text-[#ff006a]">@{replyingTo.user_name}</span>
-                      <span className="text-white/50 ml-2 truncate max-w-[150px] inline-block align-middle">
+                      <span className="text-white/60 ml-1.5 truncate max-w-[200px] inline-block align-middle">
                         {parseMessageContent(replyingTo.content).isVoice ? '🎤 Ovozli xabar' : replyingTo.content}
                       </span>
                     </div>
                   </div>
                   <button 
                     onClick={() => setReplyingTo(null)}
-                    className="p-1 text-white/40 hover:text-white cursor-pointer"
+                    className="p-1 text-white/40 hover:text-white rounded-full hover:bg-white/10 cursor-pointer"
+                    title="Bekor qilish"
                   >
-                    <X size={12} />
+                    <X size={13} />
                   </button>
                 </motion.div>
               )}
@@ -843,15 +866,15 @@ export default function ChatWidget() {
             <AnimatePresence>
               {selectedMsgForAction && (
                 <div 
-                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+                  className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
                   onClick={() => setSelectedMsgForAction(null)}
                 >
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.92 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
+                    exit={{ opacity: 0, scale: 0.92 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-[#121216] border border-[#ff006a]/40 rounded-xl p-4 w-72 shadow-2xl space-y-3"
+                    className="bg-[#101018] border border-white/15 rounded-2xl p-4 w-72 shadow-2xl space-y-3"
                   >
                     <div className="border-b border-white/10 pb-2">
                       <p className="text-[11px] text-white/50">Xabar amallari</p>
@@ -861,11 +884,11 @@ export default function ChatWidget() {
                     </div>
 
                     <div className="space-y-1.5">
-                      {user && (user.role === 'admin' || user.id === selectedMsgForAction.user_id) && (
+                      {user && (user.role === 'admin' || String(user.id) === String(selectedMsgForAction.user_id)) && (
                         <button
                           type="button"
                           onClick={() => handleDeleteMessage(selectedMsgForAction.id)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg transition-colors cursor-pointer border border-red-500/20"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 rounded-xl transition-colors cursor-pointer border border-rose-500/20"
                         >
                           <Trash2 size={15} />
                           <span>Xabarni o'chirish</span>
@@ -878,7 +901,7 @@ export default function ChatWidget() {
                           setReplyingTo(selectedMsgForAction);
                           setSelectedMsgForAction(null);
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-white/80 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-white/90 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
                       >
                         <CornerUpLeft size={15} className="text-[#ff006a]" />
                         <span>Javob berish</span>
@@ -897,10 +920,10 @@ export default function ChatWidget() {
               )}
             </AnimatePresence>
 
-            {/* GIF Picker Popover */}
+            {/* GIPHY Picker Popover */}
             <AnimatePresence>
               {showEmojiPicker && (
-                <div className="absolute bottom-16 left-2 z-50">
+                <div className="absolute bottom-16 left-2 right-2 sm:right-auto z-50">
                   <GifPicker
                     onSelectGif={handleSelectGif}
                     onClose={() => setShowEmojiPicker(false)}
@@ -914,11 +937,11 @@ export default function ChatWidget() {
               {showScrollBottom && (
                 <motion.button
                   type="button"
-                  initial={{ opacity: 0, scale: 0.6, y: 10 }}
+                  initial={{ opacity: 0, scale: 0.7, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.6, y: 10 }}
+                  exit={{ opacity: 0, scale: 0.7, y: 10 }}
                   onClick={handleScrollToBottom}
-                  className="absolute right-4 bottom-16 sm:bottom-18 z-40 p-2 sm:p-2.5 bg-[#121216]/95 hover:bg-[#ff006a] text-[#ff006a] hover:text-white border border-[#ff006a]/40 hover:border-[#ff006a] rounded-full shadow-2xl shadow-black/80 backdrop-blur-md transition-all duration-200 cursor-pointer flex items-center justify-center group"
+                  className="absolute right-4 bottom-18 z-40 p-2 sm:p-2.5 bg-[#12121c]/95 hover:bg-[#ff006a] text-[#ff006a] hover:text-white border border-[#ff006a]/40 hover:border-[#ff006a] rounded-full shadow-2xl backdrop-blur-md transition-all duration-200 cursor-pointer flex items-center justify-center group"
                   title="Pastga tushish"
                 >
                   <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-y-0.5 transition-transform" />
@@ -926,13 +949,12 @@ export default function ChatWidget() {
               )}
             </AnimatePresence>
 
-            
             {/* Real-time Typing / Voice Recording Indicator */}
             {typingUsers.length > 0 && (
-              <div className="absolute bottom-full left-0 w-full px-4 py-1.5 bg-[#0a0a0f]/95 border-t border-white/5 pointer-events-none z-10 flex items-center gap-2 backdrop-blur-md">
+              <div className="px-3.5 py-1.5 bg-[#08080c]/95 border-t border-white/5 flex items-center gap-2 text-xs shrink-0 backdrop-blur-md">
                 {typingUsers.some(u => u.type === 'voice') ? (
-                  <div className="flex items-center gap-1.5 text-rose-400 font-semibold text-[10px] animate-pulse">
-                    <Mic size={12} className="text-[#ff006a]" />
+                  <div className="flex items-center gap-1.5 text-rose-400 font-semibold text-[11px] animate-pulse">
+                    <Mic size={13} className="text-[#ff006a] animate-bounce" />
                     <span>
                       {typingUsers.filter(u => u.type === 'voice').map(u => u.name).join(', ')} ovozli xabar yozmoqda...
                     </span>
@@ -943,9 +965,9 @@ export default function ChatWidget() {
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-cyan-400 font-medium text-[10px]">
+                  <div className="flex items-center gap-1.5 text-cyan-400 font-medium text-[11px]">
                     <span>
-                      {typingUsers.map(u => u.name).join(', ')} {typingUsers.length > 1 ? 'yozishmoqda' : 'yozmoqda'}
+                      {typingUsers.map(u => u.name).join(', ')} yozmoqda
                     </span>
                     <span className="flex gap-0.5 ml-0.5">
                       <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce [animation-delay:0ms]" />
@@ -957,27 +979,28 @@ export default function ChatWidget() {
               </div>
             )}
   
-{/* Chat Input Area */}
-            <div className="p-3 border-t border-[#1a1a1a] bg-[#0c0c0e] relative shrink-0">
+            {/* Chat Input Area */}
+            <div className="p-2.5 sm:p-3 border-t border-white/10 bg-[#0a0a10] relative shrink-0">
               {user ? (
                 isRecording ? (
                   /* Audio Recording Bar */
-                  <div className="flex items-center justify-between bg-[#150a10] border border-[#ff006a]/40 rounded-sm px-3 py-2 animate-pulse">
+                  <div className="flex items-center justify-between bg-gradient-to-r from-[#1c0b14] via-[#150a12] to-[#1c0b14] border border-[#ff006a]/50 rounded-2xl px-3.5 py-2 shadow-lg shadow-[#ff006a]/15">
                     <div className="flex items-center space-x-2.5">
-                      <div className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
-                      <span className="text-xs font-bold text-white tracking-wide">
+                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                      <span className="text-xs font-mono font-bold text-white tracking-wide">
                         {formatRecordingTime(recordingDuration)}
                       </span>
-                      <span className="text-[10px] text-[#ff006a] font-semibold hidden sm:inline">
+                      <span className="text-[10px] text-[#ff006a] font-semibold hidden sm:inline flex items-center gap-1">
+                        <Mic size={12} className="animate-pulse" />
                         Ovoz yozilmoqda...
                       </span>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1.5">
                       <button
                         type="button"
                         onClick={cancelRecording}
-                        className="p-1.5 text-white/50 hover:text-red-400 hover:bg-white/10 rounded transition-colors cursor-pointer"
+                        className="p-1.5 text-white/50 hover:text-rose-400 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
                         title="Bekor qilish"
                       >
                         <Trash2 size={15} />
@@ -985,7 +1008,7 @@ export default function ChatWidget() {
                       <button
                         type="button"
                         onClick={stopAndSendRecording}
-                        className="px-3 py-1 bg-[#ff006a] hover:bg-[#d40058] text-white rounded font-bold text-xs flex items-center gap-1 shadow-md shadow-[#ff006a]/30 transition-all cursor-pointer"
+                        className="px-3.5 py-1 bg-gradient-to-r from-[#ff006a] to-[#d40058] hover:opacity-90 text-white rounded-xl font-bold text-xs flex items-center gap-1 shadow-md shadow-[#ff006a]/30 transition-all cursor-pointer"
                         title="Yuborish"
                       >
                         <Send size={12} />
@@ -996,18 +1019,19 @@ export default function ChatWidget() {
                 ) : (
                   /* Standard Input Bar */
                   <form onSubmit={handleSend} className="relative flex items-center gap-1.5">
-                    {/* GIF Trigger Button */}
+                    {/* GIPHY Trigger Button */}
                     <button
                       type="button"
                       onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className={`px-2 py-1 rounded-sm text-[11px] font-black tracking-wider transition-all cursor-pointer border ${
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black tracking-wider transition-all cursor-pointer border flex items-center gap-1 shrink-0 ${
                         showEmojiPicker
-                          ? 'text-white bg-[#ff006a] border-[#ff006a] shadow-sm shadow-[#ff006a]/40 scale-105'
+                          ? 'text-white bg-gradient-to-r from-[#ff006a] to-[#a855f7] border-[#ff006a] shadow-sm shadow-[#ff006a]/40 scale-105'
                           : 'text-[#ff006a] bg-[#ff006a]/10 border-[#ff006a]/30 hover:bg-[#ff006a] hover:text-white hover:border-[#ff006a]'
                       }`}
-                      title="Anime GIF Stikerlar"
+                      title="Giphy Anime GIF Stikerlar"
                     >
-                      GIF
+                      <Sparkles size={12} />
+                      <span>GIF</span>
                     </button>
 
                     <input
@@ -1016,14 +1040,14 @@ export default function ChatWidget() {
                       value={inputValue}
                       onChange={handleInputChange}
                       placeholder={replyingTo ? "Javob yozing..." : "Fikringizni yozing..."}
-                      className="flex-1 bg-[#030303] border border-[#1a1a1a] rounded-sm pl-3 pr-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#ff006a]/50 transition-colors"
+                      className="flex-1 bg-[#12121a] border border-white/10 focus:border-[#ff006a]/60 rounded-2xl px-3.5 py-2 text-xs text-white placeholder-white/35 focus:outline-none transition-colors shadow-inner"
                     />
 
                     {/* Microphone / Send Button */}
                     {inputValue.trim() ? (
                       <button 
                         type="submit"
-                        className="w-8 h-8 rounded-full text-white bg-[#ff006a] hover:bg-[#d40058] transition-all flex items-center justify-center shadow shadow-[#ff006a]/20 cursor-pointer shrink-0"
+                        className="w-8 h-8 rounded-2xl text-white bg-gradient-to-r from-[#ff0055] to-[#ff006a] hover:opacity-90 transition-all flex items-center justify-center shadow-md shadow-[#ff006a]/30 cursor-pointer shrink-0"
                         title="Yuborish"
                       >
                         <ArrowUp className="w-4 h-4 stroke-[2.5]" />
@@ -1032,7 +1056,7 @@ export default function ChatWidget() {
                       <button
                         type="button"
                         onClick={startRecording}
-                        className="p-2 text-white/70 hover:text-white bg-[#1a1a1e] hover:bg-[#ff006a] rounded-sm transition-all flex items-center justify-center border border-white/10 cursor-pointer"
+                        className="p-2 text-white/70 hover:text-white bg-[#14141c] hover:bg-[#ff006a] rounded-2xl transition-all flex items-center justify-center border border-white/10 hover:border-[#ff006a] cursor-pointer shrink-0 shadow-sm"
                         title="Ovozli xabar yozish"
                       >
                         <Mic className="w-3.5 h-3.5 text-[#ff006a] hover:text-white" />
@@ -1041,8 +1065,14 @@ export default function ChatWidget() {
                   </form>
                 )
               ) : (
-                <div className="text-center py-2 text-xs text-white/50 font-bold">
-                  Suhbatda qatnashish uchun <a href="/login" className="text-[#ff006a] hover:underline">Tizimga kiring</a>
+                <div className="text-center py-2">
+                  <Link
+                    to="/login"
+                    onClick={() => setIsOpen(false)}
+                    className="inline-block px-4 py-1.5 bg-gradient-to-r from-[#ff0055] to-[#ff006a] hover:opacity-90 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-[#ff006a]/20"
+                  >
+                    Chatda yozish uchun kiring
+                  </Link>
                 </div>
               )}
             </div>

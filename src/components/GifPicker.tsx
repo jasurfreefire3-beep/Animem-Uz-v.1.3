@@ -1,37 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Sparkles, X, Flame, Search, Loader2 } from 'lucide-react';
 
-export const ANIMEM_GIFS = [
-  "https://api.animem.uz/i/47253226-8c0c-4bd7-8a13-63fc8ab21048",
-  "https://api.animem.uz/i/024daac2-c373-46d9-a1d3-17b772cf9d8d",
-  "https://api.animem.uz/i/7f001189-caff-4761-b773-1ef852ba3405",
-  "https://api.animem.uz/i/e14ebcc6-3198-4769-988e-b532d768c2c0",
-  "https://api.animem.uz/i/a6740e1b-8128-4a35-9b59-991702aa7953",
-  "https://api.animem.uz/i/20275072-6bcb-4bbf-9c31-b963c535ca52",
-  "https://api.animem.uz/i/7f56e16a-336f-40e7-a088-3e7d379b6e7e",
-  "https://api.animem.uz/i/e013bbda-731b-4243-b1a5-82b9184e6ba8",
-  "https://api.animem.uz/i/0ed4d485-ed9a-42c4-96cf-0ea9e2520ff8",
-  "https://api.animem.uz/i/4dcca4bb-4a81-40ee-b12d-1584b122bc20",
-  "https://api.animem.uz/i/ee473d3e-95c5-4654-ab79-0f7f80bf72ac",
-  "https://api.animem.uz/i/94bf66ce-7403-4a2f-8db6-267f15cd3d73",
-  "https://api.animem.uz/i/d5740534-37b6-42f2-92d1-0d6012f7b424",
-  "https://api.animem.uz/i/d6702c5f-a45e-4259-b3ac-6ac028671136",
-  "https://api.animem.uz/i/863cae92-7e12-46d6-96c5-cf6da96afa43",
-  "https://api.animem.uz/i/11e32365-a5d1-44b8-9eaf-809040de5fc3",
-  "https://api.animem.uz/i/7c9b7e12-2d75-418a-b867-2a83169b9143",
-  "https://api.animem.uz/i/b0000dc1-622a-4136-b20d-c7464b2dfee3",
-  "https://api.animem.uz/i/f29d2f0f-4eed-43e3-8a18-c68acf9703f2",
-  "https://api.animem.uz/i/ebb32df7-d609-46fa-a739-57b686bea1a4",
-  "https://api.animem.uz/i/6ad422b0-29ff-4c44-b3bd-30e6015701ae",
-  "https://api.animem.uz/i/d5077661-9cde-4524-ae21-be259f1e8b8a",
-  "https://api.animem.uz/i/423b7231-db98-41e6-ae1e-af0ded6ca0ef",
-  "https://api.animem.uz/i/cfae88fb-ade5-495c-a441-5b800075382b",
-  "https://api.animem.uz/i/6b895206-f186-4db0-9a82-89ad97769806",
-  "https://api.animem.uz/i/088aba4e-b0ef-443b-b7a6-bf6b8609e2b4",
-  "https://api.animem.uz/i/208c0d15-d9cb-4507-ac51-814423a11d59",
-  "https://api.animem.uz/i/632296a9-9ef1-453a-ac08-9db0aebdfc8c"
+export const POPULAR_ANIME_GIFS = [
+  // High quality Giphy Anime GIFs (Luffy, Naruto, Gojo, Anya, Demon Slayer, etc.)
+  { id: 'g1', title: 'Luffy Gear 5 Laugh', url: 'https://media.giphy.com/media/WmkqburJqXziM/giphy.gif', preview: 'https://media.giphy.com/media/WmkqburJqXziM/200.gif' },
+  { id: 'g2', title: 'Gojo Satoru Domain Expansion', url: 'https://media.giphy.com/media/UgV8Y7bDxsZDCP079U/giphy.gif', preview: 'https://media.giphy.com/media/UgV8Y7bDxsZDCP079U/200.gif' },
+  { id: 'g3', title: 'Naruto Rasengan Epic', url: 'https://media.giphy.com/media/OU6tgBi0YJ4HK/giphy.gif', preview: 'https://media.giphy.com/media/OU6tgBi0YJ4HK/200.gif' },
+  { id: 'g4', title: 'Anya Forger Heh Smile', url: 'https://media.giphy.com/media/FWAcpJsFT9mVRv0e7a/giphy.gif', preview: 'https://media.giphy.com/media/FWAcpJsFT9mVRv0e7a/200.gif' },
+  { id: 'g5', title: 'Tanjiro Kamado Hinokami', url: 'https://media.giphy.com/media/dyjrpqaUVqCELGuQVr/giphy.gif', preview: 'https://media.giphy.com/media/dyjrpqaUVqCELGuQVr/200.gif' },
+  { id: 'g6', title: 'Zoro Three Sword Style', url: 'https://media.giphy.com/media/9az09tlYyYNfq/giphy.gif', preview: 'https://media.giphy.com/media/9az09tlYyYNfq/200.gif' },
+  { id: 'g7', title: 'Killua Godspeed HxH', url: 'https://media.giphy.com/media/qb1eHxhUHLdsc/giphy.gif', preview: 'https://media.giphy.com/media/qb1eHxhUHLdsc/200.gif' },
+  { id: 'g8', title: 'Levi Ackerman Attack on Titan', url: 'https://media.giphy.com/media/11HeubLHnQJSA8/giphy.gif', preview: 'https://media.giphy.com/media/11HeubLHnQJSA8/200.gif' },
+  { id: 'g9', title: 'Sukuna Malevolent Shrine', url: 'https://media.giphy.com/media/bDWdJRY2IZCX6/giphy.gif', preview: 'https://media.giphy.com/media/bDWdJRY2IZCX6/200.gif' },
+  { id: 'g10', title: 'Goku Ultra Instinct DBZ', url: 'https://media.giphy.com/media/12wsn8hn693bWw/giphy.gif', preview: 'https://media.giphy.com/media/12wsn8hn693bWw/200.gif' },
+  { id: 'g11', title: 'Sailor Moon Wink Magic', url: 'https://media.giphy.com/media/PoK1bzB3qyNFe/giphy.gif', preview: 'https://media.giphy.com/media/PoK1bzB3qyNFe/200.gif' },
+  { id: 'g12', title: 'Nezuko Kamado Cute Run', url: 'https://media.giphy.com/media/kX7OWl40hcz6RSZa1n/giphy.gif', preview: 'https://media.giphy.com/media/kX7OWl40hcz6RSZa1n/200.gif' },
+  { id: 'g13', title: 'Kakashi Chidori Lightning', url: 'https://media.giphy.com/media/A8UGp97js577q/giphy.gif', preview: 'https://media.giphy.com/media/A8UGp97js577q/200.gif' },
+  { id: 'g14', title: 'Itachi Uchiha Crow Genjutsu', url: 'https://media.giphy.com/media/CchzkJJ6UrQmQ/giphy.gif', preview: 'https://media.giphy.com/media/CchzkJJ6UrQmQ/200.gif' },
+  { id: 'g15', title: 'Chika Dance Kaguya-sama', url: 'https://media.giphy.com/media/108he41yPdWwOQ/giphy.gif', preview: 'https://media.giphy.com/media/108he41yPdWwOQ/200.gif' },
+  { id: 'g16', title: 'One Punch Man Saitama OK', url: 'https://media.giphy.com/media/arbHBDAq95uDcFi9Z9/giphy.gif', preview: 'https://media.giphy.com/media/arbHBDAq95uDcFi9Z9/200.gif' },
+  { id: 'g17', title: 'Solo Leveling Sung Jinwoo Arise', url: 'https://media.giphy.com/media/fBGy9GPvCuNNhS0nxG/giphy.gif', preview: 'https://media.giphy.com/media/fBGy9GPvCuNNhS0nxG/200.gif' },
+  { id: 'g18', title: 'Eren Yeager Founding Titan', url: 'https://media.giphy.com/media/3o7btQ8jDTPGDpgc6I/giphy.gif', preview: 'https://media.giphy.com/media/3o7btQ8jDTPGDpgc6I/200.gif' },
+  { id: 'g19', title: 'Megumi Fushiguro Shadows', url: 'https://media.giphy.com/media/4ilFRqgbzbx4c/giphy.gif', preview: 'https://media.giphy.com/media/4ilFRqgbzbx4c/200.gif' },
+  { id: 'g20', title: 'Bleach Ichigo Bankai', url: 'https://media.giphy.com/media/M13G8I98Kn846GESm3/giphy.gif', preview: 'https://media.giphy.com/media/M13G8I98Kn846GESm3/200.gif' }
 ];
+
+export const ANIMEM_GIFS = POPULAR_ANIME_GIFS.map(g => g.url);
 
 interface GifItem {
   id: string;
@@ -48,10 +43,10 @@ const CATEGORIES = [
   { label: '😭 Yig\'i', query: 'anime sad cry' },
   { label: '✨ Wow', query: 'anime wow shock' },
   { label: '🐱 Chibi', query: 'anime chibi cute' },
-  { label: '⭐ Maxsus', query: 'animem_curated' }
+  { label: '⭐ Qahramonlar', query: 'anime luffy naruto gojo' }
 ];
 
-// Global in-memory cache for fast display
+// Global in-memory cache for ultra-fast response
 const globalGifCache = new Map<string, GifItem[]>();
 
 interface GifPickerProps {
@@ -64,8 +59,8 @@ export default function GifPicker({ onSelectGif, onClose, className = '' }: GifP
   const [activeCategory, setActiveCategory] = useState<string>('🔥 Trend');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedQuery, setDebouncedQuery] = useState<string>('');
-  const [gifs, setGifs] = useState<GifItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [gifs, setGifs] = useState<GifItem[]>(() => globalGifCache.get('anime trending') || POPULAR_ANIME_GIFS);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,71 +68,78 @@ export default function GifPicker({ onSelectGif, onClose, className = '' }: GifP
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery.trim());
-    }, 350);
+    }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   // Load GIFs based on search query or category
   useEffect(() => {
     let isCancelled = false;
-    const queryToFetch = debouncedQuery 
-      ? debouncedQuery 
-      : (CATEGORIES.find(c => c.label === activeCategory)?.query || 'anime trending');
-
-    if (queryToFetch === 'animem_curated') {
-      const staticItems: GifItem[] = ANIMEM_GIFS.map((url, i) => ({
-        id: `animem_${i}`,
-        title: `Animem GIF #${i + 1}`,
-        url,
-        preview: url
-      }));
-      setGifs(staticItems);
-      setIsLoading(false);
-      return;
-    }
+    const rawQuery = debouncedQuery || (CATEGORIES.find(c => c.label === activeCategory)?.query || 'anime trending');
+    const queryToFetch = rawQuery.toLowerCase().includes('anime') ? rawQuery : `anime ${rawQuery}`;
 
     if (globalGifCache.has(queryToFetch)) {
       setGifs(globalGifCache.get(queryToFetch)!);
       setIsLoading(false);
-    } else {
-      setIsLoading(true);
+      return;
     }
 
+    setIsLoading(true);
+
     const fetchGifs = async () => {
+      // 1. Try Backend API endpoint
       try {
-        const res = await fetch(`/api/gifs/giphy?q=${encodeURIComponent(queryToFetch)}&limit=32`);
+        const res = await fetch(`/api/gifs/giphy?q=${encodeURIComponent(queryToFetch)}&limit=36`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             if (!isCancelled) {
               setGifs(data);
               globalGifCache.set(queryToFetch, data);
+              setIsLoading(false);
             }
             return;
           }
         }
       } catch (err) {
-        console.warn('Giphy fetch error:', err);
+        // Backend proxy might be deploying, fallback to direct Giphy API
       }
 
-      // Fallback to static list if fetch failed
-      if (!isCancelled && (!gifs || gifs.length === 0)) {
-        const staticItems: GifItem[] = ANIMEM_GIFS.map((url, i) => ({
-          id: `animem_${i}`,
-          title: `Animem GIF #${i + 1}`,
-          url,
-          preview: url
-        }));
-        setGifs(staticItems);
+      // 2. Direct Giphy Public SDK API Call (CORS Allowed, 100% Reliable globally)
+      try {
+        const GIPHY_KEY = 'sXpGFDGZs0Dv1mmNFvYaGUvYwKX0PWIh';
+        const directUrl = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(queryToFetch)}&limit=36&rating=g`;
+        const resDirect = await fetch(directUrl);
+        if (resDirect.ok) {
+          const gData = await resDirect.json();
+          if (gData && Array.isArray(gData.data) && gData.data.length > 0) {
+            const mapped: GifItem[] = gData.data.map((item: any) => ({
+              id: item.id,
+              title: item.title || 'Anime GIF',
+              url: item.images?.downsized_medium?.url || item.images?.original?.url || item.images?.fixed_height?.url,
+              preview: item.images?.fixed_height?.url || item.images?.fixed_width_small?.url || item.images?.original?.url,
+            })).filter((x: any) => Boolean(x.url));
+
+            if (mapped.length > 0 && !isCancelled) {
+              setGifs(mapped);
+              globalGifCache.set(queryToFetch, mapped);
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+      } catch (directErr) {
+        console.warn('Direct Giphy fetch notice:', directErr);
       }
+
+      // 3. Fallback to rich curated anime GIFs list
       if (!isCancelled) {
+        setGifs(POPULAR_ANIME_GIFS);
         setIsLoading(false);
       }
     };
 
-    fetchGifs().finally(() => {
-      if (!isCancelled) setIsLoading(false);
-    });
+    fetchGifs();
 
     return () => {
       isCancelled = true;
