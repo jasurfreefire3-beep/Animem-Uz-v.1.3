@@ -250,20 +250,6 @@ export default function MusicPlayerBar() {
 
             {/* 3. Actions & Close (X) Button */}
             <div className="flex items-center justify-end gap-1 sm:gap-2">
-              {/* Lyrics button */}
-              <button
-                onClick={() => {
-                  setShowLyrics(!showLyrics);
-                  setIsExpanded(true);
-                }}
-                className={`hidden lg:inline-flex p-1.5 rounded-lg transition-colors cursor-pointer ${
-                  showLyrics ? 'text-[#ff006a] bg-[#ff006a]/15' : 'text-white/50 hover:text-white hover:bg-white/5'
-                }`}
-                title="Qo'shiq matni (Lyrics)"
-              >
-                <Mic2 size={15} />
-              </button>
-
               {/* Queue Button */}
               <button
                 onClick={() => setShowQueue(!showQueue)}

@@ -447,19 +447,6 @@ export default function AdminMusic() {
                   </select>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-white/70 uppercase tracking-wider mb-1.5">
-                  Qo'shiq Matni (Lyrics - ixtiyoriy)
-                </label>
-                <textarea
-                  rows={4}
-                  value={lyrics}
-                  onChange={(e) => setLyrics(e.target.value)}
-                  placeholder="Yaponcha yoki o'zbekcha matn..."
-                  className="w-full bg-[#181820] border border-white/10 text-white text-xs sm:text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-[#00c8ff] transition-all placeholder:text-white/30 custom-scrollbar resize-none"
-                />
-              </div>
             </div>
 
             {/* 2. Media Uploads: ImageUploader (Catbox + image.animem.uz) & Audio Upload */}
@@ -774,16 +761,6 @@ export default function AdminMusic() {
                   value={editingSong.audio_url}
                   onChange={(e) => setEditingSong({ ...editingSong, audio_url: e.target.value })}
                   className="w-full bg-[#181820] border border-white/10 text-white text-xs rounded-xl px-3 py-2.5"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-white/70 mb-1">Matn (Lyrics)</label>
-                <textarea
-                  rows={3}
-                  value={editingSong.lyrics || ''}
-                  onChange={(e) => setEditingSong({ ...editingSong, lyrics: e.target.value })}
-                  className="w-full bg-[#181820] border border-white/10 text-white text-xs rounded-xl px-3 py-2.5 resize-none"
                 />
               </div>
 

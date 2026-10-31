@@ -46,7 +46,7 @@ export default function MusicExpandedPlayer() {
     removeFromQueue
   } = useMusic();
 
-  const [activeTab, setActiveTab] = useState<'visualizer' | 'lyrics' | 'queue'>('visualizer');
+  const [activeTab, setActiveTab] = useState<'visualizer' | 'queue'>('visualizer');
 
   if (!isExpanded || !currentSong) {
     return null;
@@ -89,11 +89,11 @@ export default function MusicExpandedPlayer() {
             <ChevronDown size={22} className="text-white/80" />
           </button>
 
-          {/* Center Tabs: Visualizer / Matn / Navbat */}
+          {/* Center Tabs: Visualizer / Navbat */}
           <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-full text-xs font-bold">
             <button
               onClick={() => setActiveTab('visualizer')}
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'visualizer' ? 'bg-[#ff006a] text-white shadow-lg shadow-[#ff006a]/30' : 'text-white/60 hover:text-white'
               }`}
             >
@@ -101,18 +101,9 @@ export default function MusicExpandedPlayer() {
               <span>Pleyer</span>
             </button>
             <button
-              onClick={() => setActiveTab('lyrics')}
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'lyrics' ? 'bg-[#00c8ff] text-black shadow-lg shadow-[#00c8ff]/30' : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <Mic2 size={14} />
-              <span>Matn</span>
-            </button>
-            <button
               onClick={() => setActiveTab('queue')}
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'queue' ? 'bg-[#8b5cf6] text-white shadow-lg shadow-[#8b5cf6]/30' : 'text-white/60 hover:text-white'
+              className={`px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'queue' ? 'bg-[#00c8ff] text-black shadow-lg shadow-[#00c8ff]/30' : 'text-white/60 hover:text-white'
               }`}
             >
               <ListMusic size={14} />
@@ -181,33 +172,7 @@ export default function MusicExpandedPlayer() {
             </div>
           )}
 
-          {/* TAB 2: LYRICS (KARAOKE) */}
-          {activeTab === 'lyrics' && (
-            <div className="w-full h-full max-h-[60vh] overflow-y-auto px-4 sm:px-8 py-6 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md custom-scrollbar animate-fade-in text-center flex flex-col justify-start">
-              {currentSong.lyrics ? (
-                <div className="space-y-4 max-w-xl mx-auto">
-                  <span className="inline-block text-[11px] font-bold text-[#00c8ff] uppercase tracking-wider bg-[#00c8ff]/10 px-3 py-1 rounded-full border border-[#00c8ff]/20 mb-2">
-                    {currentSong.anime_title || 'Anime'} Qo'shiq Matni
-                  </span>
-                  {currentSong.lyrics.split('\n').map((line, idx) => (
-                    <p 
-                      key={idx} 
-                      className={`text-base sm:text-xl font-medium leading-relaxed transition-all duration-300 ${
-                        line.trim() === '' ? 'h-4' : 'text-white/80 hover:text-white hover:scale-105'
-                      }`}
-                    >
-                      {line}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <div className="my-auto py-16 flex flex-col items-center justify-center text-white/40 gap-3">
-                  <Mic2 size={36} className="text-white/20" />
-                  <p className="text-sm">Ushbu qo'shiq uchun matn kiritilmagan</p>
-                </div>
-              )}
-            </div>
-          )}
+
 
           {/* TAB 3: QUEUE LIST */}
           {activeTab === 'queue' && (
