@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play } from 'lucide-react';
+import { Play, Users, ExternalLink } from 'lucide-react';
 
 interface FormattedContentProps {
   content: string;
@@ -53,8 +53,15 @@ export function extractGifs(content: string): string[] {
   return matches;
 }
 
+export function isWatchRoomUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  return /[\?&]room=[a-zA-Z0-9_-]+/i.test(url) || 
+         /\/room\/[a-zA-Z0-9_-]+/i.test(url) ||
+         /\/watch-room\//i.test(url);
+}
+
 interface Segment {
-  type: 'text' | 'gif' | 'timestamp';
+  type: 'text' | 'gif' | 'timestamp' | 'link' | 'room_link';
   value: string;
   seconds?: number;
 }
@@ -62,6 +69,7 @@ interface Segment {
 export function parseContentSegments(rawContent: string): Segment[] {
   if (!rawContent || typeof rawContent !== 'string') return [];
 
+  // 1. Split by [gif]...[/gif] tags
   const segments: Array<{ type: 'text' | 'gif'; value: string }> = [];
   const gifTagRegex = /\[gif\]([\s\S]*?)\[\/gif\]/gi;
   let lastIndex = 0;
@@ -84,9 +92,9 @@ export function parseContentSegments(rawContent: string): Segment[] {
     segments.push({ type: 'text', value: remaining });
   }
 
-  // Scan text segments for bare media links
+  // 2. Scan text segments for bare media links (e.g. .gif, .webp, .png, .jpg)
   const mediaSplitSegments: Array<{ type: 'text' | 'gif'; value: string }> = [];
-  const bareRegex = /(https?:\/\/api\.animem\.uz\/i\/[a-zA-Z0-9_-]+|\/api\/media\/gif_[a-zA-Z0-9_-]+|https?:\/\/[^\s]+\.(?:gif|webp|png|jpg|jpeg)(?:\?[^\s]*)?)/gi;
+  const bareRegex = /(https?:\/\/api\.animem\.uz\/i\/[a-zA-Z0-9_-]+|\/api\/media\/gif_[a-zA-Z0-9_-]+|https?:\/\/[^\s]+\.(?:gif|webp)(?:\?[^\s]*)?)/gi;
 
   for (const seg of segments) {
     if (seg.type === 'gif') {
@@ -104,11 +112,11 @@ export function parseContentSegments(rawContent: string): Segment[] {
     }
   }
 
-  // Scan text segments for interactive timestamps (e.g. 05:24, 12:45, 1:05:30)
-  const finalSegments: Segment[] = [];
+  // 3. Scan text segments for interactive timestamps (e.g. 05:24, 12:45, 1:05:30)
+  const timestampSegments: Array<{ type: 'text' | 'gif' | 'timestamp'; value: string; seconds?: number }> = [];
   for (const seg of mediaSplitSegments) {
     if (seg.type === 'gif') {
-      finalSegments.push(seg);
+      timestampSegments.push(seg);
     } else {
       const text = seg.value;
       let textIdx = 0;
@@ -118,15 +126,56 @@ export function parseContentSegments(rawContent: string): Segment[] {
       while ((tsMatch = tsRegex.exec(text)) !== null) {
         const textBefore = text.slice(textIdx, tsMatch.index);
         if (textBefore) {
-          finalSegments.push({ type: 'text', value: textBefore });
+          timestampSegments.push({ type: 'text', value: textBefore });
         }
         const tsVal = tsMatch[0];
-        finalSegments.push({
+        timestampSegments.push({
           type: 'timestamp',
           value: tsVal,
           seconds: parseTimestampToSeconds(tsVal),
         });
         textIdx = tsMatch.index + tsMatch[0].length;
+      }
+
+      const rest = text.slice(textIdx);
+      if (rest) {
+        timestampSegments.push({ type: 'text', value: rest });
+      }
+    }
+  }
+
+  // 4. Scan remaining text segments for URLs & Watch Room invites
+  const finalSegments: Segment[] = [];
+  const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+
+  for (const seg of timestampSegments) {
+    if (seg.type !== 'text') {
+      finalSegments.push(seg as Segment);
+    } else {
+      const text = seg.value;
+      let textIdx = 0;
+      let urlMatch: RegExpExecArray | null;
+
+      while ((urlMatch = urlRegex.exec(text)) !== null) {
+        const textBefore = text.slice(textIdx, urlMatch.index);
+        if (textBefore) {
+          finalSegments.push({ type: 'text', value: textBefore });
+        }
+
+        const matchedUrl = urlMatch[0];
+        if (isWatchRoomUrl(matchedUrl)) {
+          finalSegments.push({
+            type: 'room_link',
+            value: matchedUrl,
+          });
+        } else {
+          finalSegments.push({
+            type: 'link',
+            value: matchedUrl,
+          });
+        }
+
+        textIdx = urlMatch.index + matchedUrl.length;
       }
 
       const rest = text.slice(textIdx);
@@ -168,6 +217,57 @@ export default function FormattedContent({
                 }}
               />
             </div>
+          );
+        }
+
+        if (seg.type === 'room_link') {
+          const fullUrl = seg.value.startsWith('http') ? seg.value : `https://${seg.value}`;
+          return (
+            <div key={index} className="my-2 block max-w-full">
+              <a
+                href={fullUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="p-3 rounded-2xl bg-gradient-to-r from-[#ff006a]/25 via-[#7928ca]/20 to-[#0e0f18]/90 border border-[#ff006a]/40 hover:border-[#ff006a] hover:shadow-[0_0_25px_rgba(255,0,106,0.35)] flex items-center gap-3 transition-all duration-300 group/card text-left no-underline block"
+              >
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#ff006a] to-[#7928ca] flex items-center justify-center text-white shrink-0 shadow-lg shadow-[#ff006a]/30 group-hover/card:scale-105 transition-transform">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="font-extrabold text-white text-xs tracking-wide">
+                      Birgalikda Tomosha Xonasi
+                    </span>
+                    <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500/25 text-emerald-400 border border-emerald-500/40 animate-pulse">
+                      JONLI
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/75 truncate flex items-center gap-1">
+                    <span>Xonaga qo'shilish uchun bosing</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-[#ff006a] shrink-0" />
+                  </p>
+                </div>
+              </a>
+            </div>
+          );
+        }
+
+        if (seg.type === 'link') {
+          const fullUrl = seg.value.startsWith('http') ? seg.value : `https://${seg.value}`;
+          return (
+            <a
+              key={index}
+              href={fullUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 break-all hover:bg-cyan-500/10 px-1 py-0.5 rounded transition-all inline-flex items-center gap-1 font-medium cursor-pointer"
+              title={seg.value}
+            >
+              <span>{seg.value}</span>
+              <ExternalLink size={10} className="opacity-70 shrink-0 inline" />
+            </a>
           );
         }
 

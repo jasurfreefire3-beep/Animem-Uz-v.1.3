@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
-import { MessageCircle, X, Send, ArrowUp, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, ChevronDown, CheckCheck, ShieldCheck } from 'lucide-react';
+import { MessageCircle, X, Send, ArrowUp, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, ChevronDown, CheckCheck, ShieldCheck, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { io, Socket } from 'socket.io-client';
@@ -11,9 +11,9 @@ import AudioMessage, { parseMessageContent } from './AudioMessage';
 import GifPicker from './GifPicker';
 import FormattedContent, { isGifContent } from './FormattedContent';
 import UserAvatar from './UserAvatar';
+import ChatWallpaperModal from './ChatWallpaperModal';
+import { getSavedChatWallpaper, getSavedWallpaperDim } from '../data/chatWallpapers';
 import { getSocketUrl } from '../lib/api';
-
-const CHAT_BG_WALLPAPER = "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1920&auto=format&fit=crop";
 
 interface TypingUser {
   id: string | number;
@@ -32,7 +32,8 @@ const MemoizedMessage = memo(({
   handleContextMenu,
   handleTouchStart,
   handleTouchEnd,
-  onCloseChat
+  onCloseChat,
+  onJumpToMessage
 }: any) => {
   const isMe = String(msg.user_id) === String(user?.id);
   const canDelete = user && (user.role === 'admin' || String(user.id) === String(msg.user_id));
@@ -47,6 +48,7 @@ const MemoizedMessage = memo(({
 
   return (
     <div 
+      id={`msg-${msg.id}`}
       onClick={() => setActiveMsgId(isActive ? null : msg.id)}
       onContextMenu={(e) => handleContextMenu(e, msg)}
       onTouchStart={() => handleTouchStart(msg)}
@@ -156,19 +158,34 @@ const MemoizedMessage = memo(({
           </div>
         </div>
 
-        {/* Message Bubble */}
+        {/* Message Bubble - Crystal Glassmorphic effect with dynamic wallpaper */}
         <div 
-          className={`px-3 py-2 text-xs inline-block leading-relaxed max-w-full backdrop-blur-xl shadow-xl transition-all ${
+          className={`px-3.5 py-2 text-xs inline-block leading-relaxed max-w-full backdrop-blur-md shadow-xl transition-all ${
             isMe 
-              ? 'bg-gradient-to-br from-[#ff006a]/20 via-[#9333ea]/15 to-[#ff006a]/10 border border-[#ff006a]/40 text-white rounded-2xl rounded-tr-xs shadow-[0_4px_24px_rgba(255,0,106,0.14)]' 
-              : 'bg-[#12121a]/95 border border-white/10 hover:border-white/20 text-white/95 rounded-2xl rounded-tl-xs shadow-lg'
+              ? 'bg-gradient-to-br from-[#ff006a]/75 via-[#8b5cf6]/65 to-[#ff006a]/70 border border-white/25 text-white rounded-2xl rounded-tr-xs shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,0,106,0.25)]' 
+              : 'bg-[#0e0f17]/80 border border-white/15 hover:border-white/30 text-white/95 rounded-2xl rounded-tl-xs shadow-[0_8px_30px_rgba(0,0,0,0.5)]'
           }`}
         >
-          {/* Reply Context Block */}
+          {/* Reply Context Block - Click to jump to original message */}
           {msg.reply_to_id && (
-            <div className="mb-2 text-[10px] bg-black/50 border-l-2 border-[#ff006a] px-2.5 py-1.5 rounded-r-md text-left">
-              <span className="font-bold text-[#ff006a] text-[9px]">@{msg.reply_to_name}</span>
-              <p className="text-white/70 text-[9px] truncate max-w-[200px]">
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onJumpToMessage) onJumpToMessage(msg.reply_to_id);
+              }}
+              className="mb-2 text-[10px] bg-black/55 hover:bg-black/80 border-l-2 border-[#ff006a] px-2.5 py-1.5 rounded-r-lg text-left cursor-pointer transition-all group/reply shadow-inner"
+              title="Asl xabarga o'tish"
+            >
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="font-bold text-[#ff006a] text-[9px] flex items-center gap-1">
+                  <CornerUpLeft size={9} />
+                  @{msg.reply_to_name}
+                </span>
+                <span className="text-[8px] text-white/40 group-hover/reply:text-[#ff006a] transition-colors font-medium">
+                  Ko'rish &rarr;
+                </span>
+              </div>
+              <p className="text-white/75 text-[9px] truncate max-w-[200px]">
                 {parsedReply?.isVoice ? (
                   <span className="flex items-center gap-1 text-[#ff006a]">
                     <Mic size={10} /> Ovozli xabar
@@ -212,6 +229,58 @@ export default function ChatWidget() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeMsgId, setActiveMsgId] = useState<string | number | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
+  // Custom Anime Wallpaper & Dimming state
+  const [wallpaperUrl, setWallpaperUrl] = useState<string>(getSavedChatWallpaper);
+  const [wallpaperDim, setWallpaperDim] = useState<number>(getSavedWallpaperDim);
+  const [showWallpaperModal, setShowWallpaperModal] = useState<boolean>(false);
+
+  // Sync wallpaper across tabs or other chat views
+  useEffect(() => {
+    const handleWpChange = (e: any) => {
+      if (e.detail?.url !== undefined) setWallpaperUrl(e.detail.url);
+    };
+    const handleDimChange = (e: any) => {
+      if (e.detail?.dim !== undefined) setWallpaperDim(e.detail.dim);
+    };
+    window.addEventListener('animem_chat_wallpaper_changed', handleWpChange);
+    window.addEventListener('animem_chat_wallpaper_dim_changed', handleDimChange);
+    return () => {
+      window.removeEventListener('animem_chat_wallpaper_changed', handleWpChange);
+      window.removeEventListener('animem_chat_wallpaper_dim_changed', handleDimChange);
+    };
+  }, []);
+
+  // Listen for sharing watch room link to chat
+  useEffect(() => {
+    const handleShareToChat = (e: any) => {
+      if (e.detail?.text) {
+        setIsOpen(true);
+        setInputValue(e.detail.text);
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 250);
+      }
+    };
+    window.addEventListener('animem_share_to_chat', handleShareToChat);
+    return () => {
+      window.removeEventListener('animem_share_to_chat', handleShareToChat);
+    };
+  }, []);
+
+  // Jump to replied message smoothly with neon pulse highlight
+  const handleJumpToMessage = useCallback((replyId: string | number) => {
+    const el = document.getElementById(`msg-${replyId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-[#ff006a]', 'bg-[#ff006a]/25', 'rounded-2xl', 'transition-all');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-[#ff006a]', 'bg-[#ff006a]/25');
+      }, 2000);
+    } else if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
 
   // Clear obsolete cache
   useEffect(() => {
@@ -751,13 +820,22 @@ export default function ChatWidget() {
           >
             {/* Header */}
             <div className="flex items-center justify-between p-3.5 border-b border-white/10 bg-[#0c0c14]/95 backdrop-blur-md shrink-0">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
                 <button 
                   onClick={() => setIsExpanded(!isExpanded)}
                   className="hidden sm:inline-flex p-1.5 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-colors cursor-pointer"
                   title={isExpanded ? "Kichraytirish" : "Kattalashtirish"}
                 >
                   {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+                {/* Wallpaper Settings Button */}
+                <button 
+                  type="button"
+                  onClick={() => setShowWallpaperModal(true)}
+                  className="p-1.5 hover:bg-white/10 rounded-lg text-white/60 hover:text-[#ff006a] transition-colors cursor-pointer"
+                  title="Orqa fonni almashtirish"
+                >
+                  <Palette className="w-4 h-4" />
                 </button>
                 {user?.role === 'admin' && (
                   <button 
@@ -772,7 +850,7 @@ export default function ChatWidget() {
               
               <div className="flex items-center space-x-2">
                 <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-[#ff006a] to-[#a855f7] flex items-center justify-center text-white shadow-sm shadow-[#ff006a]/30">
-                  <Sparkles size={13} />
+                  <MessageCircle size={13} />
                 </div>
                 <h3 className="font-extrabold text-white tracking-wide text-xs uppercase flex items-center gap-1.5">
                   <span>Umumiy Chat</span>
@@ -789,48 +867,62 @@ export default function ChatWidget() {
               </button>
             </div>
 
-            {/* Messages Body with Anime Custom Wallpaper */}
-            <div 
-              ref={scrollContainerRef}
-              onScroll={handleScroll}
-              className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 custom-scrollbar relative"
-              style={{
-                backgroundImage: `linear-gradient(to bottom, rgba(9, 9, 14, 0.90), rgba(5, 5, 8, 0.95)), url("${CHAT_BG_WALLPAPER}")`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundAttachment: 'local'
-              }}
-            >
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 space-y-3">
-                  <div className="w-8 h-8 border-2 border-[#ff006a] border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-white/80 text-xs font-semibold animate-pulse tracking-wide">Yuklanmoqda...</span>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="text-center py-24 text-white/40 text-xs font-medium space-y-2">
-                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/30">
-                    <Sparkles size={18} />
-                  </div>
-                  <p>Xabarlar mavjud emas. Suhbatni boshlang!</p>
-                </div>
+            {/* Messages Area with FIXED Wallpaper & SCROLLING Content */}
+            <div className="flex-1 relative overflow-hidden flex flex-col">
+              {/* Fixed Background Image - Does NOT scroll when messages scroll */}
+              {wallpaperUrl ? (
+                <div 
+                  className="absolute inset-0 pointer-events-none bg-cover bg-center transition-all duration-700 ease-in-out"
+                  style={{ backgroundImage: `url("${wallpaperUrl}")` }}
+                />
               ) : (
-                messages.map((msg) => (
-                  <MemoizedMessage
-                    key={msg.id}
-                    msg={msg}
-                    user={user}
-                    activeMsgId={activeMsgId}
-                    setActiveMsgId={setActiveMsgId}
-                    setReplyingTo={setReplyingTo}
-                    handleDeleteMessage={handleDeleteMessage}
-                    handleContextMenu={handleContextMenu}
-                    handleTouchStart={handleTouchStart}
-                    handleTouchEnd={handleTouchEnd}
-                    onCloseChat={() => setIsOpen(false)}
-                  />
-                ))
+                <div className="absolute inset-0 pointer-events-none bg-[#09090e]" />
               )}
-              <div ref={messagesEndRef} />
+
+              {/* Tint Overlay for optimal contrast and readability */}
+              <div 
+                className="absolute inset-0 pointer-events-none transition-colors duration-500"
+                style={{ backgroundColor: `rgba(9, 9, 14, ${wallpaperDim})` }}
+              />
+
+              {/* Only this layer scrolls */}
+              <div 
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="relative z-10 flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 custom-scrollbar"
+              >
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20 space-y-3">
+                    <div className="w-8 h-8 border-2 border-[#ff006a] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-white/80 text-xs font-semibold animate-pulse tracking-wide">Yuklanmoqda...</span>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center py-24 text-white/40 text-xs font-medium space-y-2">
+                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/30">
+                      <MessageCircle size={18} />
+                    </div>
+                    <p>Xabarlar mavjud emas. Suhbatni boshlang!</p>
+                  </div>
+                ) : (
+                  messages.map((msg) => (
+                    <MemoizedMessage
+                      key={msg.id}
+                      msg={msg}
+                      user={user}
+                      activeMsgId={activeMsgId}
+                      setActiveMsgId={setActiveMsgId}
+                      setReplyingTo={setReplyingTo}
+                      handleDeleteMessage={handleDeleteMessage}
+                      handleContextMenu={handleContextMenu}
+                      handleTouchStart={handleTouchStart}
+                      handleTouchEnd={handleTouchEnd}
+                      onCloseChat={() => setIsOpen(false)}
+                      onJumpToMessage={handleJumpToMessage}
+                    />
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
             </div>
 
             {/* Replying Preview Banner */}
@@ -1079,6 +1171,16 @@ export default function ChatWidget() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Wallpaper Selection Modal */}
+      <ChatWallpaperModal
+        isOpen={showWallpaperModal}
+        onClose={() => setShowWallpaperModal(false)}
+        currentWallpaper={wallpaperUrl}
+        currentDim={wallpaperDim}
+        onSelectWallpaper={(url) => setWallpaperUrl(url)}
+        onSelectDim={(dim) => setWallpaperDim(dim)}
+      />
     </>
   );
 }

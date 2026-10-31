@@ -13,6 +13,7 @@ import {
   X, 
   Crown, 
   MessageSquare,
+  MessageCircle,
   Sparkles,
   ExternalLink
 } from 'lucide-react';
@@ -222,6 +223,16 @@ export default function WatchTogetherRoom({
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleShareToChat = () => {
+    const shareText = `🎬 "${anime.title}" animesini birga tomosha qilamiz! Xona havolasi: ${roomUrl}`;
+    try {
+      navigator.clipboard.writeText(shareText);
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('animem_share_to_chat', { detail: { text: shareText } }));
+    setNotification("Xona havolasi umumiy chatga tayyorlandi!");
+    setTimeout(() => setNotification(null), 3000);
+  };
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
@@ -320,6 +331,16 @@ export default function WatchTogetherRoom({
                 <span>Havolani nusxalash</span>
               </>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleShareToChat}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:opacity-90 text-white rounded-lg font-bold text-[11px] transition-all shadow-md shadow-[#ff006a]/20 cursor-pointer"
+            title="Xona havolasini umumiy chatga tayyorlash"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>Chatga ulashish</span>
           </button>
 
           <a
