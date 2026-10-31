@@ -14,7 +14,8 @@ public/animebot/kawaii.db
 !.env.example
 !.env.production
 .wrangler/
-data/
+/data/
+!src/data/
 *.mp4
 *.webm
 uploads/
