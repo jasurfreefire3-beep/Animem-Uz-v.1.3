@@ -80,6 +80,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const isClosedRef = useRef<boolean>(false);
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentSongRef = useRef<Song | null>(null);
+
+  useEffect(() => {
+    currentSongRef.current = currentSong;
+  }, [currentSong]);
 
   const destroyHls = () => {
     if (hlsRef.current) {
@@ -133,6 +140,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const handlePause = () => setIsPlaying(false);
 
     const handleEnded = () => {
+      if (isClosedRef.current || !currentSongRef.current) return;
       // Handle repeat mode
       setRepeatMode((currentRepeat) => {
         if (currentRepeat === 'one') {
@@ -147,13 +155,21 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     };
 
     const handleError = (e: any) => {
+      // If closed or player dismissed, do not auto recover
+      if (isClosedRef.current || !currentSongRef.current) {
+        return;
+      }
       // If HLS is active, let Hls error handler manage recovery/fatal errors
       if (hlsRef.current) {
         return;
       }
       console.warn("Audio playback/load error:", e);
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
       // Auto-recover by moving to next track if audio fails to play
-      setTimeout(() => {
+      errorTimeoutRef.current = setTimeout(() => {
+        if (isClosedRef.current || !currentSongRef.current) return;
         handleNextSong();
       }, 1200);
     };
@@ -232,11 +248,18 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const playSong = (song: Song, newPlaylist?: Song[]) => {
     if (!audioRef.current) return;
 
+    isClosedRef.current = false;
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+      errorTimeoutRef.current = null;
+    }
+
     if (newPlaylist && newPlaylist.length > 0) {
       setPlaylist(newPlaylist);
     }
 
     setCurrentSong(song);
+    currentSongRef.current = song;
     setIsPlayerBarDismissed(false);
 
     try {
@@ -294,7 +317,12 @@ export function MusicProvider({ children }: { children: ReactNode }) {
               default:
                 console.error("HLS unrecoverable error, skipping...", data);
                 destroyHls();
-                setTimeout(() => {
+                if (isClosedRef.current || !currentSongRef.current) return;
+                if (errorTimeoutRef.current) {
+                  clearTimeout(errorTimeoutRef.current);
+                }
+                errorTimeoutRef.current = setTimeout(() => {
+                  if (isClosedRef.current || !currentSongRef.current) return;
                   handleNextSong();
                 }, 1200);
                 break;
@@ -359,8 +387,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   };
 
   const handleNextSong = () => {
+    if (isClosedRef.current || !currentSongRef.current) return;
     if (playlist.length === 0) return;
-    const currentIdx = playlist.findIndex((s) => String(s.id) === String(currentSong?.id));
+    const currentIdx = playlist.findIndex((s) => String(s.id) === String(currentSongRef.current?.id));
+    if (currentIdx === -1) return;
 
     if (isShuffle) {
       const candidates = playlist.map((_, i) => i).filter(i => i !== currentIdx);
@@ -371,7 +401,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const nextIndex = currentIdx === -1 ? 0 : (currentIdx + 1) % playlist.length;
+    const nextIndex = (currentIdx + 1) % playlist.length;
     playSong(playlist[nextIndex]);
   };
 
@@ -471,10 +501,27 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   };
 
   const closePlayer = () => {
+    isClosedRef.current = true;
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+      errorTimeoutRef.current = null;
+    }
     pause();
     destroyHls();
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+      } catch {}
+    }
     setCurrentSong(null);
+    currentSongRef.current = null;
+    setIsPlaying(false);
     setIsPlayerBarDismissed(true);
+    setIsExpanded(false);
+    setShowQueue(false);
+    setShowLyrics(false);
   };
 
   return (
