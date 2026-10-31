@@ -70,6 +70,9 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
     window.dispatchEvent(new Event('theme-changed'));
   };
 
+  // 2 kundan keyin (2026-11-02 23:59:59 UTC dan so'ng) "New" belgisi barchada avtomatik yo'qoladi
+  const isNewBadgeVisible = Date.now() < new Date('2026-11-02T23:59:59Z').getTime();
+
   const menuItems = [
     { name: t.navHome, path: '/', icon: Home },
     { name: t.navAnimes, path: '/animelar', icon: Tv },
@@ -79,7 +82,7 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
     { name: t.navMyList, path: '/shaxsiy-royxat', icon: Bookmark },
     { name: t.navFavorites, path: '/sevimlilar', icon: Heart },
     { name: t.navHistory, path: '/tarix', icon: History },
-    { name: t.navMusic || 'Musiqa', path: '/music', icon: Music, badge: 'New' },
+    { name: t.navMusic || 'Musiqa', path: '/music', icon: Music, badge: isNewBadgeVisible ? 'New' : undefined },
     { name: t.navChat, path: '/chat', icon: MessageSquare },
     { name: 'Donat qilish', path: '/donat', icon: Heart },
     { name: t.navSettings, path: '/sozlamalar', icon: Settings },
