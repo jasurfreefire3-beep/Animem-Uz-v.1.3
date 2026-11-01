@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { Anime, toSlug } from '../types';
-import { Star, PlayCircle, Calendar, Play, Clock, Grid, MessageSquare, ChevronLeft, ChevronRight, TrendingUp, Info, Eye, Film } from 'lucide-react';
+import { Star, PlayCircle, Calendar, Play, Clock, Grid, MessageSquare, ChevronLeft, ChevronRight, TrendingUp, Info, Eye, Film, Flame, Sparkles, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AnimeCard from '../components/AnimeCard';
 import { useAuth } from '../context/AuthContext';
@@ -97,14 +97,26 @@ export default function Home() {
   }, []);
 
   const bannerAnimes = animes.filter(a => a.is_banner);
+  const displayBanners = bannerAnimes.length > 0 ? bannerAnimes : animes.slice(0, 6);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleNextBanner = useCallback(() => {
+    if (displayBanners.length <= 1) return;
+    setBannerIndex(prev => (prev + 1) % displayBanners.length);
+  }, [displayBanners.length]);
+
+  const handlePrevBanner = useCallback(() => {
+    if (displayBanners.length <= 1) return;
+    setBannerIndex(prev => (prev - 1 + displayBanners.length) % displayBanners.length);
+  }, [displayBanners.length]);
 
   useEffect(() => {
-    if (bannerAnimes.length <= 1) return;
+    if (displayBanners.length <= 1 || isHovered) return;
     const interval = setInterval(() => {
-      setBannerIndex(prev => (prev + 1) % bannerAnimes.length);
-    }, 5000);
+      setBannerIndex(prev => (prev + 1) % displayBanners.length);
+    }, 6000);
     return () => clearInterval(interval);
-  }, [bannerAnimes.length]);
+  }, [displayBanners.length, isHovered]);
 
   const newAnimes = [...animes].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 10);
   const mostViewedAnimes = [...animes].sort((a, b) => (b.korishlar || 0) - (a.korishlar || 0)).slice(0, 10);
@@ -118,7 +130,7 @@ export default function Home() {
      );
   }
 
-  const featuredAnime = bannerAnimes[bannerIndex] || bannerAnimes[0];
+  const featuredAnime = displayBanners[bannerIndex] || displayBanners[0];
 
   const renderTitle = (title: string) => {
     const upper = title.toUpperCase();
@@ -129,7 +141,7 @@ export default function Home() {
       return (
         <>
           <span className="text-white">{first}</span>
-          <span className="text-[#ff006a]">{rest}</span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff006a] to-[#a855f7]">{rest}</span>
         </>
       );
     } else {
@@ -138,7 +150,7 @@ export default function Home() {
         return (
           <>
             <span className="text-white">{words[0]} </span>
-            <span className="text-[#ff006a]">{words.slice(1).join(' ')}</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff006a] to-[#a855f7]">{words.slice(1).join(' ')}</span>
           </>
         );
       }
@@ -146,126 +158,249 @@ export default function Home() {
     }
   };
 
+  const genresList = featuredAnime?.janrlar 
+    ? featuredAnime.janrlar.split(',').map(g => g.trim()).filter(Boolean) 
+    : [];
+
   return (
     <div className="space-y-12 pb-20">
-      {/* Featured Hero Banner */}
-      <AnimatePresence mode="wait">
-        {featuredAnime && (
-          <motion.div 
-            key={featuredAnime.id}
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.02 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="relative w-full rounded-lg overflow-hidden border border-white/10 bg-[#09090b] shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
-          >
-            {/* Background Blurred Image */}
-            <div className="absolute inset-0 w-full h-full overflow-hidden">
-              <img loading="eager" fetchPriority="high" decoding="async" 
-                src={featuredAnime.banner_url || featuredAnime.image_url} 
-                alt={featuredAnime.title} 
-                title={featuredAnime.title}
-                className="w-full h-full object-cover scale-105 blur-[3px] opacity-40 md:opacity-30 transition-all duration-700" 
+      {/* Cinematic Netflix / Crunchyroll Full-Width Hero Banner */}
+      {featuredAnime && (
+        <div 
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden bg-[#060609] border border-white/10 shadow-[0_25px_70px_rgba(0,0,0,0.95)] min-h-[540px] sm:min-h-[580px] md:min-h-[620px] lg:min-h-[660px] flex flex-col justify-end p-5 sm:p-8 md:p-12 lg:p-14 group"
+        >
+          {/* Animated Background Image with Ken Burns Zoom & Smooth Crossfade */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`bg-${featuredAnime.id}`}
+              initial={{ opacity: 0, scale: 1.07 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute inset-0 w-full h-full pointer-events-none"
+            >
+              <img
+                src={featuredAnime.banner_url || featuredAnime.image_url}
+                alt={featuredAnime.title}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="w-full h-full object-cover object-center lg:object-[center_25%]"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/80 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#09090b] via-[#09090b]/60 to-transparent" />
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Cinematic Vignettes and Multi-Directional Gradient Masks */}
+          {/* 1. Heavy Left Gradient (protects text legibility) */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#060609] via-[#060609]/90 via-40% md:via-50% to-transparent pointer-events-none" />
+          
+          {/* 2. Bottom Fade to Black (seamless transition into page content) */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#060609] via-[#060609]/80 via-25% to-transparent pointer-events-none" />
+          
+          {/* 3. Top Vignette (navbar blend) */}
+          <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-[#060609]/85 to-transparent pointer-events-none" />
+          
+          {/* 4. Ambient Neon Glow Accent behind title */}
+          <div className="absolute left-6 top-1/4 w-80 h-80 rounded-full bg-[#ff006a]/20 blur-[130px] pointer-events-none" />
+
+          {/* Left Hero Content Box */}
+          <div className="relative z-10 max-w-2xl lg:max-w-3xl space-y-4 sm:space-y-5">
+            {/* Row 1: Badges */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              <span className="px-3 py-1 bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full shadow-[0_0_15px_rgba(255,0,106,0.6)] flex items-center gap-1.5 animate-pulse">
+                <Flame size={12} className="fill-current text-amber-300" />
+                <span>#1 TRENDING</span>
+              </span>
+
+              {Boolean(featuredAnime.tavsiya) && (
+                <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1 shadow-sm">
+                  <Sparkles size={11} className="fill-current" />
+                  <span>TAVSIYA</span>
+                </span>
+              )}
+
+              <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/15 text-[11px] font-bold text-white shadow-sm">
+                <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
+                <span>{featuredAnime.rating || '4.9'}</span>
+                <span className="text-white/30">|</span>
+                <span className="text-white/60 text-[10px] uppercase">IMDb</span>
+              </div>
+
+              <span className="px-2.5 py-1 bg-white/10 backdrop-blur-md rounded-full text-[10px] font-bold text-white/90 border border-white/10 uppercase">
+                {featuredAnime.holati || 'Tugallangan'}
+              </span>
+
+              <span className="px-2.5 py-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-full text-[10px] font-black tracking-wide uppercase">
+                HD 1080p
+              </span>
             </div>
 
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-8 items-center p-6 sm:p-8 md:p-12">
-              {/* Left Content */}
-              <div className="md:col-span-8 space-y-6">
-                {/* Row 1: Badges */}
-                <div className="flex flex-wrap items-center gap-3">
-                  {Boolean(featuredAnime.tavsiya) && (
-                    <span className="px-3 py-1 bg-[#ff006a] text-white text-[11px] font-black uppercase tracking-widest rounded-sm shadow-md">
-                      TAVSIYA
-                    </span>
-                  )}
-                <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-xs font-bold text-white">
-                  <Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />
-                  <span>{featuredAnime.rating || '4.9'}</span>
-                  <span className="text-white/30">|</span>
-                  <span className="text-white/70 uppercase">ANIME</span>
-                </div>
-              </div>
-
-              {/* Row 2: Title */}
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-none uppercase tracking-tight text-white max-w-3xl font-sans">
-                {renderTitle(featuredAnime.title)}
-              </h1>
-
-              {/* Row 3: Meta metadata */}
-              <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-xs font-semibold text-white/70">
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-[#ff006a]" />
-                  <span>{featuredAnime.yil || '2024'}</span>
-                </div>
-                {featuredAnime.studiyasi && (
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-[#ff006a]" />
-                    <span className="uppercase tracking-wider">{featuredAnime.studiyasi}</span>
-                  </div>
-                )}
-                <span className="px-2.5 py-0.5 bg-white/10 rounded-sm text-[10px] font-black uppercase tracking-wide border border-white/5">
-                  {featuredAnime.holati || 'TUGALLANGAN'}
-                </span>
-                <span className="text-[#ff006a] font-black text-[10px] tracking-wider uppercase">
-                  TARJIMA
-                </span>
-              </div>
-
-              {/* Row 4: Thick Left Border Description */}
-              <div className="border-l-[3.5px] border-[#ff006a] pl-4 py-1.5">
-                <p className="text-white/80 text-xs sm:text-sm leading-relaxed max-w-2xl italic font-medium line-clamp-3">
-                  {featuredAnime.description}
-                </p>
-              </div>
-
-              {/* Row 5: Action Buttons */}
-              <div className="flex flex-wrap items-center gap-4 pt-2">
-                <Link 
-                  to={getLocalizedPath(`/anime/${toSlug(featuredAnime.title) || featuredAnime.id}`)}
-                  className="bg-[#ff006a] hover:bg-[#d40058] text-white px-6 py-3 rounded-sm font-black flex items-center gap-2 shadow-lg shadow-[#ff006a]/20 transition-all text-xs uppercase tracking-wider cursor-pointer"
-                >
-                  <Play className="w-4 h-4 fill-current text-white" /> 
-                  TOMOSHA QILISH
-                </Link>
-                <Link 
-                  to={getLocalizedPath(`/anime/${toSlug(featuredAnime.title) || featuredAnime.id}`)}
-                  className="bg-black/40 hover:bg-black/60 border border-white/10 text-white px-6 py-3 rounded-sm font-bold flex items-center gap-2 transition-all text-xs uppercase tracking-wider cursor-pointer"
-                >
-                  <Info className="w-4 h-4" /> 
-                  MA'LUMOT
-                </Link>
-              </div>
-            </div>
-
-            {/* Right Side: Large Rounded Poster */}
-            <div className="hidden md:flex md:col-span-4 justify-center">
-              <motion.div 
-                whileHover={{ scale: 1.03 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className="w-56 lg:w-64 aspect-[3/4] rounded-2xl p-[2.5px] bg-gradient-to-b from-[#ff006a] via-purple-500/50 to-white/20 shadow-[0_25px_60px_rgba(0,0,0,0.9),0_0_35px_rgba(255,0,106,0.35)]"
+            {/* Row 2: Title */}
+            <AnimatePresence mode="wait">
+              <motion.h1
+                key={`title-${featuredAnime.id}`}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.4 }}
+                className="text-3xl sm:text-5xl md:text-6xl font-black leading-tight uppercase tracking-tight text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.9)]"
               >
-                <div className="w-full h-full rounded-[13px] overflow-hidden bg-black relative">
-                  <img loading="eager" fetchPriority="high" decoding="async" 
-                    src={featuredAnime.image_url} 
-                    alt={featuredAnime.title} 
-                    title={featuredAnime.title}
-                    className="w-full h-full object-cover" 
-                  />
-                  {/* Cyber Corner Notches */}
-                  <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-[#ff006a] rounded-tl-sm pointer-events-none drop-shadow-[0_0_6px_rgba(255,0,106,0.8)]" />
-                  <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-[#ff006a] rounded-tr-sm pointer-events-none drop-shadow-[0_0_6px_rgba(255,0,106,0.8)]" />
-                  <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-[#ff006a] rounded-bl-sm pointer-events-none drop-shadow-[0_0_6px_rgba(255,0,106,0.8)]" />
-                  <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-[#ff006a] rounded-br-sm pointer-events-none drop-shadow-[0_0_6px_rgba(255,0,106,0.8)]" />
+                {renderTitle(featuredAnime.title)}
+              </motion.h1>
+            </AnimatePresence>
+
+            {/* Row 3: Meta Info (Year, Studio, Episodes, Audio) */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-semibold text-white/70">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#ff006a]" />
+                <span>{featuredAnime.yil || '2024'}</span>
+              </div>
+              {featuredAnime.studiyasi && (
+                <div className="flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5 text-[#ff006a]" />
+                  <span className="uppercase tracking-wider">{featuredAnime.studiyasi}</span>
                 </div>
-              </motion.div>
+              )}
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-[#ff006a]" />
+                <span>{featuredAnime.qismlar_soni ? `${featuredAnime.qismlar_soni} Qism` : 'Barcha qismlar'}</span>
+              </div>
+              <span className="text-[#ff006a] font-extrabold uppercase tracking-wider text-[11px]">
+                O'zbekcha Dublyaj
+              </span>
+            </div>
+
+            {/* Row 4: Genre Chips */}
+            {genresList.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {genresList.slice(0, 5).map((g, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2.5 py-0.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.15] border border-white/10 text-white/80 text-[11px] font-medium backdrop-blur-sm transition-colors"
+                  >
+                    #{g}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Row 5: Description with left neon border */}
+            <div className="border-l-[3px] border-[#ff006a] pl-3.5 py-1">
+              <p className="text-white/85 text-xs sm:text-sm leading-relaxed max-w-2xl font-medium line-clamp-3 drop-shadow">
+                {featuredAnime.description}
+              </p>
+            </div>
+
+            {/* Row 6: Interactive Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Link
+                to={getLocalizedPath(`/anime/${toSlug(featuredAnime.title) || featuredAnime.id}`)}
+                className="group/btn relative px-7 py-3 rounded-xl bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:opacity-95 text-white font-black flex items-center gap-2.5 shadow-[0_0_25px_rgba(255,0,106,0.45)] hover:shadow-[0_0_35px_rgba(255,0,106,0.7)] transition-all hover:scale-[1.03] active:scale-95 text-xs sm:text-sm uppercase tracking-wider cursor-pointer"
+              >
+                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center group-hover/btn:scale-110 transition-transform">
+                  <Play className="w-3.5 h-3.5 fill-current text-white ml-0.5" />
+                </div>
+                <span>TOMOSHA QILISH</span>
+              </Link>
+
+              <Link
+                to={getLocalizedPath(`/anime/${toSlug(featuredAnime.title) || featuredAnime.id}`)}
+                className="px-5 py-3 rounded-xl bg-black/50 hover:bg-white/15 border border-white/15 hover:border-white/30 backdrop-blur-md text-white font-bold flex items-center gap-2 transition-all hover:scale-[1.02] text-xs sm:text-sm uppercase tracking-wider cursor-pointer"
+              >
+                <Info className="w-4 h-4 text-white/70" />
+                <span>BATAFSIL</span>
+              </Link>
+
+              <Link
+                to={getLocalizedPath('/sevimlilar')}
+                className="p-3 rounded-xl bg-black/50 hover:bg-white/15 border border-white/15 hover:border-white/30 backdrop-blur-md text-white/80 hover:text-[#ff006a] transition-all hover:scale-[1.05] cursor-pointer"
+                title="Sevimlilar ro'yxati"
+              >
+                <Heart className="w-4 h-4 fill-transparent hover:fill-current" />
+              </Link>
             </div>
           </div>
-        </motion.div>
-        )}
-      </AnimatePresence>
+
+          {/* Bottom Right: Mini-Thumbnails Carousel & Controls */}
+          {displayBanners.length > 1 && (
+            <div className="mt-8 sm:mt-0 sm:absolute sm:bottom-6 sm:right-6 lg:bottom-10 lg:right-10 z-20 flex flex-col items-end gap-3">
+              {/* Thumbnail Cards Row */}
+              <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 custom-scrollbar">
+                {displayBanners.slice(0, 5).map((anime, idx) => {
+                  const isActive = idx === bannerIndex;
+                  return (
+                    <button
+                      key={anime.id}
+                      type="button"
+                      onClick={() => setBannerIndex(idx)}
+                      className={`relative group/thumb rounded-xl overflow-hidden cursor-pointer transition-all duration-300 w-16 sm:w-20 md:w-24 aspect-[16/10] shrink-0 border ${
+                        isActive
+                          ? 'border-[#ff006a] ring-2 ring-[#ff006a]/70 shadow-[0_0_20px_rgba(255,0,106,0.6)] scale-105'
+                          : 'border-white/15 opacity-60 hover:opacity-100 hover:scale-102 hover:border-white/40'
+                      }`}
+                    >
+                      <img
+                        src={anime.banner_url || anime.image_url}
+                        alt={anime.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                      <span className="absolute bottom-1 left-1.5 right-1.5 text-[9px] font-extrabold text-white truncate text-left drop-shadow">
+                        {anime.title}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Progress Bar & Arrow Controls */}
+              <div className="flex items-center gap-3 bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full shadow-lg">
+                {/* Previous Button */}
+                <button
+                  type="button"
+                  onClick={handlePrevBanner}
+                  className="p-1 hover:bg-white/10 text-white/70 hover:text-white rounded-full transition-colors cursor-pointer"
+                  title="Oldingi"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                {/* Progress Indicators */}
+                <div className="flex items-center gap-1.5">
+                  {displayBanners.slice(0, 5).map((_, idx) => (
+                    <span
+                      key={idx}
+                      onClick={() => setBannerIndex(idx)}
+                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                        idx === bannerIndex
+                          ? 'w-6 bg-[#ff006a] shadow-[0_0_8px_#ff006a]'
+                          : 'w-1.5 bg-white/30 hover:bg-white/60'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* Counter */}
+                <span className="text-[10px] font-mono text-white/50 px-1">
+                  0{bannerIndex + 1} / 0{Math.min(5, displayBanners.length)}
+                </span>
+
+                {/* Next Button */}
+                <button
+                  type="button"
+                  onClick={handleNextBanner}
+                  className="p-1 hover:bg-white/10 text-white/70 hover:text-white rounded-full transition-colors cursor-pointer"
+                  title="Keyingi"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main Content Layout */}
       <div className="flex flex-col xl:flex-row gap-8">
