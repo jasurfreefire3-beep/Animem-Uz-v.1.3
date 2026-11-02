@@ -235,15 +235,15 @@ export default function TelegramAuthModal({
   if (!isOpen) return null;
 
   return (
-    <div id="telegram_auth_modal" className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+    <div id="telegram_auth_modal" className="fixed inset-0 bg-black/75 backdrop-blur-xl flex items-center justify-center p-4 z-50">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-md bg-[#0e0e12] border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative"
+        className="w-full max-w-md bg-black/85 backdrop-blur-2xl border border-white/20 rounded-3xl overflow-hidden shadow-[0_25px_70px_rgba(0,0,0,0.95)] relative"
       >
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/[0.02]">
+        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
           <div className="flex items-center gap-2">
             <TelegramOfficialIcon className="w-5 h-5 text-[#0088cc]" />
             <span className="text-xs font-black uppercase tracking-wider text-white/90">
@@ -254,7 +254,7 @@ export default function TelegramAuthModal({
           <button
             id="tg_close_btn"
             onClick={onClose}
-            className="text-white/40 hover:text-white transition-colors p-1.5 bg-white/5 hover:bg-white/10 rounded-full cursor-pointer"
+            className="text-white/40 hover:text-white transition-colors p-2 bg-white/5 hover:bg-white/10 rounded-xl cursor-pointer border border-transparent hover:border-white/10"
           >
             <X size={16} />
           </button>

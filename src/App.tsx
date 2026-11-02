@@ -186,10 +186,10 @@ export default function App() {
       {mobileSidebarOpen && (
         <div 
           onClick={closeMobileSidebar}
-          className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 animate-fade-in"
+          className="fixed inset-0 bg-black/70 backdrop-blur-xl z-50 animate-fade-in"
         />
       )}
-      <div className={`fixed inset-y-0 left-0 w-72 max-w-[85vw] border-r border-white/15 bg-black/75 backdrop-blur-2xl transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 shadow-2xl`}>
+      <div className={`fixed inset-y-0 left-0 w-80 max-w-[88vw] border-r border-white/20 bg-black/80 backdrop-blur-3xl transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 shadow-[0_0_80px_rgba(0,0,0,0.9)]`}>
         <Sidebar onClose={closeMobileSidebar} />
       </div>
 

@@ -365,13 +365,13 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                   initial={{ opacity: 0, y: 8, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                  className="absolute left-0 mt-2 w-48 bg-[#111113] border border-[#222] rounded-xl shadow-2xl p-1.5 z-50 divide-y divide-[#1a1a1c]"
+                  className="absolute left-0 mt-2 w-52 bg-black/80 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-2 z-50 divide-y divide-white/10"
                 >
-                  <div className="space-y-0.5 pb-1">
+                  <div className="space-y-1 pb-1">
                     <Link
                       to={getLocalizedPath('/shaxsiy-royxat')}
                       onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
                       <Bookmark size={14} className="text-[#ff006a]" />
                       <span>{t.navMyList || "Shaxsiy ro'yxat"}</span>
@@ -379,7 +379,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                     <Link
                       to={getLocalizedPath('/sevimlilar')}
                       onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
                       <Heart size={14} className="text-[#ff006a]" />
                       <span>{t.navFavorites || 'Sevimlilar'}</span>
@@ -387,7 +387,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                     <Link
                       to={getLocalizedPath('/tarix')}
                       onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
                       <History size={14} className="text-[#ff006a]" />
                       <span>{t.navHistory || 'Tarix'}</span>
@@ -395,7 +395,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                     <Link
                       to={getLocalizedPath('/donat')}
                       onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
                       <Heart size={14} className="text-amber-400 fill-amber-400/20" />
                       <span>Donat qilish</span>
@@ -403,7 +403,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                     <Link
                       to={getLocalizedPath('/sozlamalar')}
                       onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
                       <Settings size={14} className="text-white/60" />
                       <span>{t.navSettings || 'Sozlamalar'}</span>
@@ -441,7 +441,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
-                className="absolute left-0 right-0 top-full mt-1.5 bg-[#111113] border border-[#222] rounded-sm shadow-2xl overflow-hidden z-50 divide-y divide-[#1a1a1c]"
+                className="absolute left-0 right-0 top-full mt-2 bg-black/85 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden z-50 divide-y divide-white/10"
               >
                 {searchResults.length === 0 ? (
                   <div className="p-4 text-center text-xs text-white/40 flex items-center justify-center gap-2">
@@ -450,24 +450,24 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                   </div>
                 ) : (
                   <>
-                    <div className="max-h-80 overflow-y-auto divide-y divide-[#1a1a1c] custom-scrollbar">
+                    <div className="max-h-80 overflow-y-auto divide-y divide-white/10 custom-scrollbar">
                       {searchResults.slice(0, 6).map((anime) => (
                         <Link
                           key={anime.id}
                           to={getLocalizedPath(`/anime/${toSlug(anime.title)}`)}
                           onClick={() => setIsSearchFocused(false)}
-                          className="p-2.5 flex items-center gap-3 hover:bg-[#1a1a1c] transition-colors group"
+                          className="p-2.5 flex items-center gap-3 hover:bg-white/10 transition-colors group"
                         >
                           <img
                             src={anime.image_url}
                             alt={anime.title}
-                            className="w-10 h-13 object-cover rounded-sm border border-white/10 shrink-0 group-hover:scale-105 transition-transform"
+                            className="w-10 h-13 object-cover rounded-lg border border-white/10 shrink-0 group-hover:scale-105 transition-transform"
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-bold text-white group-hover:text-[#ff006a] transition-colors truncate">
                               {anime.title}
                             </p>
-                            <div className="flex items-center gap-2 text-[10px] text-white/40 mt-1">
+                            <div className="flex items-center gap-2 text-[10px] text-white/50 mt-1">
                               {anime.rating && (
                                 <span className="flex items-center gap-0.5 text-yellow-400 font-bold">
                                   <Star size={10} className="fill-current" /> {Number(anime.rating).toFixed(1)}
@@ -482,7 +482,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                     </div>
                     <button
                       onClick={() => handleSearchSubmit()}
-                      className="w-full p-2.5 text-center text-xs font-bold text-[#ff006a] hover:bg-[#ff006a]/10 transition-colors bg-[#0c0c0e] block cursor-pointer"
+                      className="w-full p-2.5 text-center text-xs font-bold text-[#ff006a] hover:bg-[#ff006a]/15 transition-colors bg-white/[0.04] block cursor-pointer"
                     >
                       Barcha {searchResults.length} ta natijani ko'rish →
                     </button>
@@ -533,7 +533,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 mt-2 w-36 bg-[#111113] border border-[#222] rounded-xl shadow-2xl overflow-hidden z-50 p-1 divide-y divide-[#1a1a1c]"
+                className="absolute right-0 mt-2 w-40 bg-black/85 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden z-50 p-1.5 space-y-0.5"
               >
                 {languagesList.map((item) => (
                   <button
@@ -542,10 +542,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                       setLanguage(item.code, true);
                       setShowLangDropdown(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                       language === item.code 
-                        ? 'bg-[#ff006a]/20 text-[#ff006a]' 
-                        : 'text-white/70 hover:text-white hover:bg-white/5'
+                        ? 'bg-[#ff006a]/20 text-[#ff006a] border border-[#ff006a]/30' 
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
                     }`}
                   >
                     <span className="flex items-center gap-2">
@@ -613,39 +613,39 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="fixed sm:absolute top-16 sm:top-auto right-2 sm:right-0 left-2 sm:left-auto mt-1 sm:mt-3 w-auto sm:w-80 bg-[#111113] border border-[#1a1a1c] rounded-sm shadow-2xl overflow-hidden text-sm z-50"
+                className="fixed sm:absolute top-16 sm:top-auto right-2 sm:right-0 left-2 sm:left-auto mt-1 sm:mt-3 w-auto sm:w-84 bg-black/85 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] overflow-hidden text-sm z-50"
               >
-                <div className="p-3 border-b border-[#222] bg-[#0c0c0e] flex items-center justify-between">
-                  <span className="font-bold text-xs uppercase tracking-wider text-white/50">{t.notificationsTitle}</span>
-                  <button onClick={() => setShowNotifications(false)} className="text-white/30 hover:text-white cursor-pointer">
-                    <X size={12} />
+                <div className="p-3.5 border-b border-white/10 bg-white/5 flex items-center justify-between">
+                  <span className="font-bold text-xs uppercase tracking-wider text-white/70">{t.notificationsTitle}</span>
+                  <button onClick={() => setShowNotifications(false)} className="text-white/40 hover:text-white p-1 hover:bg-white/10 rounded-lg transition-colors cursor-pointer">
+                    <X size={14} />
                   </button>
                 </div>
 
                 {/* Device Push Notification Quick Prompt */}
                 {getNotificationPermission() !== 'granted' && (
-                  <div className="p-2.5 bg-[#ff006a]/10 border-b border-[#ff006a]/20 flex items-center justify-between gap-2">
+                  <div className="p-3 bg-[#ff006a]/15 border-b border-[#ff006a]/25 backdrop-blur-md flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <Bell className="w-3.5 h-3.5 text-[#ff006a] shrink-0 animate-pulse" />
-                      <span className="text-[11px] text-white/80 font-medium truncate">{t.pushNotificationsSubtitle}</span>
+                      <span className="text-[11px] text-white/90 font-medium truncate">{t.pushNotificationsSubtitle}</span>
                     </div>
                     <button
                       onClick={async () => {
                         await requestNotificationPermission();
                         setShowNotifications(false);
                       }}
-                      className="px-2.5 py-1 bg-[#ff006a] hover:bg-[#e6005c] text-white text-[10px] font-bold rounded uppercase shrink-0 transition-all cursor-pointer"
+                      className="px-2.5 py-1 bg-[#ff006a] hover:bg-[#e6005c] text-white text-[10px] font-bold rounded-lg uppercase shrink-0 transition-all cursor-pointer shadow-md shadow-[#ff006a]/30"
                     >
                       {t.enableNotifications}
                     </button>
                   </div>
                 )}
-                <div className="divide-y divide-[#1a1a1c] max-h-72 overflow-y-auto custom-scrollbar">
+                <div className="divide-y divide-white/10 max-h-72 overflow-y-auto custom-scrollbar">
                   {notifications.length === 0 ? (
-                    <div className="p-4 text-xs text-center text-white/40">{t.noNotifications}</div>
+                    <div className="p-6 text-xs text-center text-white/40">{t.noNotifications}</div>
                   ) : (
                     notifications.map((n) => (
-                      <div key={n.id} className="p-3 hover:bg-[#161619] transition-colors cursor-pointer">
+                      <div key={n.id} className="p-3 hover:bg-white/10 transition-colors cursor-pointer">
                         <p className="font-bold text-xs text-white/90">{n.message}</p>
                         <span className="text-[9px] text-[#ff006a] font-mono mt-1 block">
                           {n.created_at ? new Date(n.created_at).toLocaleString() : 'Yangi'}
@@ -664,7 +664,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-              className="flex items-center space-x-2 p-1 rounded-sm hover:bg-[#111] transition-all cursor-pointer"
+              className="flex items-center space-x-2 p-1 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
             >
               <UserAvatar
                 size="sm"
@@ -681,62 +681,62 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 mt-3 w-48 bg-[#111113] border border-[#1a1a1c] rounded-sm shadow-2xl overflow-hidden z-50 text-xs"
+                  className="absolute right-0 mt-3 w-56 bg-black/85 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] overflow-hidden z-50 text-xs"
                 >
-                  <div className="p-3 border-b border-[#1a1a1c] bg-[#0c0c0e]">
+                  <div className="p-3.5 border-b border-white/10 bg-white/5">
                     <p className="font-bold text-white truncate">{user.name}</p>
-                    <p className="text-[10px] text-white/40 truncate mt-0.5">{user.email}</p>
+                    <p className="text-[10px] text-white/50 truncate mt-0.5">{user.email}</p>
                   </div>
-                  <div className="p-1">
+                  <div className="p-1.5 space-y-0.5">
                     <Link
                       to={getLocalizedPath('/profil')}
                       onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2 px-3 py-2 text-white/70 hover:text-white hover:bg-[#1a1a1c] rounded-sm transition-colors"
+                      className="flex items-center space-x-2.5 px-3 py-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
-                      <User size={13} />
+                      <User size={14} className="text-[#ff006a]" />
                       <span>{t.myProfile}</span>
                     </Link>
                     <Link
                       to={getLocalizedPath('/shaxsiy-royxat')}
                       onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2 px-3 py-2 text-white/70 hover:text-white hover:bg-[#1a1a1c] rounded-sm transition-colors"
+                      className="flex items-center space-x-2.5 px-3 py-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
-                      <Bookmark size={13} className="text-[#ff006a]" />
+                      <Bookmark size={14} className="text-[#ff006a]" />
                       <span>{t.myList}</span>
                     </Link>
                     <Link
                       to={getLocalizedPath('/sevimlilar')}
                       onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2 px-3 py-2 text-white/70 hover:text-white hover:bg-[#1a1a1c] rounded-sm transition-colors"
+                      className="flex items-center space-x-2.5 px-3 py-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
-                      <Heart size={13} />
+                      <Heart size={14} className="text-[#ff006a]" />
                       <span>{t.favorites}</span>
                     </Link>
                     <Link
                       to={getLocalizedPath('/sozlamalar')}
                       onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2 px-3 py-2 text-white/70 hover:text-white hover:bg-[#1a1a1c] rounded-sm transition-colors"
+                      className="flex items-center space-x-2.5 px-3 py-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
-                      <Settings size={13} />
+                      <Settings size={14} className="text-white/60" />
                       <span>{t.settings}</span>
                     </Link>
                     {user.role === 'admin' && (
                       <Link
                         to={getLocalizedPath('/admin')}
                         onClick={() => setShowProfileDropdown(false)}
-                        className="flex items-center space-x-2 px-3 py-2 text-red-400 hover:bg-red-950/20 rounded-sm transition-colors"
+                        className="flex items-center space-x-2.5 px-3 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-all"
                       >
-                        <Shield size={13} />
+                        <Shield size={14} />
                         <span>Control Panel</span>
                       </Link>
                     )}
                   </div>
-                  <div className="p-1 border-t border-[#1a1a1c] bg-[#0c0c0e]">
+                  <div className="p-1.5 border-t border-white/10 bg-white/5">
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center space-x-2 px-3 py-2 text-white/50 hover:text-red-400 rounded-sm transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center space-x-2.5 px-3 py-2 text-white/60 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all text-left cursor-pointer"
                     >
-                      <LogOut size={13} />
+                      <LogOut size={14} />
                       <span>{t.logout}</span>
                     </button>
                   </div>

@@ -978,7 +978,7 @@ export default function ChatWidget() {
             <AnimatePresence>
               {selectedMsgForAction && (
                 <div 
-                  className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+                  className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4"
                   onClick={() => setSelectedMsgForAction(null)}
                 >
                   <motion.div
@@ -986,7 +986,7 @@ export default function ChatWidget() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.92 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-[#101018] border border-white/15 rounded-2xl p-4 w-72 shadow-2xl space-y-3"
+                    className="bg-black/85 backdrop-blur-2xl border border-white/20 rounded-3xl p-4 w-80 shadow-[0_20px_50px_rgba(0,0,0,0.9)] space-y-3"
                   >
                     <div className="border-b border-white/10 pb-2">
                       <p className="text-[11px] text-white/50">Xabar amallari</p>

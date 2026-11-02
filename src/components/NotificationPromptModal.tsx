@@ -79,7 +79,7 @@ export default function NotificationPromptModal() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={handleDismiss}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+              className="fixed inset-0 bg-black/75 backdrop-blur-xl transition-opacity"
             />
 
             {/* Modal Box */}
@@ -89,7 +89,7 @@ export default function NotificationPromptModal() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 25 }}
               transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-              className="relative w-full max-w-md bg-[#111114] border border-[#27272e] rounded-2xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.9),0_0_40px_rgba(255,0,106,0.15)] overflow-hidden z-10"
+              className="relative w-full max-w-md bg-black/85 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 sm:p-7 shadow-[0_25px_70px_rgba(0,0,0,0.95),0_0_40px_rgba(255,0,106,0.2)] overflow-hidden z-10"
             >
               {/* Top Accent Gradient Bar */}
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#ff006a] via-[#ff6699] to-[#ff006a]" />
@@ -97,7 +97,7 @@ export default function NotificationPromptModal() {
               {/* Close Button */}
               <button
                 onClick={handleDismiss}
-                className="absolute top-4 right-4 p-1.5 rounded-full text-white/40 hover:text-white hover:bg-white/5 transition-colors"
+                className="absolute top-4 right-4 p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 transition-colors"
                 title="Yopish"
               >
                 <X size={18} />
@@ -124,7 +124,7 @@ export default function NotificationPromptModal() {
                 </p>
 
                 {/* Feature Bullet Points */}
-                <div className="w-full bg-[#17171c] border border-white/5 rounded-xl p-3.5 mt-4 space-y-2 text-left">
+                <div className="w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 mt-4 space-y-2.5 text-left backdrop-blur-md">
                   <div className="flex items-center gap-2.5 text-xs text-white/80">
                     <Zap className="w-4 h-4 text-[#ff006a] shrink-0" />
                     <span>Yangi qismlar chiqqan zahoti tezkor bildirishnoma</span>
@@ -144,7 +144,7 @@ export default function NotificationPromptModal() {
                   <button
                     onClick={handleEnable}
                     disabled={isActivating}
-                    className="w-full py-3 px-5 bg-gradient-to-r from-[#ff006a] to-[#e6005c] hover:from-[#ff1a7d] hover:to-[#ff006a] text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-[0_0_25px_rgba(255,0,106,0.5)] transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-3.5 px-5 bg-gradient-to-r from-[#ff006a] to-[#e6005c] hover:from-[#ff1a7d] hover:to-[#ff006a] text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-[0_0_25px_rgba(255,0,106,0.5)] transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 cursor-pointer border border-white/20"
                   >
                     <Bell className="w-4 h-4" />
                     <span>{isActivating ? 'Yoqilmoqda...' : 'Bildirishnomalarni yoqish'}</span>
@@ -152,7 +152,7 @@ export default function NotificationPromptModal() {
 
                   <button
                     onClick={handleDismiss}
-                    className="w-full sm:w-auto py-3 px-4 text-white/50 hover:text-white hover:bg-white/5 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                    className="w-full sm:w-auto py-3 px-4 text-white/60 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                   >
                     Keyinroq
                   </button>

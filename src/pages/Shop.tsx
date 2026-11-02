@@ -750,12 +750,12 @@ export default function Shop() {
       {/* Confirmation & Checkout Modal */}
       <AnimatePresence>
         {selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xl animate-fade-in">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-[#131317] border border-white/15 rounded-2xl p-6 shadow-2xl text-white"
+              className="relative w-full max-w-md bg-black/85 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 shadow-[0_25px_70px_rgba(0,0,0,0.95)] text-white"
             >
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -935,12 +935,12 @@ export default function Shop() {
       {/* Verification Result Modal */}
       <AnimatePresence>
         {verifyResult.show && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xl animate-fade-in">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-[#131317] border border-white/15 rounded-2xl p-6 shadow-2xl text-center text-white"
+              className="relative w-full max-w-md bg-black/85 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 shadow-[0_25px_70px_rgba(0,0,0,0.95)] text-center text-white"
             >
               <div className={`w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-4 ${
                 verifyResult.success ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'

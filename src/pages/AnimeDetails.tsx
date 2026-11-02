@@ -1729,7 +1729,7 @@ export default function AnimeDetails() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowLoginPrompt(false)}
-              className="absolute inset-0 bg-black/85 backdrop-blur-md"
+              className="absolute inset-0 bg-black/75 backdrop-blur-xl"
             />
             
             {/* Modal Card */}
@@ -1738,7 +1738,7 @@ export default function AnimeDetails() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               transition={{ type: 'spring', duration: 0.5 }}
-              className="relative w-full max-w-md bg-[#0c0c0e] border border-white/10 rounded-xl p-6 md:p-8 shadow-[0_20px_50px_rgba(255,0,106,0.15)] text-center overflow-hidden"
+              className="relative w-full max-w-md bg-black/85 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 md:p-8 shadow-[0_25px_70px_rgba(0,0,0,0.95),0_0_40px_rgba(255,0,106,0.2)] text-center overflow-hidden"
             >
               {/* Radial background accent */}
               <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#ff006a]/10 rounded-full blur-3xl pointer-events-none" />

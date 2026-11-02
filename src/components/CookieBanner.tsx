@@ -32,10 +32,10 @@ export default function CookieBanner() {
     <div
       role="region"
       aria-label="Cookie consent banner"
-      className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 p-4 sm:p-5 bg-[#121217]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl animate-fade-in text-white/90"
+      className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 p-4 sm:p-5 bg-black/80 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] animate-fade-in text-white/90"
     >
       <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-[#ff006a]/15 text-[#ff006a] flex items-center justify-center shrink-0 mt-0.5">
+        <div className="w-10 h-10 rounded-2xl bg-[#ff006a]/20 border border-[#ff006a]/30 text-[#ff006a] flex items-center justify-center shrink-0 mt-0.5">
           <Cookie size={20} />
         </div>
 
@@ -44,7 +44,7 @@ export default function CookieBanner() {
             <span>{isRu ? 'Файлы Cookie и конфиденциальность' : 'Cookie fayllari va maxfiylik'}</span>
             <button
               onClick={() => setIsVisible(false)}
-              className="text-white/40 hover:text-white transition-colors p-1"
+              className="text-white/40 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-xl"
               aria-label="Yopish"
             >
               <X size={15} />
@@ -67,13 +67,13 @@ export default function CookieBanner() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleAccept}
-              className="flex-1 py-2 px-4 bg-[#ff006a] hover:bg-[#e0005e] active:scale-95 text-white font-bold rounded-xl transition-all shadow-lg shadow-[#ff006a]/20 text-center"
+              className="flex-1 py-2.5 px-4 bg-gradient-to-r from-[#ff006a] to-[#e0005e] hover:brightness-110 active:scale-95 text-white font-bold rounded-xl transition-all shadow-lg shadow-[#ff006a]/25 text-center border border-white/20"
             >
               {isRu ? 'Принять всё' : 'Qabul qilish'}
             </button>
             <button
               onClick={() => setIsVisible(false)}
-              className="py-2 px-3 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-xl transition-colors font-medium"
+              className="py-2.5 px-3.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/70 hover:text-white rounded-xl transition-colors font-medium"
             >
               {isRu ? 'Закрыть' : 'Yopish'}
             </button>

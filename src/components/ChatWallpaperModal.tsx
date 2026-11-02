@@ -58,7 +58,7 @@ export default function ChatWallpaperModal({
   return (
     <AnimatePresence>
       <div 
-        className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xl animate-fade-in"
         onClick={onClose}
       >
         <motion.div
@@ -67,10 +67,10 @@ export default function ChatWallpaperModal({
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
           transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-[#0e0f18] border border-white/15 rounded-2xl w-full max-w-xl max-h-[85vh] flex flex-col shadow-2xl shadow-black/90 overflow-hidden"
+          className="bg-black/85 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-xl max-h-[85vh] flex flex-col shadow-[0_25px_70px_rgba(0,0,0,0.95)] overflow-hidden"
         >
           {/* Header */}
-          <div className="p-3.5 sm:p-4 bg-[#141522] border-b border-white/10 flex items-center justify-between shrink-0">
+          <div className="p-3.5 sm:p-4 bg-white/5 border-b border-white/10 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#ff006a] to-[#7928ca] flex items-center justify-center text-white shadow-md shadow-[#ff006a]/30">
                 <Palette size={16} />
@@ -88,14 +88,14 @@ export default function ChatWallpaperModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 hover:bg-white/10 text-white/60 hover:text-white rounded-full transition-colors cursor-pointer"
+              className="p-2 hover:bg-white/10 text-white/60 hover:text-white rounded-xl transition-colors cursor-pointer border border-transparent hover:border-white/10"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Quick Action Tabs */}
-          <div className="px-3.5 sm:px-4 py-2 bg-[#10111a] border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
+          <div className="px-3.5 sm:px-4 py-2 bg-white/[0.02] border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-xl border border-white/5 text-xs font-bold">
               <button
                 type="button"

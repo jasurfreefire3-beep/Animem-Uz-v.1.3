@@ -217,20 +217,20 @@ export default function DonatModal() {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xl">
           {/* Modal Container */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ duration: 0.2 }}
-            className="relative w-full max-w-lg bg-[#0e0e11] border border-white/10 rounded-2xl shadow-2xl shadow-[#ff006a]/20 overflow-hidden flex flex-col max-h-[90vh]"
+            className="relative w-full max-w-lg bg-black/85 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.9),0_0_40px_rgba(255,0,106,0.15)] overflow-hidden flex flex-col max-h-[90vh]"
           >
             {/* Top Glowing Header Accent */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#ff006a] via-purple-600 to-[#ff006a]" />
 
             {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-white/10 shrink-0">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-white/10 bg-white/[0.02] shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff006a]/20 to-purple-600/20 border border-[#ff006a]/40 flex items-center justify-center text-[#ff006a] shadow-inner">
                   <Heart className="w-5 h-5 fill-current" />
@@ -247,20 +247,20 @@ export default function DonatModal() {
               </div>
               <button
                 onClick={handleClose}
-                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-white/10"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-white/10 bg-[#09090c] shrink-0 p-1 gap-1">
+            <div className="flex border-b border-white/10 bg-white/[0.02] shrink-0 p-1.5 gap-1.5">
               <button
                 onClick={() => { setActiveTab('donate'); setPendingOrder(null); setIsSuccess(false); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border ${
                   activeTab === 'donate'
-                    ? 'bg-[#ff006a] text-white shadow-md shadow-[#ff006a]/30'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                    ? 'bg-[#ff006a] text-white shadow-md shadow-[#ff006a]/30 border-white/20'
+                    : 'text-white/60 hover:text-white hover:bg-white/5 border-transparent'
                 }`}
               >
                 <Heart size={14} className={activeTab === 'donate' ? 'fill-current' : ''} />
@@ -268,10 +268,10 @@ export default function DonatModal() {
               </button>
               <button
                 onClick={() => { setActiveTab('donors'); fetchDonations(); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border ${
                   activeTab === 'donors'
-                    ? 'bg-[#ff006a] text-white shadow-md shadow-[#ff006a]/30'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                    ? 'bg-[#ff006a] text-white shadow-md shadow-[#ff006a]/30 border-white/20'
+                    : 'text-white/60 hover:text-white hover:bg-white/5 border-transparent'
                 }`}
               >
                 <Trophy size={14} />
@@ -369,8 +369,8 @@ export default function DonatModal() {
                               onClick={() => handleSelectPreset(val)}
                               className={`py-2 px-1 text-xs font-black rounded-xl border transition-all cursor-pointer ${
                                 amount === val
-                                  ? 'bg-[#ff006a]/20 border-[#ff006a] text-white shadow-sm shadow-[#ff006a]/20'
-                                  : 'bg-[#151518] border-white/5 text-white/70 hover:bg-white/5 hover:text-white'
+                                  ? 'bg-[#ff006a]/25 border-[#ff006a] text-white shadow-sm shadow-[#ff006a]/30'
+                                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
                               }`}
                             >
                               {val.toLocaleString('uz-UZ')} UZS
@@ -390,7 +390,7 @@ export default function DonatModal() {
                             value={customAmount}
                             onChange={handleCustomAmountChange}
                             placeholder="Masalan: 15 000"
-                            className="w-full bg-[#151518] border border-white/10 rounded-xl px-4 py-2.5 text-sm font-black text-white focus:outline-none focus:border-[#ff006a] transition-all placeholder:text-white/20"
+                            className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-2.5 text-sm font-black text-white focus:outline-none focus:border-[#ff006a] transition-all placeholder:text-white/30 backdrop-blur-md"
                           />
                           <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#ff006a]">
                             SO'M
@@ -410,7 +410,7 @@ export default function DonatModal() {
                             onChange={(e) => setDonorName(e.target.value)}
                             placeholder={user?.name || "Saxiy Otaku"}
                             maxLength={40}
-                            className="w-full bg-[#151518] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-[#ff006a] transition-all placeholder:text-white/20"
+                            className="w-full bg-white/5 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-[#ff006a] transition-all placeholder:text-white/30 backdrop-blur-md"
                           />
                           <UserIcon size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
                         </div>
@@ -428,7 +428,7 @@ export default function DonatModal() {
                             rows={2}
                             maxLength={250}
                             placeholder="Tarjima va dublyaj uchun rahmat! ❤️"
-                            className="w-full bg-[#151518] border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-[#ff006a] transition-all placeholder:text-white/20 resize-none"
+                            className="w-full bg-white/5 border border-white/15 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-[#ff006a] transition-all placeholder:text-white/30 resize-none backdrop-blur-md"
                           />
                           <span className="absolute right-2.5 bottom-2 text-[10px] text-white/30">
                             {comment.length}/250
@@ -437,7 +437,7 @@ export default function DonatModal() {
                       </div>
 
                       {/* Payment Providers preview */}
-                      <div className="p-3 bg-[#151518] rounded-xl border border-white/5 flex items-center justify-between">
+                      <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between backdrop-blur-md">
                         <div className="flex items-center gap-2">
                           <ShieldCheck size={16} className="text-emerald-400" />
                           <span className="text-[11px] text-white/70 font-semibold">
@@ -475,15 +475,15 @@ export default function DonatModal() {
                 /* Donors list tab */
                 <div className="space-y-4">
                   {/* Stats banner */}
-                  <div className="grid grid-cols-2 gap-3 p-3.5 bg-gradient-to-br from-[#151518] to-[#1a1a20] rounded-xl border border-white/5">
+                  <div className="grid grid-cols-2 gap-3 p-3.5 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md">
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-white/40 block">Jami donatlar:</span>
+                      <span className="text-[10px] uppercase font-bold text-white/50 block">Jami donatlar:</span>
                       <strong className="text-base sm:text-lg font-black text-[#ff006a]">
                         {stats.totalAmount.toLocaleString('uz-UZ')} UZS
                       </strong>
                     </div>
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-white/40 block">Saxiy otakular:</span>
+                      <span className="text-[10px] uppercase font-bold text-white/50 block">Saxiy otakular:</span>
                       <strong className="text-base sm:text-lg font-black text-white">
                         {stats.donorCount} ta
                       </strong>
@@ -512,7 +512,7 @@ export default function DonatModal() {
                       {donations.map((don, idx) => (
                         <div
                           key={don.id || idx}
-                          className="p-3 bg-[#131317] hover:bg-[#18181f] border border-white/5 rounded-xl transition-all space-y-2"
+                          className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all space-y-2 backdrop-blur-md"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -549,7 +549,7 @@ export default function DonatModal() {
 
                           {/* Comment / Message */}
                           {don.comment && (
-                            <div className="pl-10 text-[11px] text-white/80 bg-white/[0.02] p-2 rounded-lg border border-white/5 italic">
+                            <div className="pl-10 text-[11px] text-white/80 bg-white/[0.04] p-2.5 rounded-xl border border-white/10 italic">
                               "{don.comment}"
                             </div>
                           )}
@@ -562,7 +562,7 @@ export default function DonatModal() {
             </div>
 
             {/* Footer notice */}
-            <div className="p-3 border-t border-white/5 bg-[#09090c] text-center text-[10px] text-white/40 shrink-0">
+            <div className="p-3 border-t border-white/10 bg-white/[0.02] text-center text-[10px] text-white/40 shrink-0">
               Barcha to'lovlar TezCheck to'lov tizimi orqali 100% xavfsiz amalga oshiriladi.
             </div>
           </motion.div>
