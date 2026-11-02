@@ -77,7 +77,8 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
     const fetchAnimes = async () => {
       try {
-        const res = await fetch('/api/animes', { signal: controller.signal });
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+        const res = await fetch(`${API_BASE}/api/animes`, { signal: controller.signal });
         if (res.ok && isMounted) {
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -169,7 +170,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
   ];
 
   return (
-    <header className="fixed top-0 right-0 left-0 h-16 md:h-20 bg-[#09090b]/90 backdrop-blur-xl border-b border-white/10 z-40 px-3 min-[400px]:px-4 md:px-8 flex items-center justify-between text-white select-none transition-all">
+    <header className="fixed top-0 right-0 left-0 h-16 md:h-20 bg-black/40 backdrop-blur-xl border-b border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-40 px-3 min-[400px]:px-4 md:px-8 flex items-center justify-between text-white select-none transition-all">
       
       {/* Mobile Search Overlay */}
       <AnimatePresence>
@@ -195,7 +196,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   placeholder={t.searchPlaceholder}
-                  className="w-full bg-[#111113] border border-[#ff006a]/40 text-white text-xs rounded-sm pl-4 pr-10 py-2.5 focus:outline-none focus:border-[#ff006a] transition-all placeholder:text-white/30 font-bold"
+                  className="w-full bg-white/[0.08] border border-white/20 text-white text-xs rounded-xl pl-4 pr-10 py-2.5 focus:outline-none focus:border-[#ff006a] backdrop-blur-md transition-all placeholder:text-white/40 font-bold"
                 />
                 <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#ff006a] hover:text-white transition-colors cursor-pointer">
                   <Search size={16} />
@@ -426,7 +427,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 setIsSearchFocused(true);
               }}
               placeholder={t.searchPlaceholder}
-              className="w-full bg-[#111113] border border-[#1a1a1c] text-white text-xs rounded-sm pl-4 pr-10 py-2.5 focus:outline-none focus:border-[#ff006a] transition-all placeholder:text-white/30 font-bold"
+              className="w-full bg-white/[0.08] hover:bg-white/[0.12] border border-white/15 focus:border-[#ff006a] backdrop-blur-md text-white text-xs rounded-xl pl-4 pr-10 py-2.5 focus:outline-none transition-all placeholder:text-white/40 font-bold"
             />
             <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-[#ff006a] transition-colors cursor-pointer">
               <Search size={14} />

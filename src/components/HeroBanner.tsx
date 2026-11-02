@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Anime, toSlug } from '../types';
-import { Star, Calendar, Play, Clock, ChevronLeft, ChevronRight, Film, Sparkles, Flame, Info, Heart } from 'lucide-react';
+import { Star, Calendar, Play, Clock, Film, Sparkles, Flame, Info, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -16,16 +16,6 @@ function HeroBanner({ banners }: HeroBannerProps) {
 
   const displayBanners = banners.length > 0 ? banners : [];
   const featuredAnime = displayBanners[bannerIndex] || displayBanners[0];
-
-  const handleNextBanner = useCallback(() => {
-    if (displayBanners.length <= 1) return;
-    setBannerIndex(prev => (prev + 1) % displayBanners.length);
-  }, [displayBanners.length]);
-
-  const handlePrevBanner = useCallback(() => {
-    if (displayBanners.length <= 1) return;
-    setBannerIndex(prev => (prev - 1 + displayBanners.length) % displayBanners.length);
-  }, [displayBanners.length]);
 
   useEffect(() => {
     if (displayBanners.length <= 1 || isHovered) return;
@@ -218,83 +208,6 @@ function HeroBanner({ banners }: HeroBannerProps) {
           </p>
         </div>
       </div>
-
-      {/* Bottom Right: Mini-Thumbnails Carousel & Controls */}
-      {displayBanners.length > 1 && (
-        <div className="mt-2.5 sm:mt-0 sm:absolute sm:bottom-6 sm:right-6 lg:bottom-12 lg:right-14 z-20 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2.5 pointer-events-auto w-full sm:w-auto">
-          {/* Thumbnail Cards Row */}
-          <div className="hidden sm:flex items-center gap-2.5 overflow-x-auto max-w-full pb-1 custom-scrollbar">
-            {displayBanners.slice(0, 5).map((anime, idx) => {
-              const isActive = idx === bannerIndex;
-              return (
-                <button
-                  key={anime.id}
-                  type="button"
-                  onClick={() => setBannerIndex(idx)}
-                  className={`relative group/thumb rounded-xl overflow-hidden cursor-pointer transition-all duration-300 w-16 sm:w-20 md:w-24 aspect-[16/10] shrink-0 border ${
-                    isActive
-                      ? 'border-[#ff006a] ring-2 ring-[#ff006a]/70 shadow-[0_0_20px_rgba(255,0,106,0.6)] scale-105'
-                      : 'border-white/15 opacity-60 hover:opacity-100 hover:scale-102 hover:border-white/40'
-                  }`}
-                >
-                  <img
-                    src={anime.banner_url || anime.image_url}
-                    alt={anime.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                  <span className="absolute bottom-1 left-1.5 right-1.5 text-[9px] font-extrabold text-white truncate text-left drop-shadow">
-                    {anime.title}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Progress Bar & Arrow Controls */}
-          <div className="flex items-center gap-2 sm:gap-3 bg-black/70 backdrop-blur-md border border-white/10 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full shadow-lg">
-            {/* Previous Button */}
-            <button
-              type="button"
-              onClick={handlePrevBanner}
-              className="p-1 hover:bg-white/10 text-white/70 hover:text-white rounded-full transition-colors cursor-pointer"
-              title="Oldingi"
-            >
-              <ChevronLeft size={15} />
-            </button>
-
-            {/* Progress Indicators */}
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              {displayBanners.slice(0, 5).map((_, idx) => (
-                <span
-                  key={idx}
-                  onClick={() => setBannerIndex(idx)}
-                  className={`h-1 sm:h-1.5 rounded-full transition-all cursor-pointer ${
-                    idx === bannerIndex
-                      ? 'w-5 sm:w-6 bg-[#ff006a] shadow-[0_0_8px_#ff006a]'
-                      : 'w-1 sm:w-1.5 bg-white/30 hover:bg-white/60'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {/* Counter */}
-            <span className="text-[9px] sm:text-[10px] font-mono text-white/50 px-1">
-              0{bannerIndex + 1} / 0{Math.min(5, displayBanners.length)}
-            </span>
-
-            {/* Next Button */}
-            <button
-              type="button"
-              onClick={handleNextBanner}
-              className="p-1 hover:bg-white/10 text-white/70 hover:text-white rounded-full transition-colors cursor-pointer"
-              title="Keyingi"
-            >
-              <ChevronRight size={15} />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
