@@ -46,9 +46,12 @@ var upload = multer({ dest: "/tmp/" });
 var app = express();
 app.set("trust proxy", true);
 app.disable("x-powered-by");
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  const host = req.headers.host || "";
+  if (!host.includes("localhost") && !host.includes("127.0.0.1")) {
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  }
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
@@ -472,7 +475,8 @@ async function dbQuery(sql, params, retries = 3) {
   try {
     return await d1ExecuteQuery(sql, params);
   } catch (err) {
-    if (retries > 0) {
+    const isConnErr = err?.code === "EAI_AGAIN" || err?.code === "ENOTFOUND" || err?.code === "ECONNREFUSED";
+    if (retries > 0 && !isConnErr) {
       await new Promise((resolve) => setTimeout(resolve, 200));
       return dbQuery(sql, params, retries - 1);
     }
@@ -509,7 +513,18 @@ function invalidateServerCache(pattern) {
     }
   }
 }
+var memoryLocalStore = null;
+var saveStoreTimeout = null;
 function loadLocalStore() {
+  if (memoryLocalStore) return memoryLocalStore;
+  try {
+    if (fs.existsSync(LOCAL_STORE_PATH)) {
+      memoryLocalStore = JSON.parse(fs.readFileSync(LOCAL_STORE_PATH, "utf-8"));
+      return memoryLocalStore;
+    }
+  } catch (e) {
+    console.warn("loadLocalStore read error:", e);
+  }
   return {
     animes: [],
     notifications: [],
@@ -527,7 +542,16 @@ function loadLocalStore() {
     songs: []
   };
 }
-function saveLocalStore(_data) {
+function saveLocalStore(data) {
+  memoryLocalStore = data;
+  if (saveStoreTimeout) clearTimeout(saveStoreTimeout);
+  saveStoreTimeout = setTimeout(() => {
+    try {
+      fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(data, null, 2), "utf-8");
+    } catch (e) {
+      console.warn("saveLocalStore write error:", e);
+    }
+  }, 1e3);
 }
 var server = http.createServer(app);
 var io = new Server(server, {
@@ -4051,12 +4075,14 @@ app.get("/api/comments/recent", async (req, res) => {
              u.avatar_url AS user_avatar, 
              u.avatar_frame_url AS user_avatar_frame, 
              u.avatar_frame_url AS avatar_frame_url, 
-             a.title AS anime_title 
+             a.title AS anime_title,
+             a.image_url AS anime_image,
+             a.slug AS anime_slug 
       FROM comments c 
       LEFT JOIN users u ON (CAST(c.user_id AS TEXT) = CAST(u.id AS TEXT) AND c.user_id IS NOT NULL) 
       LEFT JOIN animes a ON (CAST(c.anime_id AS TEXT) = CAST(a.id AS TEXT)) 
       ORDER BY c.id DESC 
-      LIMIT 10
+      LIMIT 15
     `);
     if (Array.isArray(rows)) {
       setCache("api_recent_comments", rows);
@@ -4077,7 +4103,9 @@ app.get("/api/comments/recent", async (req, res) => {
       user_avatar: c.user_avatar || u?.avatar_url || null,
       user_avatar_frame: c.user_avatar_frame || u?.avatar_frame_url || null,
       avatar_frame_url: c.avatar_frame_url || u?.avatar_frame_url || null,
-      anime_title: c.anime_title || a?.title || ""
+      anime_title: c.anime_title || a?.title || "",
+      anime_image: c.anime_image || a?.image_url || "",
+      anime_slug: c.anime_slug || a?.slug || ""
     };
   });
   setCache("api_recent_comments", recentComms);
@@ -4161,6 +4189,13 @@ async function mergeRatingsWithAnimes(animes) {
 }
 app.get("/api/health", (req, res) => {
   res.status(200).send("OK");
+});
+app.get(["/phone", "/mobile", "/simulator"], (req, res) => {
+  const phonePath = path.join(process.cwd(), "public", "phone.html");
+  if (fs.existsSync(phonePath)) {
+    return res.sendFile(phonePath);
+  }
+  res.redirect("/");
 });
 app.get(["/api/tgstream/:channelId/:messageId", "/api/tghls/*"], (req, res) => {
   res.redirect(302, `https://s3.animem.uz${req.url}`);

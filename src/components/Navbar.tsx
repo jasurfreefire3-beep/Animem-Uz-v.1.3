@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-do
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Notification, Anime, toSlug } from '../types';
-import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe, ShoppingBag, Headphones } from 'lucide-react';
+import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe, ShoppingBag, Headphones, ChevronDown, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   getNotificationPermission, 
@@ -30,6 +30,17 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showMoreDropdown, setShowMoreDropdown] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const isNewBadgeVisible = Date.now() < new Date('2026-11-02T23:59:59Z').getTime();
+
+  const isItemActive = (rawPath: string) => {
+    const current = location.pathname.replace(/^\/(uz|ru|ing|en)(\/|$)/, '/');
+    const normalizedCurrent = current.endsWith('/') && current.length > 1 ? current.slice(0, -1) : current;
+    const normalizedTarget = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
+    return normalizedCurrent === normalizedTarget;
+  };
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [allAnimes, setAllAnimes] = useState<Anime[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -109,6 +120,9 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
       }
+      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
+        setShowMoreDropdown(false);
+      }
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
         setIsSearchFocused(false);
       }
@@ -155,7 +169,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
   ];
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-64 h-16 md:h-16 bg-[#09090b]/95 backdrop-blur-md border-b border-[#1a1a1c] z-30 px-2 min-[400px]:px-4 md:px-8 flex items-center justify-between text-white select-none">
+    <header className="fixed top-0 right-0 left-0 h-16 md:h-20 bg-[#09090b]/90 backdrop-blur-xl border-b border-white/10 z-40 px-3 min-[400px]:px-4 md:px-8 flex items-center justify-between text-white select-none transition-all">
       
       {/* Mobile Search Overlay */}
       <AnimatePresence>
@@ -242,27 +256,166 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         )}
       </AnimatePresence>
 
-      {/* Left side: Hamburger (Mobile) + Logo/Search (Desktop) */}
-      <div className="flex items-center space-x-1.5 min-[400px]:space-x-3 md:space-x-4 flex-1 min-w-0">
-        {/* Hamburger Trigger for Mobile Sidebar */}
+      {/* Left side: Hamburger + Logo + Desktop Nav Links */}
+      <div className="flex items-center space-x-2 md:space-x-3.5 flex-1 min-w-0 mr-2 md:mr-4">
+        {/* Hamburger Trigger (Mobile & Drawer) */}
         <button
           onClick={onToggleSidebar}
-          className="p-1.5 -ml-1 text-white/70 hover:text-white hover:bg-[#1a1a1a] rounded-sm transition-colors md:hidden shrink-0 cursor-pointer"
+          className="p-1.5 -ml-1 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors shrink-0 cursor-pointer lg:hidden"
+          title="Menyu"
         >
-          <Menu size={18} />
+          <Menu size={20} />
         </button>
 
-        {/* Mobile Brand Name */}
-        <Link to={getLocalizedPath('/')} className="flex items-center md:hidden shrink-0">
+        {/* Brand Logo (Visible on all screen sizes!) */}
+        <Link to={getLocalizedPath('/')} className="flex items-center shrink-0 mr-1 lg:mr-4 group">
           <img 
             src={logoImg} 
             alt="AnimeUz" 
-            className="h-7 min-[380px]:h-8 w-auto object-contain max-w-[95px] min-[380px]:max-w-[110px]" 
+            className="h-8 min-[380px]:h-9 md:h-11 w-auto object-contain max-w-[120px] md:max-w-[155px] transition-transform group-hover:scale-105 drop-shadow-md" 
           />
         </Link>
 
+        {/* Desktop Nav Links (The Sidebar integrated directly into Top Navbar!) */}
+        <nav className="hidden lg:flex items-center space-x-1 xl:space-x-1.5 shrink-0">
+          <Link
+            to={getLocalizedPath('/')}
+            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+              isItemActive('/')
+                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {t.navHome || 'Bosh sahifa'}
+          </Link>
+
+          <Link
+            to={getLocalizedPath('/animelar')}
+            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+              isItemActive('/animelar')
+                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {t.navAnimes || 'Animelar'}
+          </Link>
+
+          <Link
+            to={getLocalizedPath('/jadval')}
+            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+              isItemActive('/jadval')
+                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {t.navSchedule || 'Jadval'}
+          </Link>
+
+          <Link
+            to={getLocalizedPath('/yangi-chiqishlar')}
+            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+              isItemActive('/yangi-chiqishlar')
+                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {t.navNewReleases || 'Yangi'}
+          </Link>
+
+          <Link
+            to={getLocalizedPath('/top100')}
+            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+              isItemActive('/top100')
+                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {t.navTop100 || 'Top 100'}
+          </Link>
+
+          <Link
+            to={getLocalizedPath('/music')}
+            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
+              isItemActive('/music')
+                ? 'bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 shadow-[0_0_12px_rgba(0,240,255,0.4)]'
+                : 'text-white/75 hover:text-[#00c8ff] hover:bg-white/10'
+            }`}
+          >
+            <span>{t.navMusic || 'Musiqa'}</span>
+            {isNewBadgeVisible && (
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-[#ff006a] text-white animate-pulse">
+                New
+              </span>
+            )}
+          </Link>
+
+          {/* More Items Dropdown */}
+          <div className="relative" ref={moreRef}>
+            <button
+              onClick={() => setShowMoreDropdown(!showMoreDropdown)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs xl:text-sm font-bold text-white/75 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <span>Yana</span>
+              <ChevronDown size={14} className={`transition-transform duration-200 ${showMoreDropdown ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {showMoreDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  className="absolute left-0 mt-2 w-48 bg-[#111113] border border-[#222] rounded-xl shadow-2xl p-1.5 z-50 divide-y divide-[#1a1a1c]"
+                >
+                  <div className="space-y-0.5 pb-1">
+                    <Link
+                      to={getLocalizedPath('/shaxsiy-royxat')}
+                      onClick={() => setShowMoreDropdown(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <Bookmark size={14} className="text-[#ff006a]" />
+                      <span>{t.navMyList || "Shaxsiy ro'yxat"}</span>
+                    </Link>
+                    <Link
+                      to={getLocalizedPath('/sevimlilar')}
+                      onClick={() => setShowMoreDropdown(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <Heart size={14} className="text-[#ff006a]" />
+                      <span>{t.navFavorites || 'Sevimlilar'}</span>
+                    </Link>
+                    <Link
+                      to={getLocalizedPath('/tarix')}
+                      onClick={() => setShowMoreDropdown(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <History size={14} className="text-[#ff006a]" />
+                      <span>{t.navHistory || 'Tarix'}</span>
+                    </Link>
+                    <Link
+                      to={getLocalizedPath('/donat')}
+                      onClick={() => setShowMoreDropdown(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <Heart size={14} className="text-amber-400 fill-amber-400/20" />
+                      <span>Donat qilish</span>
+                    </Link>
+                    <Link
+                      to={getLocalizedPath('/sozlamalar')}
+                      onClick={() => setShowMoreDropdown(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <Settings size={14} className="text-white/60" />
+                      <span>{t.navSettings || 'Sozlamalar'}</span>
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </nav>
+
         {/* Search Bar Input (Desktop) */}
-        <div className="relative max-w-md w-full hidden sm:block" ref={searchContainerRef}>
+        <div className="relative max-w-xs xl:max-w-sm w-full hidden sm:block ml-auto" ref={searchContainerRef}>
           <form onSubmit={handleSearchSubmit} className="relative w-full">
             <input
               type="text"

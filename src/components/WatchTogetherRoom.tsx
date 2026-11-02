@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Anime, toSlug } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { getApiBase } from '../lib/api';
+import { getSocketUrl } from '../lib/api';
 
 interface WatchParticipant {
   socketId: string;
@@ -91,7 +91,7 @@ export default function WatchTogetherRoom({
 
   // Connect socket and join room - ONLY runs when roomId changes!
   useEffect(() => {
-    const socketUrl = getApiBase();
+    const socketUrl = getSocketUrl();
 
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],

@@ -59,9 +59,13 @@ app.set("trust proxy", true);
 app.disable("x-powered-by");
 
 // Global Security Headers Middleware
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  const host = req.headers.host || '';
+  // Allow iframing on localhost for mobile preview simulator
+  if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  }
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
@@ -562,7 +566,8 @@ async function dbQuery<T = any>(sql: string, params?: any[], retries = 3): Promi
   try {
     return await d1ExecuteQuery<T>(sql, params);
   } catch (err: any) {
-    if (retries > 0) {
+    const isConnErr = err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED';
+    if (retries > 0 && !isConnErr) {
       await new Promise((resolve) => setTimeout(resolve, 200));
       return dbQuery<T>(sql, params, retries - 1);
     }
@@ -613,6 +618,15 @@ let memoryLocalStore: any = null;
 let saveStoreTimeout: any = null;
 
 function loadLocalStore() {
+  if (memoryLocalStore) return memoryLocalStore;
+  try {
+    if (fs.existsSync(LOCAL_STORE_PATH)) {
+      memoryLocalStore = JSON.parse(fs.readFileSync(LOCAL_STORE_PATH, "utf-8"));
+      return memoryLocalStore;
+    }
+  } catch (e) {
+    console.warn("loadLocalStore read error:", e);
+  }
   return {
     animes: [],
     notifications: [],
@@ -631,8 +645,16 @@ function loadLocalStore() {
   };
 }
 
-function saveLocalStore(_data: any) {
-  // PostgreSQL animems is the sole single source of truth
+function saveLocalStore(data: any) {
+  memoryLocalStore = data;
+  if (saveStoreTimeout) clearTimeout(saveStoreTimeout);
+  saveStoreTimeout = setTimeout(() => {
+    try {
+      fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(data, null, 2), "utf-8");
+    } catch (e) {
+      console.warn("saveLocalStore write error:", e);
+    }
+  }, 1000);
 }
 
 const server = http.createServer(app);
@@ -4824,12 +4846,14 @@ app.get("/api/comments/recent", async (req, res) => {
              u.avatar_url AS user_avatar, 
              u.avatar_frame_url AS user_avatar_frame, 
              u.avatar_frame_url AS avatar_frame_url, 
-             a.title AS anime_title 
+             a.title AS anime_title,
+             a.image_url AS anime_image,
+             a.slug AS anime_slug 
       FROM comments c 
       LEFT JOIN users u ON (CAST(c.user_id AS TEXT) = CAST(u.id AS TEXT) AND c.user_id IS NOT NULL) 
       LEFT JOIN animes a ON (CAST(c.anime_id AS TEXT) = CAST(a.id AS TEXT)) 
       ORDER BY c.id DESC 
-      LIMIT 10
+      LIMIT 15
     `);
     if (Array.isArray(rows)) {
       setCache("api_recent_comments", rows);
@@ -4839,8 +4863,8 @@ app.get("/api/comments/recent", async (req, res) => {
     console.warn("Recent comments fetch falling back to local store:", (err as any)?.message);
   }
   const store = loadLocalStore();
-  const userMap = new Map((store.users || []).map((u: any) => [String(u.id), u]));
-  const animeMap = new Map((store.animes || []).map((a: any) => [String(a.id), a]));
+  const userMap = new Map<string, any>((store.users || []).map((u: any) => [String(u.id), u]));
+  const animeMap = new Map<string, any>((store.animes || []).map((a: any) => [String(a.id), a]));
   const recentComms = (store.comments || []).slice(-10).reverse().map((c: any) => {
     const u = userMap.get(String(c.user_id));
     const a = animeMap.get(String(c.anime_id));
@@ -4850,7 +4874,9 @@ app.get("/api/comments/recent", async (req, res) => {
       user_avatar: c.user_avatar || u?.avatar_url || null,
       user_avatar_frame: c.user_avatar_frame || u?.avatar_frame_url || null,
       avatar_frame_url: c.avatar_frame_url || u?.avatar_frame_url || null,
-      anime_title: c.anime_title || a?.title || ''
+      anime_title: c.anime_title || a?.title || '',
+      anime_image: c.anime_image || a?.image_url || '',
+      anime_slug: c.anime_slug || a?.slug || ''
     };
   });
   setCache("api_recent_comments", recentComms);
@@ -4952,6 +4978,15 @@ async function mergeRatingsWithAnimes(animes: any[]): Promise<any[]> {
 // Health check endpoint
 app.get("/api/health", (req, res) => {
   res.status(200).send("OK");
+});
+
+// Mobile Preview Simulator route
+app.get(["/phone", "/mobile", "/simulator"], (req, res) => {
+  const phonePath = path.join(process.cwd(), "public", "phone.html");
+  if (fs.existsSync(phonePath)) {
+    return res.sendFile(phonePath);
+  }
+  res.redirect("/");
 });
 
 // ==================== TELEGRAM VIDEO STREAMING REDIRECT TO VPS ====================
@@ -5346,7 +5381,7 @@ app.get("/api/animes/:id/comments", async (req, res) => {
     console.warn("Comments fetch falling back to local store:", (err as any)?.message);
   }
   const store = loadLocalStore();
-  const userMap = new Map((store.users || []).map((u: any) => [String(u.id), u]));
+  const userMap = new Map<string, any>((store.users || []).map((u: any) => [String(u.id), u]));
   const comms = (store.comments || [])
     .filter((c: any) => String(c.anime_id) === String(id))
     .map((c: any) => {
@@ -8434,7 +8469,7 @@ app.get("/api/chat/messages", async (req: any, res: any) => {
     }
 
     const store = loadLocalStore();
-    const userMap = new Map((store.users || []).map((u: any) => [String(u.id), u]));
+    const userMap = new Map<string, any>((store.users || []).map((u: any) => [String(u.id), u]));
     const localMsgs = (store.messages || []).slice(-50).map((m: any) => {
       const u = userMap.get(String(m.user_id));
       return {

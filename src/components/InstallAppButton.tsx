@@ -130,10 +130,10 @@ export default function InstallAppButton() {
       <AnimatePresence>
         {showSuccessToast && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 bg-[#0d0d12] border border-green-500/40 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(34,197,94,0.2)] text-white text-xs font-bold"
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-4 inset-x-4 sm:top-auto sm:bottom-6 sm:right-6 sm:inset-x-auto z-50 flex items-center gap-3 px-4 py-3 bg-[#0d0d12] border border-green-500/40 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(34,197,94,0.2)] text-white text-xs font-bold"
           >
             <div className="w-8 h-8 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0">
               <Check size={18} />
@@ -150,16 +150,16 @@ export default function InstallAppButton() {
 
   return (
     <>
-      {/* Floating Install Button at Bottom Corner */}
+      {/* Floating Install App Banner - Appears at the TOP on phones, bottom corner on desktop */}
       <AnimatePresence>
         {showButton && (
           <motion.div
             id="animem-pwa-install-container"
-            initial={{ opacity: 0, y: 40, scale: 0.9 }}
+            initial={{ opacity: 0, y: -30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 40, scale: 0.9 }}
-            transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-            className="fixed bottom-20 left-3 sm:bottom-6 sm:left-6 z-40 max-w-[calc(100vw-24px)] sm:max-w-md select-none"
+            exit={{ opacity: 0, y: -30, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 25 }}
+            className="fixed top-3 inset-x-3 sm:top-auto sm:bottom-6 sm:left-6 sm:right-auto sm:w-auto sm:max-w-md z-50 select-none shadow-2xl"
           >
             <div 
               onClick={handleInstallClick}
@@ -225,10 +225,10 @@ export default function InstallAppButton() {
       <AnimatePresence>
         {showSuccessToast && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 bg-[#0d0d12] border border-green-500/40 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(34,197,94,0.2)] text-white text-xs font-bold"
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-4 inset-x-4 sm:top-auto sm:bottom-6 sm:right-6 sm:inset-x-auto z-50 flex items-center gap-3 px-4 py-3 bg-[#0d0d12] border border-green-500/40 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(34,197,94,0.2)] text-white text-xs font-bold"
           >
             <div className="w-8 h-8 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0">
               <Check size={18} />

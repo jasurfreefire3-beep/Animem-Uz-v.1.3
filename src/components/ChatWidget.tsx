@@ -159,12 +159,12 @@ const MemoizedMessage = memo(({
           </div>
         </div>
 
-        {/* Message Bubble - Crystal Glassmorphic effect with dynamic wallpaper */}
+        {/* Message Bubble - High-performance crisp styling without GPU-taxing backdrop-blur */}
         <div 
-          className={`px-3.5 py-2 text-xs inline-block leading-relaxed max-w-full backdrop-blur-md shadow-xl transition-all ${
+          className={`px-3.5 py-2 text-xs inline-block leading-relaxed max-w-full transition-all ${
             isMe 
-              ? 'bg-gradient-to-br from-[#ff006a]/75 via-[#8b5cf6]/65 to-[#ff006a]/70 border border-white/25 text-white rounded-2xl rounded-tr-xs shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,0,106,0.25)]' 
-              : 'bg-[#0e0f17]/80 border border-white/15 hover:border-white/30 text-white/95 rounded-2xl rounded-tl-xs shadow-[0_8px_30px_rgba(0,0,0,0.5)]'
+              ? 'bg-gradient-to-br from-[#ff006a] to-[#7928ca] border border-white/20 text-white rounded-2xl rounded-tr-xs shadow-md shadow-black/40' 
+              : 'bg-[#151624] border border-white/10 hover:border-white/25 text-white/95 rounded-2xl rounded-tl-xs shadow-md shadow-black/40'
           }`}
         >
           {/* Reply Context Block - Click to jump to original message */}
@@ -230,6 +230,7 @@ export default function ChatWidget() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeMsgId, setActiveMsgId] = useState<string | number | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [visibleCount, setVisibleCount] = useState<number>(60);
   
   // Custom Anime Wallpaper & Dimming state
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(getSavedChatWallpaper);
@@ -424,8 +425,13 @@ export default function ChatWidget() {
 
     const typingCleaner = setInterval(() => {
       const now = Date.now();
-      setTypingUsers(prev => prev.filter(u => u.expiresAt > now));
-    }, 1500);
+      setTypingUsers(prev => {
+        if (prev.length === 0) return prev;
+        const filtered = prev.filter(u => u.expiresAt > now);
+        if (filtered.length === prev.length) return prev;
+        return filtered;
+      });
+    }, 2000);
 
     const timeout = setTimeout(() => {
       setIsLoading(false);
@@ -790,17 +796,17 @@ export default function ChatWidget() {
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            className={`fixed right-4 z-40 transition-all duration-300 ${
-              isMusicActive ? 'bottom-28 sm:bottom-28' : 'bottom-6'
+            className={`fixed z-30 transition-all duration-300 right-3 sm:right-6 ${
+              isMusicActive ? 'bottom-[8.75rem] sm:bottom-28' : 'bottom-20 sm:bottom-6'
             }`}
           >
             <button
               onClick={() => setIsOpen(true)}
-              className="relative group p-3.5 bg-gradient-to-tr from-[#ff006a] to-[#a855f7] hover:opacity-95 text-white rounded-full shadow-2xl shadow-[#ff006a]/40 transition-all hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer border border-white/20"
+              className="relative group p-2.5 sm:p-3.5 bg-gradient-to-tr from-[#ff006a] to-[#7928ca] hover:opacity-95 text-white rounded-full shadow-xl shadow-[#ff006a]/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center cursor-pointer border border-white/20 select-none"
               title="Umumiy chatni ochish"
             >
-              <MessageCircle className="w-6 h-6 stroke-[2.2]" />
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#09090b] animate-pulse" />
+              <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#09090b] animate-pulse" />
             </button>
           </motion.div>
         )}
@@ -905,22 +911,35 @@ export default function ChatWidget() {
                     <p>Xabarlar mavjud emas. Suhbatni boshlang!</p>
                   </div>
                 ) : (
-                  messages.map((msg) => (
-                    <MemoizedMessage
-                      key={msg.id}
-                      msg={msg}
-                      user={user}
-                      activeMsgId={activeMsgId}
-                      setActiveMsgId={setActiveMsgId}
-                      setReplyingTo={setReplyingTo}
-                      handleDeleteMessage={handleDeleteMessage}
-                      handleContextMenu={handleContextMenu}
-                      handleTouchStart={handleTouchStart}
-                      handleTouchEnd={handleTouchEnd}
-                      onCloseChat={() => setIsOpen(false)}
-                      onJumpToMessage={handleJumpToMessage}
-                    />
-                  ))
+                  <>
+                    {messages.length > visibleCount && (
+                      <div className="text-center py-2">
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCount(prev => prev + 50)}
+                          className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-full text-[11px] font-medium transition-colors border border-white/10"
+                        >
+                          Oldingi xabarlarni yuklash (+50)
+                        </button>
+                      </div>
+                    )}
+                    {messages.slice(-visibleCount).map((msg) => (
+                      <MemoizedMessage
+                        key={msg.id}
+                        msg={msg}
+                        user={user}
+                        activeMsgId={activeMsgId}
+                        setActiveMsgId={setActiveMsgId}
+                        setReplyingTo={setReplyingTo}
+                        handleDeleteMessage={handleDeleteMessage}
+                        handleContextMenu={handleContextMenu}
+                        handleTouchStart={handleTouchStart}
+                        handleTouchEnd={handleTouchEnd}
+                        onCloseChat={() => setIsOpen(false)}
+                        onJumpToMessage={handleJumpToMessage}
+                      />
+                    ))}
+                  </>
                 )}
                 <div ref={messagesEndRef} />
               </div>

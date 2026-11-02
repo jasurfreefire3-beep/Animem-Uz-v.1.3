@@ -1,34 +1,34 @@
 // Backend API configuration for Northflank & Vercel
-export const NORTHFLANK_BACKEND_URL = 'https://p01--animem-beckend--jddxxkp4tz2g.code.run';
+export const NORTHFLANK_BACKEND_URL = 'https://site--anime--jpdsl9nq68nb.code.run';
 
 export const getApiBase = (): string => {
-  // 1. If running in browser on animem.uz or localhost, use native edge API directly
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (hostname.includes('animem.uz') || hostname === 'localhost' || hostname === '127.0.0.1') {
-      return '';
-    }
-  }
-
-  // 2. If explicitly configured in environment (and not dead code.run)
+  // 1. If explicitly configured in environment
   const envUrl = import.meta.env.VITE_API_BASE_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0 && !envUrl.includes('code.run')) {
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
     return envUrl.trim().replace(/\/$/, '');
   }
 
-  // 3. Default to same-origin
+  // 2. Default to same-origin (on Vercel, vercel.json rewrites /api/* to Northflank)
   return '';
 };
 
 export const API_BASE = getApiBase();
 
 export const getSocketUrl = (): string => {
+  // 1. If explicitly configured in environment
   const envUrl = import.meta.env.VITE_API_BASE_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0 && !envUrl.includes('code.run')) {
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
     return envUrl.trim().replace(/\/$/, '');
   }
+
+  // 2. Local development on machine
   if (typeof window !== 'undefined') {
-    return window.location.origin;
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return window.location.origin;
+    }
   }
-  return '';
+
+  // 3. In production (e.g. Vercel), connect WebSockets directly to Northflank
+  return NORTHFLANK_BACKEND_URL;
 };

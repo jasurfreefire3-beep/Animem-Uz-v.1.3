@@ -126,7 +126,7 @@ export default function MusicPlayerBar() {
   };
 
   return (
-    <div className="fixed bottom-[3.6rem] md:bottom-2 left-2 right-2 md:left-70 md:right-28 xl:right-32 z-40 pointer-events-none select-none">
+    <div className="fixed bottom-[3.6rem] md:bottom-2 left-2 right-2 md:left-70 md:right-28 xl:right-32 z-45 pointer-events-none select-none">
       <motion.div
         initial={{ y: 60, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -312,10 +312,10 @@ export default function MusicPlayerBar() {
               {/* X (Close / Stop & Remove completely) Button */}
               <button
                 onClick={closePlayer}
-                className="p-1.5 text-white/50 hover:text-red-400 hover:bg-red-500/15 rounded-lg transition-colors cursor-pointer ml-0.5"
+                className="p-2 sm:p-1.5 text-white/70 hover:text-red-400 hover:bg-red-500/20 active:scale-90 rounded-xl transition-all cursor-pointer ml-1 relative z-50 shrink-0 bg-white/5 sm:bg-transparent"
                 title="Musiqani to'xtatish va butunlay yopish"
               >
-                <X size={17} />
+                <X size={18} className="stroke-[2.5]" />
               </button>
             </div>
           </div>

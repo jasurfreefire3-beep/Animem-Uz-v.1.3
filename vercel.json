@@ -7,11 +7,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://p01--animem-beckend--jddxxkp4tz2g.code.run/api/:path*"
+      "destination": "https://site--anime--jpdsl9nq68nb.code.run/api/:path*"
     },
     {
       "source": "/stream/:path*",
-      "destination": "https://p01--animem-beckend--jddxxkp4tz2g.code.run/stream/:path*"
+      "destination": "https://site--anime--jpdsl9nq68nb.code.run/stream/:path*"
     },
     {
       "source": "/(.*)",

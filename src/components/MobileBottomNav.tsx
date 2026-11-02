@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Home, Film, MessageSquare, Search, User, X, Star } from 'lucide-react';
+import { Home, Film, Music, Search, User, X, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Anime, toSlug } from '../types';
 
@@ -67,11 +67,11 @@ export default function MobileBottomNav() {
       isActive: rawPath.startsWith('/animelar') || rawPath.startsWith('/anime/')
     },
     {
-      id: 'chat',
-      label: t.navChat || 'Chat',
-      path: getLocalizedPath('/chat'),
-      icon: MessageSquare,
-      isActive: rawPath.startsWith('/chat')
+      id: 'music',
+      label: t.navMusic || 'Musiqa',
+      path: getLocalizedPath('/music'),
+      icon: Music,
+      isActive: rawPath.startsWith('/music') || rawPath.startsWith('/musiqa')
     },
     {
       id: 'qidiruv',

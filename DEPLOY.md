@@ -18,7 +18,7 @@ Ushbu loyiha ikkiga ajratilgan holda mustaqil va juda tez ishlaydi:
    - Port: `3000`
    - Protocol: `HTTP`
    - Public traffic: **Enabled** (tashqi internetga ochish).
-   - O'zingizga berilgan domen: masalan, `https://animem-backend-xxxx.northflank.app`
+   - O'zingizga berilgan domen: `https://site--anime--jpdsl9nq68nb.code.run`
 7. **Environment Variables (Atrof-muhit o'zgaruvchilari):**
    Northflank Service sozlamalaridagi **Environment** bo'limida `.env.example` dagi qiymatlarni kiriting:
    - `PORT`: `3000` (Northflank avtomatik ham beradi)
@@ -45,7 +45,7 @@ Ushbu loyiha ikkiga ajratilgan holda mustaqil va juda tez ishlaydi:
 4. **Environment Variables:**
    Quyidagi o'zgaruvchini qo'shing:
    - `VITE_API_BASE_URL`: Northflank-dagi backend manzili (oxirida `/` bo'lmasin!).
-     Masalan: `https://animem-backend-xxxx.northflank.app`
+     Qiymati: `https://site--anime--jpdsl9nq68nb.code.run` (yoki `vercel.json` da avtomatik sozlangan)
 5. **Deploy** tugmasini bosing.
    - Loyiha ildizidagi `vercel.json` fayli React Router sahifalarini (masalan: `/animelar`, `/chat`, `/anime/...`) 404 xatosi bermasdan to'g'ri ishlashini ta'minlaydi.
 

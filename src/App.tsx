@@ -5,7 +5,6 @@ import Sidebar from './components/Sidebar';
 import MobileBottomNav from './components/MobileBottomNav';
 import Home from './pages/Home';
 import ChatWidget from './components/ChatWidget';
-import MikaAiWidget from './components/MikaAiWidget';
 import NotificationPromptModal from './components/NotificationPromptModal';
 import InstallAppButton from './components/InstallAppButton';
 import CookieBanner from './components/CookieBanner';
@@ -179,35 +178,33 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 2. Desktop Sidebar (Persistent) */}
-      <div className="hidden md:block w-64 shrink-0">
-        <div className="w-64 h-screen fixed left-0 top-0 z-40 border-r border-[#1a1a1a] bg-[#09090b]">
-          <Sidebar />
-        </div>
-      </div>
-
-      {/* 2. Mobile Sidebar Overlay & Sliding panel */}
+      {/* 2. Slide-out Sidebar Drawer (Mobile & Desktop Drawer) */}
       {mobileSidebarOpen && (
         <div 
           onClick={closeMobileSidebar}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden animate-fade-in"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-fade-in"
         />
       )}
-      <div className={`fixed inset-y-0 left-0 w-64 border-r border-[#1a1a1a] bg-[#09090b] transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 md:hidden`}>
+      <div className={`fixed inset-y-0 left-0 w-72 max-w-[85vw] border-r border-[#1a1a1a] bg-[#09090b] transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 shadow-2xl`}>
         <Sidebar onClose={closeMobileSidebar} />
       </div>
 
       {/* 3. Main content frame */}
-      <div className="flex-1 min-w-0 flex flex-col relative">
+      <div className="flex-1 min-w-0 flex flex-col relative w-full">
         <Navbar onToggleSidebar={toggleMobileSidebar} />
         
         {/* Main Content Area */}
-        <main className="flex-1 pt-24 md:pt-20 pb-24 md:pb-12 px-4 md:px-8 max-w-[1440px] mx-auto w-full relative z-10">
-          <Suspense fallback={<PageLoader />}>
-            <ErrorBoundary key={location.pathname}>
-              <Routes>
-              <Route path="/" element={isMusicSubdomain ? <Music /> : <Home />} />
-              <Route path="/:lang" element={isMusicSubdomain ? <Music /> : <Home />} />
+        {(() => {
+          const isHomePage = location.pathname === '/' || /^\/(uz|ru|ing|en)\/?$/.test(location.pathname);
+          return (
+            <main className={`flex-1 pb-24 md:pb-12 w-full relative z-10 ${
+              isHomePage ? '' : 'pt-20 md:pt-24 px-4 md:px-8 max-w-[1440px] mx-auto'
+            }`}>
+              <Suspense fallback={<PageLoader />}>
+                <ErrorBoundary key={location.pathname}>
+                  <Routes>
+                  <Route path="/" element={isMusicSubdomain ? <Music /> : <Home />} />
+                  <Route path="/:lang" element={isMusicSubdomain ? <Music /> : <Home />} />
 
               <Route path="/music" element={<Music />} />
               <Route path="/:lang/music" element={<Music />} />
@@ -318,6 +315,8 @@ export default function App() {
             </ErrorBoundary>
           </Suspense>
         </main>
+      );
+    })()}
 
         <Footer />
       </div>
@@ -327,7 +326,6 @@ export default function App() {
       <MusicPlayerBar />
       <MusicExpandedPlayer />
       <ChatWidget />
-      <MikaAiWidget />
       <DonatModal />
       <InstallAppButton />
       <NotificationPromptModal />

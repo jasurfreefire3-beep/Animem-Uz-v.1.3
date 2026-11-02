@@ -289,17 +289,17 @@ export default function Animelar() {
               transition={{ delay: (idx % 15) * 0.02 }}
               className="bg-[#111] border border-[#222] p-3 rounded-sm flex gap-4 hover:border-[#ff006a]/30 transition-colors group"
             >
-              <Link to={`/anime/${toSlug(anime.title)}`} title={anime.title} className="w-18 sm:w-20 h-24 sm:h-28 shrink-0 block group/item">
-                <div className="w-full h-full p-[2px] rounded-xl bg-gradient-to-b from-white/20 via-white/5 to-[#ff006a]/30 group-hover/item:from-[#ff006a] group-hover/item:to-purple-600 transition-all duration-500 shadow-md">
-                  <div className="w-full h-full rounded-[10px] overflow-hidden bg-[#0c0c0e] relative">
+              <Link to={`/anime/${toSlug(anime.title)}`} title={anime.title} className="w-20 sm:w-24 h-28 sm:h-32 shrink-0 block group/item">
+                <div className="w-full h-full p-[2px] rounded-xl bg-gradient-to-b from-white/35 via-white/10 to-[#ff006a]/40 group-hover/item:from-[#ff006a] group-hover/item:via-[#ff006a] group-hover/item:to-purple-500 transition-all duration-300 shadow-md">
+                  <div className="w-full h-full rounded-[10px] overflow-hidden bg-[#0c0d14] relative">
                     <img loading="lazy" decoding="async" 
                       src={anime.image_url} 
                       alt={anime.title} 
                       title={anime.title}
-                      className="w-full h-full object-cover group-hover/item:scale-108 transition-transform duration-300" 
+                      className="w-full h-full object-cover brightness-105 contrast-[1.06] group-hover/item:scale-106 transition-transform duration-300" 
                     />
-                    <div className="absolute top-1 left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-white/50 group-hover/item:border-[#ff006a] rounded-tl-sm pointer-events-none transition-colors" />
-                    <div className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-white/50 group-hover/item:border-[#ff006a] rounded-br-sm pointer-events-none transition-colors" />
+                    <div className="absolute top-1 left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-white/80 group-hover/item:border-[#ff006a] rounded-tl-sm pointer-events-none transition-colors" />
+                    <div className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-white/80 group-hover/item:border-[#ff006a] rounded-br-sm pointer-events-none transition-colors" />
                   </div>
                 </div>
               </Link>
