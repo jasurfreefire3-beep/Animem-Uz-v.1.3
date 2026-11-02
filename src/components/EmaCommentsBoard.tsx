@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toSlug } from '../types';
@@ -44,7 +44,7 @@ function formatRelativeTime(dateStr?: string): string {
 // Alternating natural tilts for authentic shrine look
 const TILTS = [-2.5, 2.8, -1.2, 2.2, -2.8, 1.5, -2.0, 2.4, -1.8, 2.0];
 
-export default function EmaCommentsBoard({ comments, loading }: EmaCommentsBoardProps) {
+function EmaCommentsBoard({ comments, loading }: EmaCommentsBoardProps) {
   const { getLocalizedPath } = useLanguage();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -97,85 +97,93 @@ export default function EmaCommentsBoard({ comments, loading }: EmaCommentsBoard
       {/* 2. Wooden Shrine Beam & Braided Rope (絵馬掛け) */}
       <div className="relative w-full overflow-hidden">
         {/* Horizontal Wooden Beam / Shimenawa Rope */}
+        <div className="relative h-6 sm:h-7 w-full flex items-center z-10 shadow-md">
+          {/* Authentic Wood Beam texture gradient */}
+          <div className="w-full h-3.5 sm:h-4.5 bg-gradient-to-b from-[#6b4423] via-[#4a2e16] to-[#2c1808] border-y border-[#8b5a2b]/60 relative shadow-inner">
+            {/* Shimenawa braided cord styling */}
+            <div 
+              className="absolute inset-0 opacity-40" 
+              style={{
+                backgroundImage: 'repeating-linear-gradient(45deg, #f5d77f 0px, #f5d77f 8px, #3d2314 8px, #3d2314 16px)'
+              }}
+            />
+          </div>
+
+          {/* Traditional White Zig-Zag Paper Streamers (Shide 紙垂) hanging on beam */}
+          <div className="absolute top-3 left-10 w-2.5 h-6 bg-white/90 shadow-sm transform -skew-x-12 pointer-events-none" />
+          <div className="absolute top-3 left-[28%] w-3 h-7 bg-white/85 shadow-sm transform skew-x-12 pointer-events-none" />
+          <div className="absolute top-3 left-[52%] w-2.5 h-6 bg-white/90 shadow-sm transform -skew-x-6 pointer-events-none" />
+          <div className="absolute top-3 left-[76%] w-3 h-7 bg-white/85 shadow-sm transform skew-x-12 pointer-events-none" />
+          <div className="absolute top-3 right-12 w-2.5 h-6 bg-white/90 shadow-sm transform -skew-x-12 pointer-events-none" />
+        </div>
+
+        {/* 3. Horizontal Scrollable Rack of Hanging Wooden Plaques (Ema) */}
         <div 
-          className="relative h-6 w-full border-y border-[#8b5a2b] shadow-md z-20"
-          style={{
-            background: 'repeating-linear-gradient(45deg, #a76b38, #a76b38 10px, #8b5224 10px, #8b5224 20px)'
-          }}
-        >
-          {/* Subtle rope highlight */}
-          <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/40 pointer-events-none" />
-        </div>
-
-        {/* White Shrine Paper Streamers (Gohei / Shimenawa tassels hanging at intervals) */}
-        <div className="absolute top-6 left-0 right-0 h-4 pointer-events-none z-10 flex justify-around">
-          {[...Array(14)].map((_, i) => (
-            <div key={i} className="relative -top-1 w-3 h-4 bg-white/80 shadow-sm transform -skew-x-12 rotate-6" style={{ clipPath: 'polygon(0 0, 100% 0, 70% 100%, 0 85%)' }} />
-          ))}
-        </div>
-
-        {/* 3. Horizontal Scrollable Hanging Ema Plaques */}
-        <div
           ref={scrollRef}
-          className="flex items-start gap-4 sm:gap-6 overflow-x-auto pt-6 pb-10 px-4 sm:px-8 no-scrollbar scroll-smooth"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          className="flex items-start gap-4 sm:gap-6 overflow-x-auto pt-2 pb-6 px-4 sm:px-8 no-scrollbar scroll-smooth relative"
+          style={{ scrollSnapType: 'x mandatory' }}
         >
           {loading ? (
-            // Skeleton Plaques
-            [...Array(5)].map((_, idx) => (
+            /* Loading Skeletons shaped like Ema plaques */
+            Array.from({ length: 6 }).map((_, i) => (
               <div
-                key={idx}
-                className="shrink-0 w-[240px] sm:w-[270px] h-[280px] bg-white/5 animate-pulse rounded-lg"
-                style={{
-                  clipPath: 'polygon(50% 0%, 100% 15%, 100% 100%, 0% 100%, 0% 15%)'
-                }}
-              />
+                key={i}
+                className="shrink-0 w-64 sm:w-72 h-48 rounded-xl bg-amber-950/20 border border-amber-900/30 animate-pulse flex flex-col justify-end p-4"
+              >
+                <div className="w-3/4 h-3 bg-white/10 rounded mb-2" />
+                <div className="w-1/2 h-3 bg-white/10 rounded mb-4" />
+                <div className="w-full h-8 bg-white/5 rounded-lg" />
+              </div>
             ))
           ) : comments.length === 0 ? (
-            <div className="w-full text-center py-12 text-white/40 text-xs">
-              Hozircha izohlar mavjud emas. Birinchi bo'lib fikringizni bildiring!
+            <div className="w-full py-8 text-center text-white/40 text-sm font-mono">
+              Hozircha birorta izoh qoldirilmagan.
             </div>
           ) : (
-            comments.map((comment, idx) => {
-              const tilt = TILTS[idx % TILTS.length];
-              const targetSlug = comment.anime_slug || toSlug(comment.anime_title || '');
-              const cleanContent = (comment.content || '')
-                .replace(/\[gif\].*?\[\/gif\]/gi, '')
-                .replace(/https?:\/\/\S+/gi, '')
-                .trim() || 'Ajoyib anime!';
+            comments.map((comment, index) => {
+              const tilt = TILTS[index % TILTS.length];
+              const animeTargetSlug = comment.anime_slug || (comment.anime_title ? toSlug(comment.anime_title) : '');
+              const cleanContent = comment.content.replace(/^["'«“]/, '').replace(/["'»”]$/, '');
 
               return (
                 <div
-                  key={comment.id || idx}
-                  className="shrink-0 relative group flex flex-col items-center cursor-pointer transition-transform duration-300"
+                  key={comment.id || index}
+                  className="shrink-0 flex flex-col items-center group relative cursor-pointer"
                   style={{
+                    scrollSnapAlign: 'start',
                     transform: `rotate(${tilt}deg)`,
-                    transformOrigin: 'top center'
+                    transformOrigin: 'top center',
+                    transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = `rotate(0deg) translateY(-4px) scale(1.03)`;
+                    e.currentTarget.style.zIndex = '30';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = `rotate(${tilt}deg)`;
+                    e.currentTarget.style.zIndex = '1';
                   }}
                 >
-                  {/* Red Pin Tack holding the string on the wooden beam */}
-                  <div className="relative -top-5 z-30 flex flex-col items-center">
-                    <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-tr from-rose-700 to-red-500 shadow-[0_2px_4px_rgba(0,0,0,0.6)] border border-white/40" />
-                    {/* Red Hanging String */}
-                    <div className="w-[1.5px] h-6 bg-red-600 shadow-sm" />
+                  {/* Hanging Red Knot & String (Mizuhiki 紐) */}
+                  <div className="w-0.5 h-6 bg-gradient-to-b from-red-600 via-rose-500 to-red-700 shadow-sm relative z-0">
+                    {/* Metal Hook Loop / Bead */}
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500 border border-white/60 shadow-xs" />
                   </div>
 
-                  {/* Authentic Traditional Wooden Ema Tablet (絵馬) */}
+                  {/* Traditional Five-Sided Wooden Shrine Plaque (Ema 絵馬) */}
                   <Link
-                    to={getLocalizedPath(`/anime/${targetSlug}`)}
-                    className="relative block w-[240px] min-[420px]:w-[265px] sm:w-[285px] pt-7 pb-4 px-4 sm:px-5 transition-all duration-300 group-hover:scale-105 group-hover:rotate-0"
+                    to={animeTargetSlug ? getLocalizedPath(`/anime/${animeTargetSlug}`) : '#'}
+                    className="relative w-64 sm:w-72 bg-gradient-to-b from-[#f5e3ba] via-[#ebd2a2] to-[#dcbe8d] rounded-b-xl p-4 sm:p-5 shadow-[0_12px_30px_rgba(0,0,0,0.65)] border-2 border-[#b88c52] block text-inherit focus:outline-none transition-shadow group-hover:shadow-[0_18px_40px_rgba(255,0,106,0.3)]"
                     style={{
-                      clipPath: 'polygon(50% 0%, 100% 15%, 100% 100%, 0% 100%, 0% 15%)',
-                      background: 'linear-gradient(to bottom, #f0dfc4 0%, #e5cba8 50%, #d8b78d 100%)',
-                      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.2)'
+                      clipPath: 'polygon(50% 0%, 100% 12%, 100% 100%, 0% 100%, 0% 12%)'
                     }}
                   >
-                    {/* Hanging Hole at top peak */}
-                    <div className="absolute top-3.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#4a240c] shadow-inner" />
+                    {/* Brass Hanging Eyelet Ring on the top ridge */}
+                    <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-[#523315] border border-[#d8aa6b] shadow-inner pointer-events-none" />
 
-                    {/* Subtle Wood Grain Texture (vertical soft lines) */}
+                    {/* Subtle Woodgrain Texture Overlay */}
                     <div 
-                      className="absolute inset-0 pointer-events-none opacity-20"
+                      className="absolute inset-0 pointer-events-none opacity-25 mix-blend-multiply"
                       style={{
                         backgroundImage: 'repeating-linear-gradient(90deg, rgba(74, 36, 12, 0.08) 0px, rgba(74, 36, 12, 0.08) 2px, transparent 2px, transparent 8px)'
                       }}
@@ -254,3 +262,4 @@ export default function EmaCommentsBoard({ comments, loading }: EmaCommentsBoard
   );
 }
 
+export default memo(EmaCommentsBoard);

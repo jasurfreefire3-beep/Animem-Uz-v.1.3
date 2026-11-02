@@ -1,13 +1,99 @@
-// Animem.uz Service Worker for Device Push Notifications & Offline PWA
+// Animem.uz Service Worker for Device Push Notifications & Offline Image/Asset Cache
+// Guarantees 0ms instant image loading from local cache when scrolling up/down
 
 const APP_ICON = 'https://api.animem.uz/api/images/1788100529230_au9wggu';
+const IMAGE_CACHE = 'animem-images-v3';
+const STATIC_CACHE = 'animem-static-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.map((key) => {
+          if (key !== IMAGE_CACHE && key !== STATIC_CACHE) {
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// Cache-First interceptor for Images & Assets (Zero re-fetching on scroll)
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+
+  // 1. Anime posters, banners, avatars, thumbnails & covers
+  const isImage = 
+    request.destination === 'image' ||
+    /\.(jpe?g|png|webp|avif|gif|svg)(\?.*)?$/i.test(url.pathname) ||
+    url.pathname.includes('/api/images/') ||
+    url.hostname.includes('anihub.top') ||
+    url.hostname.includes('static.yani.tv') ||
+    url.hostname.includes('code.run');
+
+  if (isImage) {
+    event.respondWith(
+      caches.open(IMAGE_CACHE).then(async (cache) => {
+        // A. Instant return from disk/RAM cache (0ms)
+        const cachedResponse = await cache.match(request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        // B. Fetch once from network, clone and save in cache
+        try {
+          const networkResponse = await fetch(request);
+          if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
+            cache.put(request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch (err) {
+          return cachedResponse || new Response('', { status: 408 });
+        }
+      })
+    );
+    return;
+  }
+
+  // 2. Static Vite JS & CSS chunks
+  const isStaticAsset = 
+    url.pathname.startsWith('/assets/') ||
+    /\.(js|css|woff2?|ttf|eot)(\?.*)?$/i.test(url.pathname);
+
+  if (isStaticAsset) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        if (cached) {
+          // Revalidate in background (stale-while-revalidate)
+          fetch(request).then((res) => {
+            if (res && res.status === 200) {
+              cache.put(request, res.clone());
+            }
+          }).catch(() => {});
+          return cached;
+        }
+
+        try {
+          const res = await fetch(request);
+          if (res && res.status === 200) {
+            cache.put(request, res.clone());
+          }
+          return res;
+        } catch (err) {
+          return cached || new Response('', { status: 408 });
+        }
+      })
+    );
+  }
 });
 
 // Handle Push event from server (Web Push API - runs even when site is closed)

@@ -1,14 +1,19 @@
+import React, { memo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Anime, toSlug } from '../types';
 import { Star, Play, Eye } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+
+// Global cache of successfully loaded poster URLs in this session.
+// Once an image loads, we remember it so scrolling back up never unloads or re-evaluates it!
+const loadedImageCache = new Set<string>();
 
 interface AnimeCardProps {
   anime: Anime;
   showBadge?: string; // Optional badge e.g. "Yangi", "TOP 1"
 }
 
-export default function AnimeCard({ anime, showBadge }: AnimeCardProps) {
+function AnimeCard({ anime, showBadge }: AnimeCardProps) {
   const { getLocalizedPath } = useLanguage();
   const episodeCount = Number(anime.qismlar_soni) || 1;
   const isMultiEpisode = episodeCount >= 2;
@@ -16,25 +21,42 @@ export default function AnimeCard({ anime, showBadge }: AnimeCardProps) {
   const targetPath = getLocalizedPath(`/anime/${slug}`);
   const targetUrl = `https://animem.uz/anime/${slug}`;
 
+  const isAlreadyLoaded = loadedImageCache.has(anime.image_url);
+  const [loaded, setLoaded] = useState(isAlreadyLoaded);
+
+  const handleImageLoad = useCallback(() => {
+    if (anime.image_url) {
+      loadedImageCache.add(anime.image_url);
+    }
+    setLoaded(true);
+  }, [anime.image_url]);
+
   return (
     <Link
       to={targetPath}
       title={`${anime.title} - O'zbek tilida ko'rish`}
-      className="group relative block focus:outline-none select-none"
+      className="group relative block focus:outline-none select-none transform-gpu"
+      style={{
+        contentVisibility: 'auto',
+        containIntrinsicSize: '240px 380px'
+      }}
     >
       {/* Outer Bright Luminous Anime Frame (Crisp, High Contrast, Vibrant) */}
       <div className="relative p-[2px] rounded-2xl bg-gradient-to-b from-white/35 via-white/10 to-[#ff006a]/40 group-hover:from-[#ff006a] group-hover:via-[#ff006a] group-hover:to-purple-500 transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.6)] group-hover:shadow-[0_0_30px_rgba(255,0,106,0.55)] group-hover:scale-[1.02]">
         
         {/* Inner Card Canvas with tall cinematic aspect ratio */}
         <div className="relative aspect-[2/3] overflow-hidden rounded-[14px] bg-[#0c0d14]">
-          {/* Crisp, Vivid Poster Image (No muddy filters, 100% bright & sharp) */}
+          {/* Crisp, Vivid Poster Image (Loaded once, stays in memory and sw cache forever) */}
           <img
             src={anime.image_url}
             alt={`${anime.title} - ${targetUrl}`}
             title={`${anime.title} - Animem.uz`}
-            loading="lazy"
+            loading={isAlreadyLoaded || loaded ? "eager" : "lazy"}
             decoding="async"
-            className="w-full h-full object-cover brightness-105 contrast-[1.06] group-hover:scale-106 transition-transform duration-500 ease-out"
+            onLoad={handleImageLoad}
+            className={`w-full h-full object-cover brightness-105 contrast-[1.06] group-hover:scale-106 transition-transform duration-500 ease-out ${
+              loaded || isAlreadyLoaded ? 'opacity-100' : 'opacity-90'
+            }`}
           />
 
           {/* Minimal Bottom Shadow for Badge Contrast (Preserves 90% image clarity) */}
@@ -90,3 +112,5 @@ export default function AnimeCard({ anime, showBadge }: AnimeCardProps) {
     </Link>
   );
 }
+
+export default memo(AnimeCard);
