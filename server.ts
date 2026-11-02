@@ -599,8 +599,25 @@ function getCache<T>(key: string, maxAgeMs = 20000): T | null {
 }
 
 function setCache<T>(key: string, data: T): void {
+  if (serverCache.size > 250) {
+    let evicted = 0;
+    for (const k of serverCache.keys()) {
+      serverCache.delete(k);
+      if (++evicted >= 50) break;
+    }
+  }
   serverCache.set(key, { data, timestamp: Date.now() });
 }
+
+// Periodic cleanup of expired cache items to prevent memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of serverCache.entries()) {
+    if (now - v.timestamp > 120000) {
+      serverCache.delete(k);
+    }
+  }
+}, 2 * 60 * 1000);
 
 function invalidateServerCache(pattern?: string): void {
   if (!pattern) {
@@ -1218,13 +1235,15 @@ const getActivePresenceList = (): PresenceUser[] => {
 
 const broadcastPresenceUpdate = () => {
   try {
+    // Only broadcast when there are active connected sockets to save CPU
+    if (!io || io.engine.clientsCount === 0) return;
     const list = getActivePresenceList();
     io.emit("online_users_count", list.length);
     io.emit("online_users_update", list);
   } catch (e) {}
 };
 
-setInterval(broadcastPresenceUpdate, 10000);
+setInterval(broadcastPresenceUpdate, 25000);
 
 // --- Socket.io Real-time Chat & Watch Together Logic ---
 io.on("connection", (socket) => {
@@ -9056,9 +9075,11 @@ async function runTelegramBot() {
       }
     } catch (err) {
       console.error("Error in telegram polling loop:", err);
+      setTimeout(poll, 7000);
+      return;
     }
 
-    setTimeout(poll, 1500);
+    setTimeout(poll, 3000);
   };
 
   poll();
@@ -9263,8 +9284,10 @@ async function runSupportTelegramBot() {
       }
     } catch (err) {
       console.error("Support Telegram Bot polling error:", err);
+      setTimeout(poll, 7000);
+      return;
     }
-    setTimeout(poll, 2000);
+    setTimeout(poll, 3000);
   };
 
   poll();
@@ -12006,19 +12029,22 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega soâ€˜kinyapsiz?! Meni xafa qildingiz ð
     console.log(`Server running on http://localhost:${PORT}`);
   });
 
-  // Dual-port listening: ensures container handles traffic from both Northflank (port 3000) and Hugging Face (port 7860)
-  const secondaryPort = PORT === 3000 ? 7860 : 3000;
-  try {
-    const secondaryServer = http.createServer(app);
-    io.attach(secondaryServer);
-    secondaryServer.listen(secondaryPort, "0.0.0.0", () => {
-      console.log(`Dual-port secondary listener active on http://0.0.0.0:${secondaryPort}`);
-    });
-    secondaryServer.on("error", (err: any) => {
-      console.log(`Secondary port ${secondaryPort} not active:`, err.message);
-    });
-  } catch (e) {
-    // Optional secondary listener
+  // Dual-port listening: only active if on Hugging Face Spaces (SPACE_ID) or explicitly enabled via ENABLE_DUAL_PORT
+  const enableDualPort = process.env.ENABLE_DUAL_PORT === "true" || Boolean(process.env.SPACE_ID);
+  if (enableDualPort) {
+    const secondaryPort = PORT === 3000 ? 7860 : 3000;
+    try {
+      const secondaryServer = http.createServer(app);
+      io.attach(secondaryServer);
+      secondaryServer.listen(secondaryPort, "0.0.0.0", () => {
+        console.log(`Dual-port secondary listener active on http://0.0.0.0:${secondaryPort}`);
+      });
+      secondaryServer.on("error", (err: any) => {
+        console.log(`Secondary port ${secondaryPort} not active:`, err.message);
+      });
+    } catch (e) {
+      // Optional secondary listener
+    }
   }
 }
 

@@ -21,6 +21,9 @@ ENV NODE_OPTIONS="--max-old-space-size=2048"
 # Build both frontend (Vite -> dist/) and backend (esbuild -> dist/server.cjs)
 RUN npm run build
 
+# Reset runtime memory limit to keep container lightweight on Northflank & free cloud hosts (avoids high RAM usage and OOM)
+ENV NODE_OPTIONS="--max-old-space-size=384"
+
 # Ensure Hugging Face Spaces user (UID 1000) owns the app, uploads, and data directory
 RUN mkdir -p /app/data /app/uploads && chown -R 1000:1000 /app
 
@@ -33,5 +36,5 @@ ENV PORT=3000
 # Expose server ports (Northflank uses 3000, Hugging Face uses 7860)
 EXPOSE 3000 7860
 
-# Start compiled production server (serves dist/ and API endpoints)
-CMD ["node", "dist/server.cjs"]
+# Start compiled production server with lean heap management
+CMD ["node", "--max-old-space-size=384", "dist/server.cjs"]

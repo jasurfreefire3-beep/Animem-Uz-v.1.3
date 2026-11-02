@@ -33,36 +33,12 @@
   position: relative;
   aspect-ratio: 16 / 9;
   width: 100%;
-  max-height: 85vh;
+  max-height: 75vh;
   overflow: hidden;
   border: 1px solid rgba(255, 0, 106, .65);
   border-radius: 22px;
   background: radial-gradient(circle at 50% 30%, #25121f, #050506 68%);
   box-shadow: 0 0 0 1px rgba(255, 0, 106, .15), inset 0 0 50px rgba(255, 0, 106, .1), 0 0 32px rgba(255, 0, 106, .09);
-}
-
-@media (min-width: 1024px) {
-  .animem-player-stage {
-    min-height: 500px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .animem-player-stage {
-    min-height: 600px;
-  }
-}
-
-@media (min-width: 1536px) {
-  .animem-player-stage {
-    min-height: 680px;
-  }
-}
-
-@media (min-width: 1800px) {
-  .animem-player-stage {
-    min-height: 760px;
-  }
 }
 .animem-player-instance, .animem-player-embed, .animem-player-native-video { width: 100%; height: 100%; border: 0; outline: none; object-fit: contain; }
 .animem-player-instance > div, .animem-player-instance iframe { width: 100% !important; height: 100% !important; }

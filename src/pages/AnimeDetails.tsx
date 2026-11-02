@@ -830,7 +830,7 @@ export default function AnimeDetails() {
 
        <div className="-mx-4 sm:mx-0 mb-3 md:mb-4">
          {String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
-            <div className="w-full min-h-[260px] sm:min-h-[380px] md:min-h-[580px] xl:min-h-[680px] 2xl:min-h-[760px] bg-black/60 border border-white/10 sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-8 text-center backdrop-blur-md">
+            <div className="w-full aspect-video min-h-[260px] sm:min-h-[360px] md:min-h-[460px] bg-black/60 border border-white/10 sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-8 text-center backdrop-blur-md">
               <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#0088cc]/20 rounded-full flex items-center justify-center mb-4 sm:mb-6 shrink-0 ring-4 ring-[#0088cc]/20">
                 <svg viewBox="0 0 24 24" className="w-7 h-7 sm:w-10 sm:h-10 fill-[#0088cc]">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
@@ -1014,7 +1014,7 @@ export default function AnimeDetails() {
                   <button 
                      key={ep.number}
                      onClick={() => handleEpisodeClick(ep)}
-                     className={`relative w-12 h-11 sm:w-14 sm:h-12 rounded-xl text-sm font-semibold transition-all flex items-center justify-center border shrink-0 ${
+                     className={`relative w-13 h-12 sm:w-16 sm:h-14 rounded-2xl text-sm sm:text-base font-extrabold transition-all flex items-center justify-center border shrink-0 ${
                         activeEpisode === ep.number 
                            ? 'bg-[#1b0b16] border-[#ff006a] text-white shadow-[0_0_18px_rgba(255,0,106,0.42)]'
                         : ep.video_url
@@ -1069,7 +1069,7 @@ export default function AnimeDetails() {
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative w-full min-h-[440px] sm:min-h-[500px] md:h-[55vh] md:min-h-[450px] bg-[#09090b] flex flex-col justify-end pt-16 md:pt-24 pb-4 md:pb-0"
+        className="relative w-full min-h-[460px] sm:min-h-[520px] md:h-[60vh] md:min-h-[520px] bg-[#09090b] flex flex-col justify-end pt-16 md:pt-24 pb-4 md:pb-0"
       >
         {/* Background Image Banner */}
         <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -1077,7 +1077,7 @@ export default function AnimeDetails() {
             src={anime.banner_url || anime.image_url} 
             alt={`${anime.title} banner`} 
             title={anime.title}
-            className="w-full h-full object-cover opacity-90 md:opacity-100 md:scale-105 transition-all duration-700 blur-[0px] md:blur-0" 
+            className="w-full h-full object-cover brightness-105 contrast-[1.04] saturate-[1.08] opacity-90 md:opacity-100 md:scale-105 transition-all duration-700 blur-[0px] md:blur-0" 
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/60 to-black/30 md:via-[#09090b]/55" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#09090b] via-[#09090b]/75 to-transparent hidden md:block" />
@@ -1099,10 +1099,10 @@ export default function AnimeDetails() {
         </div>
         
         <div className="relative w-full px-4 md:px-8 z-10 pb-4 md:pb-12">
-          <div className="flex flex-col md:flex-row gap-4 md:gap-8 items-start md:items-end max-w-[1800px] w-full mx-auto">
+          <div className="flex flex-col md:flex-row gap-5 md:gap-8 items-start md:items-end max-w-7xl w-full mx-auto">
              {/* Poster Overlay */}
-             <div className="hidden md:block w-36 sm:w-40 md:w-52 shrink-0 relative transform translate-y-0 md:translate-y-16 hover:scale-105 transition-all duration-300 group z-20">
-               <div className="relative p-[2.5px] rounded-2xl bg-gradient-to-b from-[#ff006a] via-purple-500/50 to-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_35px_rgba(255,0,106,0.35)]">
+             <div className="hidden md:block w-40 sm:w-44 md:w-56 lg:w-60 shrink-0 relative transform translate-y-0 md:translate-y-16 hover:scale-105 transition-all duration-300 group z-20">
+               <div className="relative p-[3px] rounded-2xl bg-gradient-to-b from-[#ff006a] via-purple-500/60 to-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_35px_rgba(255,0,106,0.4)]">
                  <div className="aspect-[3/4] rounded-[13px] overflow-hidden bg-[#0c0c0e] relative">
                    <img loading="lazy" decoding="async" src={anime.image_url} alt={anime.title} title={anime.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                    {/* Stylish Frame Corner Accents */}
@@ -1116,42 +1116,42 @@ export default function AnimeDetails() {
              
              {/* Title & Meta */}
              <div className="flex-1 text-left flex flex-col items-start w-full">
-                <div className="hidden md:flex flex-wrap items-center justify-start gap-2 mb-3">
-                  <span className="px-2.5 py-1 bg-[#ff006a] text-white text-[9px] uppercase font-bold rounded-sm tracking-wider shadow-[0_0_12px_rgba(255,0,106,0.4)]">
+                <div className="hidden md:flex flex-wrap items-center justify-start gap-2.5 mb-3.5">
+                  <span className="px-3 py-1 bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white text-[10px] uppercase font-black rounded-lg tracking-wider shadow-[0_0_15px_rgba(255,0,106,0.5)]">
                     {anime.holati === 'Yakunlangan' ? 'YAKUNLANGAN' : 'EFIRDA'}
                   </span>
-                  <span className="flex items-center gap-1 text-yellow-400 text-xs font-bold px-2.5 py-1 bg-black/60 rounded-sm border border-white/5">
-                    <Star className="w-3 h-3 fill-current" /> {anime.rating ? Number(anime.rating).toFixed(1) : '9.2'}
+                  <span className="flex items-center gap-1.5 text-yellow-400 text-xs font-bold px-3 py-1 bg-black/60 backdrop-blur-md rounded-lg border border-white/10">
+                    <Star className="w-3.5 h-3.5 fill-current" /> {anime.rating ? Number(anime.rating).toFixed(1) : '9.2'}
                   </span>
-                  <span className="text-white/80 text-xs font-medium flex items-center gap-1 bg-black/60 px-2.5 py-1 rounded-sm border border-white/5">
-                    <Calendar className="w-3 h-3" /> {anime.yil || '2026'}
+                  <span className="text-white/80 text-xs font-medium flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
+                    <Calendar className="w-3.5 h-3.5 text-[#ff006a]" /> {anime.yil || '2026'}
                   </span>
-                  <span className="text-white/80 text-xs font-medium flex items-center gap-1 bg-black/60 px-2.5 py-1 rounded-sm border border-white/5 max-w-[150px] truncate">
-                    <Building className="w-3 h-3" /> {anime.studiyasi || 'Studio'}
+                  <span className="text-white/80 text-xs font-medium flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10 max-w-[170px] truncate">
+                    <Building className="w-3.5 h-3.5 text-[#ff006a]" /> {anime.studiyasi || 'Studio'}
                   </span>
-                  <span className="text-white/80 text-xs font-medium flex items-center gap-1 bg-black/60 px-2.5 py-1 rounded-sm border border-white/5">
+                  <span className="text-white/80 text-xs font-medium flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
                     <Eye className="w-3.5 h-3.5 text-[#ff006a]" /> {anime.korishlar || 0} ta ko'rish
                   </span>
                 </div>
                 
-                <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 leading-tight tracking-tight uppercase">
+                <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 leading-tight tracking-tight uppercase drop-shadow-[0_2px_15px_rgba(0,0,0,0.8)]">
                   {anime.title}
                 </h1>
                 
-                <div className="text-white/40 text-xs font-medium mb-5">Original nomi · TV Serial</div>
+                <div className="text-white/50 text-xs font-semibold mb-4">Original nomi · TV Serial</div>
                 
                 <div className="flex flex-wrap justify-center md:justify-start gap-1.5 mb-4">
                   {genres.map(g => (
-                    <span key={g} className="bg-[#18181b] hover:bg-[#ff006a] text-white/70 hover:text-white text-xs font-bold px-3 py-1.5 rounded-sm transition-colors cursor-pointer border border-[#27272a] hover:border-[#ff006a] shadow-xs">
+                    <span key={g} className="bg-white/10 hover:bg-[#ff006a] backdrop-blur-md text-white/85 hover:text-white text-xs font-bold px-3.5 py-1 rounded-lg transition-colors cursor-pointer border border-white/10 hover:border-[#ff006a] shadow-sm">
                       {translateGenre(g)}
                     </span>
                   ))}
                 </div>
 
                 {typeof anime.tags === 'string' && anime.tags.trim() && (
-                  <div className="hidden md:flex flex-wrap justify-start gap-1.5 mb-6">
+                  <div className="hidden md:flex flex-wrap justify-start gap-1.5 mb-5">
                     {anime.tags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
-                      <span key={tag} className="bg-white/5 border border-white/10 text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-0.5 rounded-sm transition-colors">
+                      <span key={tag} className="bg-white/5 border border-white/10 text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-0.5 rounded-lg transition-colors">
                         #{tag}
                       </span>
                     ))}
@@ -1159,7 +1159,7 @@ export default function AnimeDetails() {
                 )}
 
                 {/* Rating Stars */}
-                <div className="hidden md:flex items-center gap-0.5 ml-2 mb-4">
+                <div className="hidden md:flex items-center gap-1 ml-1 mb-4">
                     {[1, 2, 3, 4, 5].map((star) => (
                         <button 
                             key={star} 
@@ -1175,10 +1175,10 @@ export default function AnimeDetails() {
                             <Star className={`w-4 h-4 ${star <= Math.round((anime.rating || 9.2) / 2) ? 'text-[#ff9900] fill-[#ff9900]' : 'text-gray-600'}`} />
                         </button>
                     ))}
-                    <span className="text-white/40 text-[10px] ml-2">({anime.rating_count || 0} baho)</span>
+                    <span className="text-white/40 text-[11px] ml-2">({anime.rating_count || 0} baho)</span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full mt-2 md:mt-0">
+                <div className="flex flex-wrap items-center gap-2.5 md:gap-3.5 w-full mt-2 md:mt-1">
                   <button 
                     onClick={() => {
                       const playerSec = document.getElementById('player-section');
@@ -1186,7 +1186,7 @@ export default function AnimeDetails() {
                         playerSec.scrollIntoView({ behavior: 'smooth' });
                       }
                     }}
-                    className="flex-1 min-w-[140px] md:flex-none bg-[#ff006a] hover:bg-[#d40058] text-white px-4 md:px-8 py-3 rounded-sm font-black flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 active:translate-y-0 shadow-lg shadow-[#ff006a]/25 text-[11px] md:text-sm uppercase tracking-wider"
+                    className="flex-1 min-w-[150px] md:flex-none bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:opacity-95 text-white px-6 md:px-8 py-3.5 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,0,106,0.4)] text-xs md:text-sm uppercase tracking-wider cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-current shrink-0" /> 
                     <span>TOMOSHA QILISH</span>
@@ -1198,7 +1198,7 @@ export default function AnimeDetails() {
                         const targetEp = combinedEpisodes.find(e => e.number === lastWatchedEp) || { number: lastWatchedEp };
                         handleEpisodeClick(targetEp);
                       }}
-                      className="flex-1 min-w-[170px] md:flex-none bg-gradient-to-r from-purple-600 to-[#ff006a] hover:opacity-90 text-white px-4 md:px-6 py-3 rounded-sm font-black flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 active:translate-y-0 shadow-lg shadow-purple-600/25 text-[11px] md:text-sm uppercase tracking-wider"
+                      className="flex-1 min-w-[170px] md:flex-none bg-gradient-to-r from-purple-600 to-[#ff006a] hover:opacity-95 text-white px-5 md:px-7 py-3.5 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(147,51,234,0.35)] text-xs md:text-sm uppercase tracking-wider cursor-pointer"
                     >
                       <Play className="w-3.5 h-3.5 fill-current shrink-0" /> 
                       <span>{lastWatchedEp}-QISMDAN DAVOM</span>
@@ -1210,10 +1210,10 @@ export default function AnimeDetails() {
 
                   <button 
                     onClick={toggleFavorite}
-                    className={`flex-1 min-w-[130px] md:flex-none px-4 md:px-6 py-3 rounded-sm font-black transition-all flex items-center justify-center gap-2 text-[11px] md:text-sm border uppercase tracking-wider ${
+                    className={`flex-1 min-w-[130px] md:flex-none px-5 md:px-7 py-3.5 md:py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-2.5 text-xs md:text-sm border uppercase tracking-wider cursor-pointer hover:scale-105 ${
                       isFavorited 
-                        ? 'bg-[#ff006a]/15 border-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.25)]' 
-                        : 'bg-[#18181b] border-[#27272a] hover:bg-[#27272a] text-white'
+                        ? 'bg-[#ff006a]/20 border-[#ff006a] text-white shadow-[0_0_20px_rgba(255,0,106,0.3)]' 
+                        : 'bg-black/60 backdrop-blur-md border-white/20 hover:border-white/40 text-white'
                     }`}
                   >
                     <Heart className={`w-4 h-4 shrink-0 ${isFavorited ? 'fill-current text-[#ff006a]' : ''}`} /> 
@@ -1226,7 +1226,7 @@ export default function AnimeDetails() {
                     type="button"
                     onClick={handleStartWatchTogether}
                     disabled={isCreatingRoom}
-                    className="flex-1 min-w-[155px] md:flex-none px-4 md:px-5 py-3 rounded-sm font-black transition-all flex items-center justify-center gap-2 text-[11px] md:text-sm border uppercase tracking-wider bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 border-[#ff006a]/50 hover:border-[#ff006a] hover:from-[#ff006a]/30 hover:to-purple-600/30 text-white shadow-[0_0_15px_rgba(255,0,106,0.2)] cursor-pointer"
+                    className="flex-1 min-w-[155px] md:flex-none px-5 md:px-7 py-3.5 md:py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-2.5 text-xs md:text-sm border uppercase tracking-wider bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 border-[#ff006a]/50 hover:border-[#ff006a] text-white shadow-[0_0_20px_rgba(255,0,106,0.25)] cursor-pointer hover:scale-105"
                     title="Do'stlar bilan jonli birga ko'rish"
                   >
                     <Users className="w-4 h-4 text-[#ff006a] shrink-0" />
@@ -1238,14 +1238,14 @@ export default function AnimeDetails() {
         </div>
       </motion.div>
 
-      {/* If Theater Mode is enabled, render the huge player full width across the page */}
+      {/* If Theater Mode is enabled, render the player full width across the page */}
       {theaterMode && (
-        <div className="max-w-[1800px] w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-12 mt-6 md:mt-10">
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10">
           {renderPlayerSection()}
         </div>
       )}
 
-      <div className="flex flex-col xl:flex-row gap-6 mt-6 md:mt-10 max-w-[1800px] w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-12">
+      <div className="flex flex-col xl:flex-row gap-6 mt-6 md:mt-10 max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8">
          {/* Main Left Content */}
          <div className="flex-1 space-y-6 min-w-0">
             {/* If Standard Mode, render player right here at top of left column */}
@@ -1272,24 +1272,36 @@ export default function AnimeDetails() {
                    {isExpanded ? "Kamroq o'qish" : "Ko'proq o'qish"}
                  </button>
                )}
-               <div className="flex gap-4 mt-6 pt-4 border-t border-white/10">
-                 <button onClick={handleShare} className="text-white/50 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer">
-                   <Share2 className="w-3.5 h-3.5" /> {copied ? "Nusxalandi!" : "Ulashish"}
-                 </button>
-                 <button className="text-white/50 hover:text-[#ff006a] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer">
-                   <Flag className="w-3.5 h-3.5" /> Xabar berish
+               <div className="flex flex-wrap gap-2.5 sm:gap-3 mt-6 pt-4 border-t border-white/10">
+                 <button 
+                   type="button"
+                   onClick={handleShare} 
+                   className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/80 hover:text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                 >
+                   <Share2 className="w-4 h-4 text-[#ff006a]" /> {copied ? "Nusxalandi!" : "Ulashish"}
                  </button>
                  <button 
+                   type="button"
+                   className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/80 hover:text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                 >
+                   <Flag className="w-4 h-4 text-amber-400" /> Xabar berish
+                 </button>
+                 <button 
+                   type="button"
                    onClick={() => setLightsOff(!lightsOff)}
-                   className={`text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${lightsOff ? 'text-[#ff006a]' : 'text-white/50 hover:text-white'}`}
+                   className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                     lightsOff 
+                       ? 'bg-[#ff006a]/20 border-[#ff006a] text-white shadow-md shadow-[#ff006a]/30' 
+                       : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80 hover:text-white'
+                   }`}
                  >
                    {lightsOff ? (
                      <>
-                       <Sun className="w-3.5 h-3.5" /> Chiroqni yoqish
+                       <Sun className="w-4 h-4 text-yellow-400" /> Chiroqni yoqish
                      </>
                    ) : (
                      <>
-                       <Moon className="w-3.5 h-3.5" /> Chiroqni o'chirish
+                       <Moon className="w-4 h-4 text-[#ff006a]" /> Chiroqni o'chirish
                      </>
                    )}
                  </button>

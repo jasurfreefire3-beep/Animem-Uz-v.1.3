@@ -500,8 +500,23 @@ function getCache(key, maxAgeMs = 2e4) {
   return item.data;
 }
 function setCache(key, data) {
+  if (serverCache.size > 250) {
+    let evicted = 0;
+    for (const k of serverCache.keys()) {
+      serverCache.delete(k);
+      if (++evicted >= 50) break;
+    }
+  }
   serverCache.set(key, { data, timestamp: Date.now() });
 }
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of serverCache.entries()) {
+    if (now - v.timestamp > 12e4) {
+      serverCache.delete(k);
+    }
+  }
+}, 2 * 60 * 1e3);
 function invalidateServerCache(pattern) {
   if (!pattern) {
     serverCache.clear();
@@ -1039,13 +1054,14 @@ var getActivePresenceList = () => {
 };
 var broadcastPresenceUpdate = () => {
   try {
+    if (!io || io.engine.clientsCount === 0) return;
     const list = getActivePresenceList();
     io.emit("online_users_count", list.length);
     io.emit("online_users_update", list);
   } catch (e) {
   }
 };
-setInterval(broadcastPresenceUpdate, 1e4);
+setInterval(broadcastPresenceUpdate, 25e3);
 io.on("connection", (socket) => {
   console.log("A user connected to socket:", socket.id);
   socket.on("joinWatchRoom", (data) => {
@@ -7627,8 +7643,10 @@ Siz saytga xavfsiz va tezkor kirish uchun saytdagi <b>"Telegram bilan kirish"</b
       }
     } catch (err) {
       console.error("Error in telegram polling loop:", err);
+      setTimeout(poll, 7e3);
+      return;
     }
-    setTimeout(poll, 1500);
+    setTimeout(poll, 3e3);
   };
   poll();
 }
@@ -7815,8 +7833,10 @@ ${text}
       }
     } catch (err) {
       console.error("Support Telegram Bot polling error:", err);
+      setTimeout(poll, 7e3);
+      return;
     }
-    setTimeout(poll, 2e3);
+    setTimeout(poll, 3e3);
   };
   poll();
 }
@@ -10227,17 +10247,20 @@ ${msgText}
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
-  const secondaryPort = PORT === 3e3 ? 7860 : 3e3;
-  try {
-    const secondaryServer = http.createServer(app);
-    io.attach(secondaryServer);
-    secondaryServer.listen(secondaryPort, "0.0.0.0", () => {
-      console.log(`Dual-port secondary listener active on http://0.0.0.0:${secondaryPort}`);
-    });
-    secondaryServer.on("error", (err) => {
-      console.log(`Secondary port ${secondaryPort} not active:`, err.message);
-    });
-  } catch (e) {
+  const enableDualPort = process.env.ENABLE_DUAL_PORT === "true" || Boolean(process.env.SPACE_ID);
+  if (enableDualPort) {
+    const secondaryPort = PORT === 3e3 ? 7860 : 3e3;
+    try {
+      const secondaryServer = http.createServer(app);
+      io.attach(secondaryServer);
+      secondaryServer.listen(secondaryPort, "0.0.0.0", () => {
+        console.log(`Dual-port secondary listener active on http://0.0.0.0:${secondaryPort}`);
+      });
+      secondaryServer.on("error", (err) => {
+        console.log(`Secondary port ${secondaryPort} not active:`, err.message);
+      });
+    } catch (e) {
+    }
   }
 }
 start();
