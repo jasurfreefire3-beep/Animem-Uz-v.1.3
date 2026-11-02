@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Anime, Comment, translateGenre, toSlug } from '../types';
-import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward } from 'lucide-react';
+import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward, Maximize2, Minimize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import VideoPlayer from '../components/VideoPlayer';
 import WatchTogetherRoom from '../components/WatchTogetherRoom';
@@ -35,6 +35,34 @@ export default function AnimeDetails() {
   const [currentVideoUrl, setCurrentVideoUrl] = useState('');
   const [isFavorited, setIsFavorited] = useState(false);
   const [lightsOff, setLightsOff] = useState(false);
+  const [theaterMode, setTheaterMode] = useState(() => {
+    try {
+      return localStorage.getItem('animem_theater_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleTheaterMode = () => {
+    setTheaterMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('animem_theater_mode', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (e.key === 't' || e.key === 'T') {
+        toggleTheaterMode();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   const [copied, setCopied] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -744,6 +772,284 @@ export default function AnimeDetails() {
     }
   };
 
+  const renderPlayerSection = () => (
+    <motion.section 
+       id="player-section"
+       initial={{ opacity: 0 }}
+       animate={{ opacity: 1 }}
+       transition={{ delay: 0.2 }}
+       className={`bg-transparent md:bg-black/60 md:backdrop-blur-2xl md:border md:border-white/15 rounded-none md:rounded-3xl p-0 sm:p-3 md:p-6 lg:p-7 relative transition-all duration-300 shadow-[0_25px_60px_rgba(0,0,0,0.85)] ${lightsOff ? 'z-50 ring-4 ring-[#ff006a]/30 shadow-[0_0_80px_rgba(255,0,106,0.35)] bg-black/90 border-[#ff006a]/50' : 'z-10'}`}
+    >
+       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 px-4 md:px-0">
+         <div className="flex items-center gap-2.5">
+           <h2 className="text-sm md:text-base font-black text-white flex items-center gap-2 uppercase tracking-wide">
+             <PlayCircle className="w-4 h-4 md:w-5 md:h-5 text-[#ff006a]" /> Player
+           </h2>
+           {isCurrentFiller && (
+             <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow-sm ring-1 ring-red-500/50 flex items-center gap-1">
+               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+               Filler
+             </span>
+           )}
+           <div className="bg-white/5 border border-white/10 px-3 py-1 rounded-lg text-[10px] md:text-xs font-bold text-[#ff006a] uppercase">
+             Ep {activeEpisode} tomosha qilinmoqda
+           </div>
+         </div>
+
+         {/* Desktop Player Action Controls: Theater Mode & Lights Off */}
+         <div className="flex items-center gap-2">
+           <button
+             type="button"
+             onClick={toggleTheaterMode}
+             className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+               theaterMode 
+                 ? 'bg-[#ff006a]/20 border-[#ff006a] text-white shadow-md shadow-[#ff006a]/30' 
+                 : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
+             }`}
+             title={theaterMode ? "Standart oyna rejimiga qaytish (T)" : "Katta teatr ekranini yoqish (T)"}
+           >
+             {theaterMode ? <Minimize2 size={13} className="text-[#ff006a]" /> : <Maximize2 size={13} className="text-[#ff006a]" />}
+             <span>{theaterMode ? "Standart oyna" : "Katta oyna (Teatr)"}</span>
+           </button>
+
+           <button 
+             type="button"
+             onClick={() => setLightsOff(!lightsOff)}
+             className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+               lightsOff 
+                 ? 'bg-[#ff006a]/20 border-[#ff006a] text-white shadow-md shadow-[#ff006a]/30' 
+                 : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
+             }`}
+             title={lightsOff ? "Chiroqni yoqish" : "Chiroqni o'chirish"}
+           >
+             {lightsOff ? <Sun size={13} className="text-yellow-400" /> : <Moon size={13} className="text-[#ff006a]" />}
+             <span>{lightsOff ? "Chiroqni yoqish" : "Chiroqni o'chirish"}</span>
+           </button>
+         </div>
+       </div>
+
+       <div className="-mx-4 sm:mx-0 mb-3 md:mb-4">
+         {String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
+            <div className="w-full min-h-[260px] sm:min-h-[380px] md:min-h-[580px] xl:min-h-[680px] 2xl:min-h-[760px] bg-black/60 border border-white/10 sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-8 text-center backdrop-blur-md">
+              <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#0088cc]/20 rounded-full flex items-center justify-center mb-4 sm:mb-6 shrink-0 ring-4 ring-[#0088cc]/20">
+                <svg viewBox="0 0 24 24" className="w-7 h-7 sm:w-10 sm:h-10 fill-[#0088cc]">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
+                </svg>
+              </div>
+              <h3 className="text-base sm:text-2xl font-black text-white mb-2 sm:mb-3">Bu qismni Telegram botimizda tomosha qiling!</h3>
+              <p className="text-xs sm:text-base text-white/60 max-w-lg mb-6 sm:mb-8">
+                Video fayl hajmi kattaligi sababli, ushbu anime qismi to'g'ridan-to'g'ri Telegram botimizga yuklangan.
+              </p>
+              <a 
+                href={currentVideoUrl || anime.video_url} 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 sm:gap-3 px-6 py-3.5 sm:px-8 sm:py-4 bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold text-xs sm:text-base rounded-xl transition-all shadow-[0_0_20px_rgba(0,136,204,0.4)] hover:shadow-[0_0_30px_rgba(0,136,204,0.6)] hover:-translate-y-1 shrink-0"
+              >
+                <PlayCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+                Botga o'tish va ko'rish
+              </a>
+            </div>
+         ) : (
+            <VideoPlayer 
+              url={currentVideoUrl || anime.video_url || '/assets/sample/video.mp4'} 
+              poster={anime.banner_url || anime.image_url} 
+              animeTitle={anime.title} 
+            />
+         )}
+       </div>
+
+       {/* Prominent Filler Alert Banner if current episode is a filler */}
+       {isCurrentFiller && (
+         <motion.div 
+           initial={{ opacity: 0, y: -6 }}
+           animate={{ opacity: 1, y: 0 }}
+           className="mb-4 mx-4 sm:mx-0 p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-950/70 via-[#1e0a12] to-[#120509] border border-red-500/50 shadow-[0_4px_25px_rgba(239,68,68,0.22)] text-white relative overflow-hidden"
+         >
+           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+             <div className="space-y-1.5 flex-1">
+               <div className="flex items-center gap-2">
+                 <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow ring-1 ring-black/50">
+                   FILLER
+                 </span>
+                 <h4 className="text-sm sm:text-base font-extrabold text-white">
+                   Diqqat: {activeEpisode}-qism — Filler epizod!
+                 </h4>
+               </div>
+               <p className="text-xs sm:text-[13px] text-white/80 leading-relaxed">
+                 <strong className="text-red-400">Filler nima?</strong> Bu original manga syujetiga kirmaydigan, serialning asosiy voqealari rivojiga ta'sir ko'rsatmaydigan qo'shimcha qism. Agar faqat asosiy hikoyani tomosha qilmoqchi bo'lsangiz, vaqtingizni tejash uchun bu qismni o'tkazib yuborishingiz mumkin.
+               </p>
+             </div>
+
+             {nextEpisodeObj && (
+               <div className="shrink-0 flex items-center">
+                 <button
+                   type="button"
+                   onClick={() => handleEpisodeClick(nextEpisodeObj)}
+                   className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-gradient-to-r from-red-600 to-[#ff006a] hover:from-red-500 hover:to-[#e6005c] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-red-600/30 hover:shadow-red-600/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                 >
+                   <span>Keyingi qismga o'tish ({nextEpisodeObj.number}-qism)</span>
+                   <FastForward className="w-4 h-4" />
+                 </button>
+               </div>
+             )}
+           </div>
+         </motion.div>
+       )}
+
+       {/* Watch Together Live Room or Quick Invite Banner */}
+       <div id="watch-together-section" className="mb-4">
+         {activeWatchRoomId ? (
+           <WatchTogetherRoom
+             roomId={activeWatchRoomId}
+             anime={anime}
+             currentEpisode={activeEpisode - 1}
+             onEpisodeChange={(epIdx) => {
+               const targetEp = combinedEpisodes[epIdx];
+               if (targetEp) handleEpisodeClick(targetEp);
+             }}
+             onClose={() => {
+               setActiveWatchRoomId(null);
+               setSearchParams(prev => {
+                 const next = new URLSearchParams(prev);
+                 next.delete('room');
+                 return next;
+               });
+             }}
+           />
+         ) : (
+           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-xl bg-gradient-to-r from-[#ff006a]/15 via-[#181824] to-[#0c0d14] border border-[#ff006a]/30">
+             <div className="flex items-center gap-3">
+               <div className="w-9 h-9 rounded-xl bg-[#ff006a] flex items-center justify-center text-white shadow-lg shadow-[#ff006a]/30 shrink-0">
+                 <Users className="w-5 h-5" />
+               </div>
+               <div>
+                 <div className="flex items-center gap-2">
+                   <span className="text-xs font-black text-white uppercase tracking-wider">
+                     Do'stlar bilan birga tomosha qiling
+                   </span>
+                   <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                     Jonli
+                   </span>
+                 </div>
+                 <p className="text-[11px] text-white/60">
+                   Birga tomosha qilish xonasi yarating va do'stlar bilan bir vaqtda sinxron ko'ring!
+                 </p>
+               </div>
+             </div>
+             <button
+               type="button"
+               onClick={handleStartWatchTogether}
+               disabled={isCreatingRoom}
+               className="w-full sm:w-auto px-4 py-2 bg-[#ff006a] hover:bg-[#d40058] disabled:opacity-50 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-[#ff006a]/20 cursor-pointer shrink-0"
+             >
+               {isCreatingRoom ? "Ochilmoqda..." : "Xona yaratish"}
+             </button>
+           </div>
+         )}
+       </div>
+
+       {/* Telegramda ko'rish (Elongated Banner Button) */}
+       {typeof anime.telegram_url === 'string' && anime.telegram_url.trim() !== '' && (
+         <div className="mb-4">
+           <a
+             href={anime.telegram_url}
+             target="_blank"
+             rel="noopener noreferrer"
+             className="group relative w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 bg-gradient-to-r from-[#0088cc]/20 via-[#0088cc]/10 to-[#0088cc]/25 hover:from-[#0088cc]/35 hover:via-[#0088cc]/20 hover:to-[#0088cc]/40 border border-[#0088cc]/50 hover:border-[#0088cc] rounded-xl sm:rounded-2xl transition-all duration-300 shadow-[0_0_20px_rgba(0,136,204,0.18)] hover:shadow-[0_0_30px_rgba(0,136,204,0.38)] overflow-hidden"
+           >
+             <div className="flex items-center gap-3 sm:gap-4 relative z-10">
+               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#0088cc]/20 flex items-center justify-center p-1.5 ring-2 ring-[#0088cc]/40 group-hover:scale-110 transition-transform shrink-0">
+                 <img 
+                   src="https://api.animem.uz/i/2f5df3e0-bd69-4fd4-b558-429a47091414" 
+                   alt="Telegram" 
+                   className="w-full h-full object-contain" 
+                 />
+               </div>
+               <div className="text-left">
+                 <div className="text-sm sm:text-base font-black text-white group-hover:text-cyan-300 transition-colors flex items-center gap-2">
+                   <span>Telegramda ko'rish</span>
+                   <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-[#0088cc]/30 text-cyan-300 border border-[#0088cc]/40 uppercase tracking-wider">
+                     HD / Tezkor
+                   </span>
+                 </div>
+                 <p className="text-[11px] sm:text-xs text-white/60 line-clamp-1">
+                   Ushbu animeni to'liq Telegram kanalimizda tomosha qiling
+                 </p>
+               </div>
+             </div>
+             <div className="flex items-center gap-2 relative z-10">
+               <span className="hidden sm:inline-block text-xs font-bold text-[#0088cc] group-hover:text-white transition-colors">
+                 Kanalga o'tish
+               </span>
+               <div className="w-8 h-8 rounded-full bg-[#0088cc] text-white flex items-center justify-center group-hover:translate-x-1 transition-transform shadow-[0_0_12px_rgba(0,136,204,0.6)]">
+                 <ExternalLink className="w-4 h-4" />
+               </div>
+             </div>
+             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform pointer-events-none" />
+           </a>
+         </div>
+       )}
+
+       {/* Episode Selector */}
+       <div className="animem-episodes-panel px-4 md:px-6 py-5">
+          <div className="flex items-center justify-between mb-3.5">
+            <h3 className="text-xs font-bold text-[#ff9ac5] uppercase tracking-widest flex items-center gap-2">
+               <ListOrdered className="w-3.5 h-3.5" /> Qismlar
+            </h3>
+            <div className="flex items-center gap-2 text-[11px] font-mono">
+              <span className="text-white/40">
+                Jami: {combinedEpisodes.length} ta
+              </span>
+              {Object.keys(watchedEpisodes).length > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-[#10b981]/15 border border-[#10b981]/30 text-[#10b981] font-bold text-[10px]">
+                  Ko'rildi: {Object.keys(watchedEpisodes).length} ta
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="max-h-[195px] md:max-h-[230px] overflow-y-auto pr-1.5 custom-scrollbar p-1">
+            <div className="flex flex-wrap gap-2.5 sm:gap-3">
+               {combinedEpisodes.map(ep => (
+                  <button 
+                     key={ep.number}
+                     onClick={() => handleEpisodeClick(ep)}
+                     className={`relative w-12 h-11 sm:w-14 sm:h-12 rounded-xl text-sm font-semibold transition-all flex items-center justify-center border shrink-0 ${
+                        activeEpisode === ep.number 
+                           ? 'bg-[#1b0b16] border-[#ff006a] text-white shadow-[0_0_18px_rgba(255,0,106,0.42)]'
+                        : ep.video_url
+                              ? ep.is_filler
+                                ? 'bg-[#1a0e14] hover:bg-[#281421] border-red-500/40 hover:border-red-500 text-white'
+                                : 'bg-[#171720] hover:bg-[#281421] hover:border-[#ff006a]/50 border-white/10 text-white'
+                              : 'bg-[#09090b] text-white/10 border border-[#1a1a1a] cursor-not-allowed'
+                     }`}
+                     title={ep.is_filler ? `${ep.number}-qism: Filler epizod (Manga syujetiga kirmaydi)` : `${ep.number}-qism`}
+                  >
+                     {/* Filler Red Badge 'F' */}
+                     {ep.is_filler && (
+                       <span 
+                         className="absolute top-1 left-1 px-1 py-0.5 min-w-[14px] text-[8px] font-black rounded bg-red-600 text-white leading-none shadow ring-1 ring-black/70 select-none text-center"
+                         title="Filler epizod"
+                       >
+                         F
+                       </span>
+                     )}
+                     {/* Watched indicator dot */}
+                     {watchedEpisodes[ep.number] && (
+                       <span 
+                         className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981] ring-1 ring-black/80" 
+                         title={`${ep.number}-qism ko'rilgan`}
+                       />
+                     )}
+                     {ep.number}
+                  </button>
+               ))}
+            </div>
+          </div>
+       </div>
+    </motion.section>
+  );
+
   return (
     <div className="space-y-8 pb-20 relative">
       {/* Google SEO JSON-LD Structured Data */}
@@ -793,7 +1099,7 @@ export default function AnimeDetails() {
         </div>
         
         <div className="relative w-full px-4 md:px-8 z-10 pb-4 md:pb-12">
-          <div className="flex flex-col md:flex-row gap-4 md:gap-8 items-start md:items-end max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-8 items-start md:items-end max-w-[1800px] w-full mx-auto">
              {/* Poster Overlay */}
              <div className="hidden md:block w-36 sm:w-40 md:w-52 shrink-0 relative transform translate-y-0 md:translate-y-16 hover:scale-105 transition-all duration-300 group z-20">
                <div className="relative p-[2.5px] rounded-2xl bg-gradient-to-b from-[#ff006a] via-purple-500/50 to-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_35px_rgba(255,0,106,0.35)]">
@@ -932,15 +1238,25 @@ export default function AnimeDetails() {
         </div>
       </motion.div>
 
-      <div className="flex flex-col xl:flex-row gap-6 mt-10 md:mt-20 max-w-7xl mx-auto px-4 md:px-8">
+      {/* If Theater Mode is enabled, render the huge player full width across the page */}
+      {theaterMode && (
+        <div className="max-w-[1800px] w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-12 mt-6 md:mt-10">
+          {renderPlayerSection()}
+        </div>
+      )}
+
+      <div className="flex flex-col xl:flex-row gap-6 mt-6 md:mt-10 max-w-[1800px] w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-12">
          {/* Main Left Content */}
          <div className="flex-1 space-y-6 min-w-0">
+            {/* If Standard Mode, render player right here at top of left column */}
+            {!theaterMode && renderPlayerSection()}
+
             {/* Synopsis */}
             <motion.section 
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                transition={{ delay: 0.3 }}
-               className="bg-[#111] border border-[#222] rounded-sm p-6"
+               className="bg-black/60 backdrop-blur-2xl border border-white/15 rounded-2xl md:rounded-3xl p-6 shadow-xl"
             >
                <h2 className="text-sm font-bold text-white mb-3 flex items-center gap-2 uppercase tracking-wide">
                  <Eye className="w-4 h-4 text-[#ff006a]" /> Tavsif
@@ -951,278 +1267,32 @@ export default function AnimeDetails() {
                {Boolean(anime.description && anime.description.length > 300) && (
                  <button 
                    onClick={() => setIsExpanded(!isExpanded)} 
-                   className="text-[#ff006a] text-xs font-bold mt-2 hover:underline"
+                   className="text-[#ff006a] text-xs font-bold mt-2 hover:underline cursor-pointer"
                  >
                    {isExpanded ? "Kamroq o'qish" : "Ko'proq o'qish"}
                  </button>
                )}
-               <div className="flex gap-4 mt-6 pt-4 border-t border-[#222]">
-                 <button onClick={handleShare} className="text-white/50 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors">
+               <div className="flex gap-4 mt-6 pt-4 border-t border-white/10">
+                 <button onClick={handleShare} className="text-white/50 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer">
                    <Share2 className="w-3.5 h-3.5" /> {copied ? "Nusxalandi!" : "Ulashish"}
                  </button>
-                 <button className="text-white/50 hover:text-[#ff006a] text-xs font-medium flex items-center gap-1.5 transition-colors">
+                 <button className="text-white/50 hover:text-[#ff006a] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer">
                    <Flag className="w-3.5 h-3.5" /> Xabar berish
-                  </button>
-                  <button 
-                    onClick={() => setLightsOff(!lightsOff)}
-                    className={`text-xs font-medium flex items-center gap-1.5 transition-colors ${lightsOff ? 'text-[#ff006a]' : 'text-white/50 hover:text-white'}`}
-                  >
-                    {lightsOff ? (
-                      <>
-                        <Sun className="w-3.5 h-3.5" /> Chiroqni yoqish
-                      </>
-                    ) : (
-                      <>
-                        <Moon className="w-3.5 h-3.5" /> Chiroqni o'chirish
-                      </>
-                    )}
                  </button>
-               </div>
-            </motion.section>
-
-            {/* Player Section */}
-            <motion.section 
-               id="player-section"
-               initial={{ opacity: 0 }}
-               animate={{ opacity: 1 }}
-               transition={{ delay: 0.4 }}
-               className={`bg-transparent md:bg-[#111] md:border md:border-[#222] rounded-none md:rounded-sm p-0 md:p-6 relative transition-all duration-300 ${lightsOff ? 'z-50 ring-4 ring-[#ff006a]/25 shadow-[0_0_50px_rgba(255,0,106,0.25)] bg-[#111] border-[#ff006a]/35' : 'z-10'}`}
-            >
-               <div className="flex items-center justify-between mb-4 px-4 md:px-0">
-                 <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wide">
-                   <PlayCircle className="w-4 h-4 text-[#ff006a]" /> Player
-                 </h2>
-                 <div className="flex items-center gap-2">
-                   {isCurrentFiller && (
-                     <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow-sm ring-1 ring-red-500/50 flex items-center gap-1">
-                       <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                       Filler
-                     </span>
-                   )}
-                   <div className="bg-[#18181b] border border-[#27272a] md:bg-[#222] md:border-0 px-3 py-1 rounded text-[10px] font-bold text-[#ff006a] uppercase">
-                     Ep {activeEpisode} tomosha qilinmoqda
-                   </div>
-                 </div>
-               </div>
-
-               <div className="-mx-4 sm:mx-0 mb-3 md:mb-4">
-                 {String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
-                    <div className="w-full min-h-[250px] sm:min-h-[360px] md:min-h-[480px] bg-[#0a0a0c] border border-white/10 sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-6 text-center">
-                      <div className="w-12 h-12 sm:w-20 sm:h-20 bg-[#0088cc]/20 rounded-full flex items-center justify-center mb-4 sm:mb-6 shrink-0">
-                        <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-10 sm:h-10 fill-[#0088cc]">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-base sm:text-2xl font-black text-white mb-2 sm:mb-3">Bu qismni Telegram botimizda tomosha qiling!</h3>
-                      <p className="text-xs sm:text-base text-white/60 max-w-lg mb-6 sm:mb-8">
-                        Video fayl hajmi kattaligi sababli, ushbu anime qismi to'g'ridan-to'g'ri Telegram botimizga yuklangan.
-                      </p>
-                      <a 
-                        href={currentVideoUrl || anime.video_url} 
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 sm:gap-3 px-5 py-3 sm:px-8 sm:py-4 bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold text-xs sm:text-base rounded-lg transition-all shadow-[0_0_20px_rgba(0,136,204,0.3)] hover:shadow-[0_0_30px_rgba(0,136,204,0.5)] hover:-translate-y-1 shrink-0"
-                      >
-                        <PlayCircle className="w-5 h-5 sm:w-6 sm:h-6" />
-                        Botga o'tish va ko'rish
-                      </a>
-                    </div>
-                 ) : (
-                    <VideoPlayer 
-                      url={currentVideoUrl || anime.video_url || '/assets/sample/video.mp4'} 
-                      poster={anime.banner_url || anime.image_url} 
-                      animeTitle={anime.title} 
-                    />
-                 )}
-               </div>
-
-               {/* Prominent Filler Alert Banner if current episode is a filler */}
-               {isCurrentFiller && (
-                 <motion.div 
-                   initial={{ opacity: 0, y: -6 }}
-                   animate={{ opacity: 1, y: 0 }}
-                   className="mb-4 mx-4 sm:mx-0 p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-950/70 via-[#1e0a12] to-[#120509] border border-red-500/50 shadow-[0_4px_25px_rgba(239,68,68,0.22)] text-white relative overflow-hidden"
+                 <button 
+                   onClick={() => setLightsOff(!lightsOff)}
+                   className={`text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${lightsOff ? 'text-[#ff006a]' : 'text-white/50 hover:text-white'}`}
                  >
-                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                     <div className="space-y-1.5 flex-1">
-                       <div className="flex items-center gap-2">
-                         <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow ring-1 ring-black/50">
-                           FILLER
-                         </span>
-                         <h4 className="text-sm sm:text-base font-extrabold text-white">
-                           Diqqat: {activeEpisode}-qism — Filler epizod!
-                         </h4>
-                       </div>
-                       <p className="text-xs sm:text-[13px] text-white/80 leading-relaxed">
-                         <strong className="text-red-400">Filler nima?</strong> Bu original manga syujetiga kirmaydigan, serialning asosiy voqealari rivojiga ta'sir ko'rsatmaydigan qo'shimcha qism. Agar faqat asosiy hikoyani tomosha qilmoqchi bo'lsangiz, vaqtingizni tejash uchun bu qismni o'tkazib yuborishingiz mumkin.
-                       </p>
-                     </div>
-
-                     {nextEpisodeObj && (
-                       <div className="shrink-0 flex items-center">
-                         <button
-                           type="button"
-                           onClick={() => handleEpisodeClick(nextEpisodeObj)}
-                           className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-gradient-to-r from-red-600 to-[#ff006a] hover:from-red-500 hover:to-[#e6005c] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-red-600/30 hover:shadow-red-600/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                         >
-                           <span>Keyingi qismga o'tish ({nextEpisodeObj.number}-qism)</span>
-                           <FastForward className="w-4 h-4" />
-                         </button>
-                       </div>
-                     )}
-                   </div>
-                 </motion.div>
-               )}
-
-               {/* Watch Together Live Room or Quick Invite Banner */}
-               <div id="watch-together-section" className="mb-4">
-                 {activeWatchRoomId ? (
-                   <WatchTogetherRoom
-                     roomId={activeWatchRoomId}
-                     anime={anime}
-                     currentEpisode={activeEpisode - 1}
-                     onEpisodeChange={(epIdx) => {
-                       const targetEp = combinedEpisodes[epIdx];
-                       if (targetEp) handleEpisodeClick(targetEp);
-                     }}
-                     onClose={() => {
-                       setActiveWatchRoomId(null);
-                       setSearchParams(prev => {
-                         const next = new URLSearchParams(prev);
-                         next.delete('room');
-                         return next;
-                       });
-                     }}
-                   />
-                 ) : (
-                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-xl bg-gradient-to-r from-[#ff006a]/15 via-[#181824] to-[#0c0d14] border border-[#ff006a]/30">
-                     <div className="flex items-center gap-3">
-                       <div className="w-9 h-9 rounded-xl bg-[#ff006a] flex items-center justify-center text-white shadow-lg shadow-[#ff006a]/30 shrink-0">
-                         <Users className="w-5 h-5" />
-                       </div>
-                       <div>
-                         <div className="flex items-center gap-2">
-                           <span className="text-xs font-black text-white uppercase tracking-wider">
-                             Do'stlar bilan birga tomosha qiling
-                           </span>
-                           <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                             Jonli
-                           </span>
-                         </div>
-                         <p className="text-[11px] text-white/60">
-                           Birga tomosha qilish xonasi yarating va do'stlar bilan bir vaqtda sinxron ko'ring!
-                         </p>
-                       </div>
-                     </div>
-                     <button
-                       type="button"
-                       onClick={handleStartWatchTogether}
-                       disabled={isCreatingRoom}
-                       className="w-full sm:w-auto px-4 py-2 bg-[#ff006a] hover:bg-[#d40058] disabled:opacity-50 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-[#ff006a]/20 cursor-pointer shrink-0"
-                     >
-                       {isCreatingRoom ? "Ochilmoqda..." : "Xona yaratish"}
-                     </button>
-                   </div>
-                 )}
-               </div>
-
-               {/* Telegramda ko'rish (Elongated Banner Button) */}
-               {typeof anime.telegram_url === 'string' && anime.telegram_url.trim() !== '' && (
-                 <div className="mb-4">
-                   <a
-                     href={anime.telegram_url}
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     className="group relative w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 bg-gradient-to-r from-[#0088cc]/20 via-[#0088cc]/10 to-[#0088cc]/25 hover:from-[#0088cc]/35 hover:via-[#0088cc]/20 hover:to-[#0088cc]/40 border border-[#0088cc]/50 hover:border-[#0088cc] rounded-xl sm:rounded-2xl transition-all duration-300 shadow-[0_0_20px_rgba(0,136,204,0.18)] hover:shadow-[0_0_30px_rgba(0,136,204,0.38)] overflow-hidden"
-                   >
-                     <div className="flex items-center gap-3 sm:gap-4 relative z-10">
-                       <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#0088cc]/20 flex items-center justify-center p-1.5 ring-2 ring-[#0088cc]/40 group-hover:scale-110 transition-transform shrink-0">
-                         <img 
-                           src="https://api.animem.uz/i/2f5df3e0-bd69-4fd4-b558-429a47091414" 
-                           alt="Telegram" 
-                           className="w-full h-full object-contain" 
-                         />
-                       </div>
-                       <div className="text-left">
-                         <div className="text-sm sm:text-base font-black text-white group-hover:text-cyan-300 transition-colors flex items-center gap-2">
-                           <span>Telegramda ko'rish</span>
-                           <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-[#0088cc]/30 text-cyan-300 border border-[#0088cc]/40 uppercase tracking-wider">
-                             HD / Tezkor
-                           </span>
-                         </div>
-                         <p className="text-[11px] sm:text-xs text-white/60 line-clamp-1">
-                           Ushbu animeni to'liq Telegram kanalimizda tomosha qiling
-                         </p>
-                       </div>
-                     </div>
-                     <div className="flex items-center gap-2 relative z-10">
-                       <span className="hidden sm:inline-block text-xs font-bold text-[#0088cc] group-hover:text-white transition-colors">
-                         Kanalga o'tish
-                       </span>
-                       <div className="w-8 h-8 rounded-full bg-[#0088cc] text-white flex items-center justify-center group-hover:translate-x-1 transition-transform shadow-[0_0_12px_rgba(0,136,204,0.6)]">
-                         <ExternalLink className="w-4 h-4" />
-                       </div>
-                     </div>
-                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform pointer-events-none" />
-                   </a>
-                 </div>
-               )}
-
-               {/* Episode Selector */}
-               <div className="animem-episodes-panel px-4 md:px-6 py-5">
-                  <div className="flex items-center justify-between mb-3.5">
-                    <h3 className="text-xs font-bold text-[#ff9ac5] uppercase tracking-widest flex items-center gap-2">
-                       <ListOrdered className="w-3.5 h-3.5" /> Qismlar
-                    </h3>
-                    <div className="flex items-center gap-2 text-[11px] font-mono">
-                      <span className="text-white/40">
-                        Jami: {combinedEpisodes.length} ta
-                      </span>
-                      {Object.keys(watchedEpisodes).length > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-[#10b981]/15 border border-[#10b981]/30 text-[#10b981] font-bold text-[10px]">
-                          Ko'rildi: {Object.keys(watchedEpisodes).length} ta
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="max-h-[195px] md:max-h-[230px] overflow-y-auto pr-1.5 custom-scrollbar p-1">
-                    <div className="flex flex-wrap gap-2.5 sm:gap-3">
-                       {combinedEpisodes.map(ep => (
-                          <button 
-                             key={ep.number}
-                             onClick={() => handleEpisodeClick(ep)}
-                             className={`relative w-12 h-11 sm:w-14 sm:h-12 rounded-xl text-sm font-semibold transition-all flex items-center justify-center border shrink-0 ${
-                                activeEpisode === ep.number 
-                                   ? 'bg-[#1b0b16] border-[#ff006a] text-white shadow-[0_0_18px_rgba(255,0,106,0.42)]'
-                                : ep.video_url
-                                      ? ep.is_filler
-                                        ? 'bg-[#1a0e14] hover:bg-[#281421] border-red-500/40 hover:border-red-500 text-white'
-                                        : 'bg-[#171720] hover:bg-[#281421] hover:border-[#ff006a]/50 border-white/10 text-white'
-                                      : 'bg-[#09090b] text-white/10 border border-[#1a1a1a] cursor-not-allowed'
-                             }`}
-                             title={ep.is_filler ? `${ep.number}-qism: Filler epizod (Manga syujetiga kirmaydi)` : `${ep.number}-qism`}
-                          >
-                             {/* Filler Red Badge 'F' */}
-                             {ep.is_filler && (
-                               <span 
-                                 className="absolute top-1 left-1 px-1 py-0.5 min-w-[14px] text-[8px] font-black rounded bg-red-600 text-white leading-none shadow ring-1 ring-black/70 select-none text-center"
-                                 title="Filler epizod"
-                               >
-                                 F
-                               </span>
-                             )}
-                             {/* Watched indicator dot */}
-                             {watchedEpisodes[ep.number] && (
-                               <span 
-                                 className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981] ring-1 ring-black/80" 
-                                 title={`${ep.number}-qism ko'rilgan`}
-                               />
-                             )}
-                             {ep.number}
-                          </button>
-                       ))}
-                    </div>
-                  </div>
+                   {lightsOff ? (
+                     <>
+                       <Sun className="w-3.5 h-3.5" /> Chiroqni yoqish
+                     </>
+                   ) : (
+                     <>
+                       <Moon className="w-3.5 h-3.5" /> Chiroqni o'chirish
+                     </>
+                   )}
+                 </button>
                </div>
             </motion.section>
 
@@ -1234,14 +1304,14 @@ export default function AnimeDetails() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.45 }}
-                className="bg-[#111] border border-[#222] rounded-sm p-6 my-6"
+                className="bg-black/60 backdrop-blur-2xl border border-white/15 rounded-2xl md:rounded-3xl p-6 my-6 shadow-xl"
               >
                 {/* Header Row */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-[#222] mb-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/10 mb-6">
                   {/* Left Side: Trophy & Titles */}
                   <div className="flex items-center gap-4">
                     {/* Golden-bordered box for Trophy */}
-                    <div className="w-16 h-16 bg-[#ff9900]/10 border border-[#ff9900]/30 rounded-xl flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,153,0,0.1)]">
+                    <div className="w-16 h-16 bg-[#ff9900]/10 border border-[#ff9900]/30 rounded-2xl flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,153,0,0.15)]">
                       <Trophy className="w-7 h-7 text-[#ff9900]" />
                     </div>
                     <div>
@@ -1255,7 +1325,7 @@ export default function AnimeDetails() {
                   </div>
 
                   {/* Right Side: Average Rating Only */}
-                  <div className="flex items-center gap-4 bg-[#161618] border border-[#222] px-6 py-4 rounded-xl shrink-0">
+                  <div className="flex items-center gap-4 bg-white/5 border border-white/10 px-6 py-4 rounded-2xl shrink-0 backdrop-blur-md">
                     <div>
                       <div className="text-3xl font-black text-[#ff9900] flex items-baseline gap-1">
                         {ratingSummary?.average !== undefined ? ratingSummary.average : (anime.rating ? Number(anime.rating).toFixed(1) : '0.0')}
@@ -1390,7 +1460,7 @@ export default function AnimeDetails() {
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                transition={{ delay: 0.5 }}
-               className="bg-[#111] border border-[#222] rounded-sm p-6"
+               className="bg-black/60 backdrop-blur-2xl border border-white/15 rounded-2xl md:rounded-3xl p-6 shadow-xl"
             >
                <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-6 uppercase tracking-wide">
                   <MessageSquare className="w-4 h-4 text-white/50" /> Comments ({comments.length})
@@ -1682,10 +1752,10 @@ export default function AnimeDetails() {
          </div>
          
          {/* Right Sidebar */}
-         <div className="hidden xl:block w-[300px] shrink-0">
-           <div className="sticky top-20 space-y-6">
+         <div className="hidden xl:block w-[320px] 2xl:w-[360px] shrink-0">
+           <div className="sticky top-24 space-y-6">
               {similarAnimes.length > 0 && (
-                <div className="bg-[#111] border border-[#222] rounded-sm p-4">
+                <div className="bg-black/60 backdrop-blur-2xl border border-white/15 rounded-2xl md:rounded-3xl p-5 shadow-xl">
                    <h3 className="text-xs font-bold text-white mb-4 uppercase tracking-wide flex items-center gap-2">
                      <Star className="w-4 h-4 text-[#ff006a]" /> O'xshash Animelar
                    </h3>
