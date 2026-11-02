@@ -20,7 +20,7 @@ export default function Footer() {
   const { t, currentLanguage, getLocalizedPath } = useLanguage();
 
   return (
-    <footer className="bg-[#0b0b0e] border-t border-[#1a1a20] text-white/70 pt-6 pb-20 md:pb-10 mt-16 font-sans">
+    <footer className="bg-black/35 backdrop-blur-xl border-t border-white/10 text-white/70 pt-8 pb-20 md:pb-10 mt-16 font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
 

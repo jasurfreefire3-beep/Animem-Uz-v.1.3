@@ -112,7 +112,7 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
   return (
     <div className="w-full h-full flex flex-col text-white select-none">
       {/* Brand Logo */}
-      <div className="relative h-44 flex items-center justify-center px-3 border-b border-[#1a1a1a]">
+      <div className="relative h-44 flex items-center justify-center px-3 border-b border-white/10">
         <Link to={getLocalizedPath('/')} onClick={onClose} className="flex items-center justify-center w-full group py-1">
           <img 
             src={logoImg} 
@@ -123,7 +123,7 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
         {onClose && (
           <button 
             onClick={onClose}
-            className="absolute top-3 right-3 p-1.5 text-white/50 hover:text-white hover:bg-[#1a1a1a] rounded-sm transition-colors cursor-pointer"
+            className="absolute top-3 right-3 p-1.5 text-white/50 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -142,13 +142,13 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
                 key={item.name}
                 to={getLocalizedPath(item.path)}
                 onClick={onClose}
-                className={`flex items-center space-x-3.5 px-4 py-3 rounded-sm text-sm font-bold transition-all ${
+                className={`flex items-center space-x-3.5 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
                   active 
-                    ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.2)]' 
-                    : 'text-white/50 hover:bg-[#1a1a1a] hover:text-white'
+                    ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]' 
+                    : 'text-white/60 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon size={18} className={active ? 'text-white' : 'text-white/50'} />
+                <Icon size={18} className={active ? 'text-white' : 'text-white/60'} />
                 <span className="flex-1 truncate">{item.name}</span>
                 {item.badge && (
                   <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-gradient-to-r from-[#ff006a] to-[#00c8ff] text-white shadow-sm shadow-[#ff006a]/30">
@@ -163,10 +163,10 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
             <Link
               to={getLocalizedPath('/admin')}
               onClick={onClose}
-              className={`flex items-center space-x-3.5 px-4 py-3 rounded-sm text-sm font-bold transition-all ${
+              className={`flex items-center space-x-3.5 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
                 isItemActive('/admin')
-                  ? 'bg-red-600 text-white'
-                  : 'text-white/50 hover:bg-red-950/20 hover:text-red-400'
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                  : 'text-white/60 hover:bg-red-950/20 hover:text-red-400'
               }`}
             >
               <Shield size={18} />
@@ -189,9 +189,9 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
                   if (onGenreSelect) onGenreSelect(genre);
                   if (onClose) onClose();
                 }}
-                className="flex items-center px-4 py-2 text-xs font-bold text-white/50 hover:text-white hover:bg-[#111] rounded-sm transition-colors"
+                className="flex items-center px-4 py-2 text-xs font-bold text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
               >
-                <span className="mr-2 text-[#ff006a]/50 group-hover:text-[#ff006a] font-mono">&gt;</span>
+                <span className="mr-2 text-[#ff006a]/70 group-hover:text-[#ff006a] font-mono">&gt;</span>
                 {translateGenre(genre)}
               </Link>
             ))}
@@ -200,11 +200,11 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
       </div>
 
       {/* Bottom Mode Switch & Info */}
-      <div className="p-4 border-t border-[#1a1a1a] bg-[#0c0c0e] flex items-center justify-between">
+      <div className="p-4 border-t border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <button 
             onClick={toggleDarkMode}
-            className="p-2 hover:bg-[#1a1a1a] rounded text-white/50 hover:text-white transition-all cursor-pointer"
+            className="p-2 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition-all cursor-pointer"
             title={darkMode ? "Kungi rejim" : "Tungi rejim"}
           >
             {darkMode ? <Moon size={16} /> : <Sun size={16} />}

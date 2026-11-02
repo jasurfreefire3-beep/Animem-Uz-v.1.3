@@ -8,14 +8,14 @@ import AnimeCard from '../components/AnimeCard';
 import LoadingScreen from '../components/LoadingScreen';
 import { getSocketUrl } from '../lib/api';
 
-// Calculate responsive batch size (approx. 2.5 - 3 rows depending on device)
+// Generous responsive batch sizes so the grid is fully filled edge-to-edge
 const getBatchSize = () => {
   if (typeof window !== 'undefined') {
-    if (window.innerWidth < 640) return 6; // Mobile (2 cols): 3 rows = 6 items
-    if (window.innerWidth < 1024) return 10; // Tablet (3-4 cols): ~2.5 rows
-    return 15; // Desktop (5-6 cols): ~2.5 rows (15 items)
+    if (window.innerWidth < 640) return 12; // Mobile (2 cols): 6 full rows = 12 items
+    if (window.innerWidth < 1024) return 18; // Tablet (3-4 cols): 18 items
+    return 24; // Desktop (5-6 cols): 4 full rows = 24 items
   }
-  return 12;
+  return 24;
 };
 
 export default function Animelar() {
@@ -173,72 +173,86 @@ export default function Animelar() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Title & Stats & Page Search Input */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#222] pb-4">
+    <div className="w-full space-y-8 sm:space-y-10 pb-20 select-none">
+      {/* 1. Header with Title, Stats & Filter Controls - 100% Frosted Glass */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 p-4 sm:p-6 bg-black/40 backdrop-blur-xl border border-white/15 rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-wide flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight flex items-center gap-2.5 text-white">
+            <Film className="w-6 h-6 sm:w-7 sm:h-7 text-[#ff006a]" />
             {searchFilter ? (
-              <span>Qidiruv: <span className="text-[#ff006a]">"{searchFilter}"</span></span>
+              <span>Qidiruv: <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff006a] to-[#a855f7]">"{searchFilter}"</span></span>
             ) : genreFilter ? (
               `${translateGenre(genreFilter)} Animelar`
             ) : (
               'Barcha Animelar'
             )}
           </h1>
-          <p className="text-white/40 text-xs mt-1">
+          <p className="text-white/50 text-xs sm:text-sm mt-1 font-medium">
             Katalogda jami {filteredAnimes.length} ta anime mavjud {filteredAnimes.length > visibleCount && `(${visibleAnimes.length} tasi ko'rsatilmoqda)`}
           </p>
         </div>
 
         {/* Search input + Grid/List View Toggles */}
         <div className="flex flex-wrap items-center gap-3">
-          <form onSubmit={handleSearchSubmit} className="relative min-w-[200px] sm:min-w-[260px]">
+          <form onSubmit={handleSearchSubmit} className="relative min-w-[200px] sm:min-w-[280px]">
             <input
               type="text"
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
               placeholder="Katalogdan qidirish..."
-              className="w-full bg-[#111113] border border-[#222] focus:border-[#ff006a] text-white text-xs rounded-sm pl-3 pr-8 py-2 font-bold placeholder:text-white/30 focus:outline-none transition-all"
+              className="w-full bg-white/[0.08] hover:bg-white/[0.12] border border-white/20 focus:border-[#ff006a] text-white text-xs sm:text-sm rounded-2xl pl-4 pr-10 py-2.5 font-bold placeholder:text-white/40 focus:outline-none backdrop-blur-md transition-all shadow-inner"
             />
             {localSearch ? (
-              <button type="button" onClick={clearSearch} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white">
-                <X size={14} />
+              <button type="button" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white cursor-pointer">
+                <X size={16} />
               </button>
             ) : (
-              <button type="submit" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-[#ff006a]">
-                <Search size={14} />
+              <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-[#ff006a] cursor-pointer">
+                <Search size={16} />
               </button>
             )}
           </form>
 
-          <div className="flex items-center gap-1.5">
+          {/* Grid / List Toggles */}
+          <div className="flex items-center gap-1.5 p-1 bg-white/[0.06] backdrop-blur-md border border-white/10 rounded-2xl shadow-sm">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-sm transition-colors ${viewMode === 'grid' ? 'bg-[#ff006a] text-white' : 'bg-[#111] border border-[#222] text-white/50 hover:text-white'}`}
+              className={`p-2 rounded-xl transition-all cursor-pointer ${
+                viewMode === 'grid' 
+                  ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_0_12px_rgba(255,0,106,0.5)] scale-105' 
+                  : 'text-white/60 hover:text-white hover:bg-white/10'
+              }`}
+              title="Katak ko'rinishi"
             >
-              <Grid size={16} />
+              <Grid size={17} />
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-2 rounded-sm transition-colors ${viewMode === 'list' ? 'bg-[#ff006a] text-white' : 'bg-[#111] border border-[#222] text-white/50 hover:text-white'}`}
+              className={`p-2 rounded-xl transition-all cursor-pointer ${
+                viewMode === 'list' 
+                  ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_0_12px_rgba(255,0,106,0.5)] scale-105' 
+                  : 'text-white/60 hover:text-white hover:bg-white/10'
+              }`}
+              title="Ro'yxat ko'rinishi"
             >
-              <List size={16} />
+              <List size={17} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Genre Filter Tags */}
-      <div className="flex flex-wrap gap-1.5 py-2 overflow-x-auto">
+      {/* 2. Genre Filter Pills Bar - 100% Frosted Glass */}
+      <div className="p-2 sm:p-2.5 bg-black/35 backdrop-blur-xl border border-white/15 rounded-2xl shadow-md flex flex-wrap gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
         {genres.map((g) => {
           const isActive = genreFilter === g || (g === 'Barchasi' && !genreFilter);
           return (
             <button
               key={g}
               onClick={() => handleGenreSelect(g)}
-              className={`px-4 py-1.5 rounded-sm text-xs font-bold transition-all ${
-                isActive ? 'bg-[#ff006a] text-white shadow-[0_0_10px_rgba(255,0,106,0.3)]' : 'bg-[#111] border border-[#222] text-white/50 hover:bg-[#222] hover:text-white'
+              className={`px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all cursor-pointer select-none ${
+                isActive
+                  ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white border border-white/30 shadow-[0_0_15px_rgba(255,0,106,0.6)] scale-105'
+                  : 'bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white backdrop-blur-md'
               }`}
             >
               {translateGenre(g)}
@@ -247,52 +261,45 @@ export default function Animelar() {
         })}
       </div>
 
-
-      {/* Empty State */}
+      {/* 3. Empty State */}
       {filteredAnimes.length === 0 && (
-        <div className="text-center py-20 bg-[#111] border border-[#222] rounded-sm space-y-4">
-          <Film className="w-12 h-12 text-white/20 mx-auto" />
-          <h3 className="text-lg font-bold text-white">Hech narsa topilmadi</h3>
-          <p className="text-white/40 text-sm max-w-xs mx-auto">Siz kiritgan so'rov bo'yicha hech qanday anime topilmadi. Boshqa janr yoki kalit so'zni sinab ko'ring.</p>
+        <div className="text-center py-20 bg-black/40 backdrop-blur-xl border border-white/15 rounded-3xl space-y-4 shadow-2xl">
+          <Film className="w-14 h-14 text-white/30 mx-auto" />
+          <h3 className="text-xl font-black text-white">Hech narsa topilmadi</h3>
+          <p className="text-white/50 text-sm max-w-sm mx-auto">
+            Siz kiritgan so'rov bo'yicha hech qanday anime topilmadi. Boshqa janr yoki kalit so'zni tanlab ko'ring.
+          </p>
           <button
-            onClick={() => {
-              setSearchParams({});
-            }}
-            className="bg-[#ff006a] hover:bg-[#d40058] text-white text-xs font-bold px-4 py-2 rounded-sm transition-colors"
+            onClick={() => setSearchParams({})}
+            className="bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white text-xs font-black px-6 py-2.5 rounded-xl shadow-lg hover:scale-105 transition-all cursor-pointer"
           >
-            Filtrlarni tozalash          </button>
+            Filtrlarni tozalash
+          </button>
         </div>
       )}
 
-      {/* Anime Grid */}
+      {/* 4. Large Edge-to-Edge Anime Grid (Like Home Page) */}
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {visibleAnimes.map((anime, idx) => (
-            <motion.div
-              key={anime.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (idx % 15) * 0.02 }}
-            >
-              <AnimeCard anime={anime} />
-            </motion.div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5 sm:gap-4 md:gap-5.5">
+          {visibleAnimes.map((anime) => (
+            <AnimeCard key={`anime-${anime.id}`} anime={anime} />
           ))}
         </div>
       ) : (
-        /* List View */
-        <div className="space-y-3">
-          {visibleAnimes.map((anime, idx) => (
-            <motion.div
-              key={anime.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: (idx % 15) * 0.02 }}
-              className="bg-[#111] border border-[#222] p-3 rounded-sm flex gap-4 hover:border-[#ff006a]/30 transition-colors group"
+        /* List View with Glass Cards */
+        <div className="space-y-3.5">
+          {visibleAnimes.map((anime) => (
+            <div
+              key={`anime-list-${anime.id}`}
+              className="bg-black/40 backdrop-blur-xl border border-white/15 p-3.5 sm:p-4 rounded-2xl flex gap-3.5 sm:gap-4 hover:border-[#ff006a]/50 hover:shadow-[0_8px_30px_rgba(255,0,106,0.2)] transition-all group"
             >
-              <Link to={`/anime/${toSlug(anime.title)}`} title={anime.title} className="w-20 sm:w-24 h-28 sm:h-32 shrink-0 block group/item">
-                <div className="w-full h-full p-[2px] rounded-xl bg-gradient-to-b from-white/35 via-white/10 to-[#ff006a]/40 group-hover/item:from-[#ff006a] group-hover/item:via-[#ff006a] group-hover/item:to-purple-500 transition-all duration-300 shadow-md">
+              {/* Thumbnail with luminous border */}
+              <Link to={`/anime/${toSlug(anime.title) || anime.id}`} title={anime.title} className="w-20 sm:w-28 aspect-[2/3] shrink-0 block group/item">
+                <div className="w-full h-full p-[2px] rounded-xl bg-gradient-to-b from-white/35 via-white/10 to-[#ff006a]/40 group-hover/item:from-[#ff006a] group-hover/item:to-purple-500 transition-all duration-300 shadow-md">
                   <div className="w-full h-full rounded-[10px] overflow-hidden bg-[#0c0d14] relative">
-                    <img loading="lazy" decoding="async" 
+                    <img 
+                      loading="lazy" 
+                      decoding="async" 
                       src={anime.image_url} 
                       alt={anime.title} 
                       title={anime.title}
@@ -304,54 +311,58 @@ export default function Animelar() {
                 </div>
               </Link>
 
-              <div className="flex-1 min-w-0 flex flex-col justify-between">
+              {/* Info Column */}
+              <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Link to={`/anime/${toSlug(anime.title)}`} className="text-white font-bold text-base truncate group-hover:text-[#ff006a] transition-colors">
+                    <Link to={`/anime/${toSlug(anime.title) || anime.id}`} className="text-white font-black text-sm sm:text-base md:text-lg truncate group-hover:text-[#ff006a] transition-colors">
                       {anime.title}
                     </Link>
                     {anime.rating && (
-                      <span className="flex items-center gap-0.5 text-yellow-400 font-bold text-[10px] px-1 bg-[#222] rounded-sm">
-                        <Star className="w-2.5 h-2.5 fill-current" /> {Number(anime.rating).toFixed(1)}
+                      <span className="flex items-center gap-1 text-yellow-400 font-black text-[10px] sm:text-[11px] px-2 py-0.5 bg-black/60 border border-yellow-500/30 rounded-lg">
+                        <Star className="w-3 h-3 fill-current" /> {Number(anime.rating).toFixed(1)}
                       </span>
                     )}
                   </div>
-                  <p className="text-white/50 text-xs line-clamp-2 mt-1 leading-relaxed">{anime.description}</p>
+                  <p className="text-white/60 text-xs sm:text-sm line-clamp-2 mt-1.5 leading-relaxed font-medium">
+                    {anime.description}
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-4 text-[10px] text-white/40 mt-2 font-mono">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-white/50 mt-2 font-mono">
                   <span>HOLATI: <span className="text-[#ff006a] font-bold">{anime.holati?.toUpperCase() || 'NOMA\'LUM'}</span></span>
                   <span>|</span>
-                  <span>YIL: <span className="text-white/60">{anime.yil || 'Noma\'lum'}</span></span>
+                  <span>YIL: <span className="text-white/80">{anime.yil || 'Noma\'lum'}</span></span>
                   <span>|</span>
-                  <span>QISMLAR: <span className="text-white/60">{anime.qismlar_soni || 1} ta</span></span>
+                  <span>QISMLAR: <span className="text-white/80">{anime.qismlar_soni || 1} ta</span></span>
                   <span>|</span>
-                  <span className="flex items-center gap-1">KO'RISHLAR: <span className="text-white/60 flex items-center gap-0.5"><Eye className="w-3.5 h-3.5 text-[#ff006a]" /> {anime.korishlar || 0} ta</span></span>
+                  <span className="flex items-center gap-1">KO'RISHLAR: <span className="text-white/80 flex items-center gap-0.5"><Eye className="w-3.5 h-3.5 text-[#ff006a]" /> {anime.korishlar || 0}</span></span>
                 </div>
               </div>
 
-              <div className="flex items-center shrink-0 pr-2">
+              {/* Action Button */}
+              <div className="hidden sm:flex items-center shrink-0 pr-2">
                 <Link
-                  to={`/anime/${toSlug(anime.title)}`}
-                  className="bg-[#ff006a] hover:bg-[#d40058] text-white text-xs font-bold px-4 py-2 rounded-sm transition-colors flex items-center gap-1.5"
+                  to={`/anime/${toSlug(anime.title) || anime.id}`}
+                  className="bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:opacity-95 text-white text-xs font-black uppercase tracking-wider px-5 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-[#ff006a]/25 hover:scale-105 active:scale-95"
                 >
-                  <Play size={12} className="fill-current" /> Tomosha qilish
+                  <Play size={13} className="fill-current" /> Tomosha
                 </Link>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Centered Load More Button */}
+      {/* 5. Centered Glass Load More Button */}
       {hasMore && (
         <div className="flex justify-center pt-8 pb-4">
           <button
             onClick={handleLoadMore}
-            className="group inline-flex items-center gap-2.5 px-8 py-3.5 bg-[#111113] hover:bg-[#ff006a] text-white text-xs font-black uppercase tracking-wider rounded-sm border border-[#26262a] hover:border-[#ff006a] shadow-xl hover:shadow-[0_0_25px_rgba(255,0,106,0.4)] transition-all duration-300 active:scale-95 cursor-pointer"
+            className="group inline-flex items-center gap-3 px-8 sm:px-10 py-3.5 sm:py-4 bg-black/40 hover:bg-gradient-to-r hover:from-[#ff006a] hover:to-[#a855f7] text-white text-xs sm:text-sm font-black uppercase tracking-wider rounded-2xl border border-white/20 hover:border-white/40 shadow-2xl hover:shadow-[0_0_30px_rgba(255,0,106,0.5)] backdrop-blur-xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
           >
-            <span>Ko'proq yuklash</span>
-            <ChevronDown size={16} className="text-[#ff006a] group-hover:text-white group-hover:translate-y-0.5 transition-all duration-300" />
+            <span>Ko'proq yuklash ({visibleAnimes.length} / {filteredAnimes.length})</span>
+            <ChevronDown size={18} className="text-[#ff006a] group-hover:text-white group-hover:translate-y-0.5 transition-all duration-300" />
           </button>
         </div>
       )}

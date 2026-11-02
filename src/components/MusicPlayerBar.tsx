@@ -132,7 +132,7 @@ export default function MusicPlayerBar() {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 60, opacity: 0 }}
         transition={{ type: "spring", stiffness: 350, damping: 30 }}
-        className="max-w-6xl mx-auto bg-[#0a0a0e]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_12px_45px_rgba(0,0,0,0.85)] p-2 sm:p-2.5 pointer-events-auto relative overflow-hidden"
+        className="max-w-6xl mx-auto bg-black/50 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_12px_45px_rgba(0,0,0,0.85)] p-2 sm:p-2.5 pointer-events-auto relative overflow-hidden"
       >
         {/* Subtle Ambient Glow */}
         <div className={`absolute -inset-1 rounded-2xl bg-gradient-to-r from-[#ff006a]/20 via-[#00c8ff]/15 to-[#8b5cf6]/20 blur-xl opacity-60 pointer-events-none transition-opacity duration-700 ${isPlaying ? 'opacity-70' : 'opacity-20'}`} />

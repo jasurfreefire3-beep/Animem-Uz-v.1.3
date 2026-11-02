@@ -92,8 +92,8 @@ export default function MobileBottomNav() {
 
   return (
     <>
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-[#09090b]/95 backdrop-blur-xl border-t border-[#1c1c20] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-[0_-10px_25px_rgba(0,0,0,0.8)]">
+      {/* Mobile Bottom Navigation Bar - 100% Frosted Glass */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-black/45 backdrop-blur-2xl border-t border-white/15 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-[0_-8px_32px_rgba(0,0,0,0.6)]">
         <div className="flex items-center justify-around max-w-md mx-auto relative">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -153,10 +153,10 @@ export default function MobileBottomNav() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-[#09090b]/98 backdrop-blur-2xl flex flex-col md:hidden p-4 overflow-hidden"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-2xl flex flex-col md:hidden p-4 overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center gap-3 pb-3 border-b border-[#222]">
+            <div className="flex items-center gap-3 pb-3 border-b border-white/15">
               <form onSubmit={handleSearchSubmit} className="relative flex-1">
                 <input
                   type="text"
@@ -164,7 +164,7 @@ export default function MobileBottomNav() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t.searchPlaceholder}
-                  className="w-full bg-[#121215] border border-[#ff006a]/50 text-white text-sm rounded-xl pl-10 pr-10 py-3 focus:outline-none focus:border-[#ff006a] focus:ring-1 focus:ring-[#ff006a] transition-all font-bold placeholder:text-white/30"
+                  className="w-full bg-white/[0.08] border border-white/20 text-white text-sm rounded-2xl pl-10 pr-10 py-3 focus:outline-none focus:border-[#ff006a] backdrop-blur-md transition-all font-bold placeholder:text-white/40"
                 />
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#ff006a]" />
                 {searchQuery && (
@@ -180,7 +180,7 @@ export default function MobileBottomNav() {
               <button
                 type="button"
                 onClick={() => setShowSearchModal(false)}
-                className="p-2 bg-[#18181c] border border-[#333] text-white rounded-xl font-bold text-xs hover:bg-[#222] transition-colors shrink-0 cursor-pointer"
+                className="p-2.5 bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-white rounded-2xl font-bold text-xs transition-colors shrink-0 cursor-pointer"
               >
                 {t.close}
               </button>
@@ -200,7 +200,7 @@ export default function MobileBottomNav() {
                         key={anime.id}
                         to={getLocalizedPath(`/anime/${toSlug(anime.title)}`)}
                         onClick={() => setShowSearchModal(false)}
-                        className="flex items-center gap-3 p-2.5 bg-[#121215] border border-[#222] rounded-xl hover:border-[#ff006a]/50 transition-all active:scale-[0.98]"
+                        className="flex items-center gap-3 p-2.5 bg-black/40 backdrop-blur-xl border border-white/15 rounded-2xl hover:border-[#ff006a]/50 transition-all active:scale-[0.98]"
                       >
                         <img
                           src={anime.image_url}

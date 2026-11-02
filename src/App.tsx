@@ -99,7 +99,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#030303] text-white font-sans selection:bg-[#ff006a]/30 custom-scrollbar relative flex">
+    <div className="min-h-screen bg-[#060609] text-white font-sans selection:bg-[#ff006a]/30 custom-scrollbar relative flex overflow-x-hidden">
+      {/* Global Ambient Glow Mesh for 100% Rich Frosted Glass Refraction */}
+      <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-[#ff006a]/12 rounded-full blur-[170px] pointer-events-none -z-10" />
+      <div className="fixed bottom-1/4 right-10 w-[600px] h-[600px] bg-[#7928ca]/12 rounded-full blur-[190px] pointer-events-none -z-10" />
+      <div className="fixed top-2/3 left-10 w-[450px] h-[450px] bg-[#00c8ff]/10 rounded-full blur-[160px] pointer-events-none -z-10" />
       <AnimatePresence>
         {showTelegramBanner && (
           <motion.div
@@ -182,10 +186,10 @@ export default function App() {
       {mobileSidebarOpen && (
         <div 
           onClick={closeMobileSidebar}
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-fade-in"
+          className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 animate-fade-in"
         />
       )}
-      <div className={`fixed inset-y-0 left-0 w-72 max-w-[85vw] border-r border-[#1a1a1a] bg-[#09090b] transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 shadow-2xl`}>
+      <div className={`fixed inset-y-0 left-0 w-72 max-w-[85vw] border-r border-white/15 bg-black/75 backdrop-blur-2xl transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 shadow-2xl`}>
         <Sidebar onClose={closeMobileSidebar} />
       </div>
 
@@ -198,7 +202,7 @@ export default function App() {
           const isHomePage = location.pathname === '/' || /^\/(uz|ru|ing|en)\/?$/.test(location.pathname);
           return (
             <main className={`flex-1 pb-24 md:pb-12 w-full relative z-10 ${
-              isHomePage ? '' : 'pt-20 md:pt-24 px-4 md:px-8 max-w-[1440px] mx-auto'
+              isHomePage ? '' : 'pt-20 md:pt-24 px-4 sm:px-6 md:px-10 lg:px-12 max-w-[1800px] w-full mx-auto'
             }`}>
               <Suspense fallback={<PageLoader />}>
                 <ErrorBoundary key={location.pathname}>

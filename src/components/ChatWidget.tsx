@@ -819,14 +819,14 @@ export default function ChatWidget() {
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.95 }}
-            className={`fixed z-[60] bg-[#09090e]/98 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
+            className={`fixed z-[60] bg-black/70 backdrop-blur-2xl border border-white/20 shadow-[0_20px_60px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden transition-all duration-300 ${
               isExpanded 
-                ? 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[calc(100vw-32px)] sm:max-w-[800px] h-full sm:h-[85vh] rounded-none sm:rounded-2xl' 
-                : 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[400px] h-full sm:h-[580px] sm:max-h-[calc(100vh-100px)] rounded-none sm:rounded-2xl'
+                ? 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[calc(100vw-32px)] sm:max-w-[800px] h-full sm:h-[85vh] rounded-none sm:rounded-3xl' 
+                : 'fixed inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto w-full sm:w-[400px] h-full sm:h-[580px] sm:max-h-[calc(100vh-100px)] rounded-none sm:rounded-3xl'
             }`}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-3.5 border-b border-white/10 bg-[#0c0c14]/95 backdrop-blur-md shrink-0">
+            {/* Header - 100% Frosted Glass */}
+            <div className="flex items-center justify-between p-3.5 border-b border-white/15 bg-black/40 backdrop-blur-md shrink-0">
               <div className="flex items-center space-x-1.5 sm:space-x-2">
                 <button 
                   onClick={() => setIsExpanded(!isExpanded)}
@@ -1063,7 +1063,7 @@ export default function ChatWidget() {
 
             {/* Real-time Typing / Voice Recording Indicator */}
             {typingUsers.length > 0 && (
-              <div className="px-3.5 py-1.5 bg-[#08080c]/95 border-t border-white/5 flex items-center gap-2 text-xs shrink-0 backdrop-blur-md">
+              <div className="px-3.5 py-1.5 bg-black/40 border-t border-white/10 flex items-center gap-2 text-xs shrink-0 backdrop-blur-md">
                 {typingUsers.some(u => u.type === 'voice') ? (
                   <div className="flex items-center gap-1.5 text-rose-400 font-semibold text-[11px] animate-pulse">
                     <Mic size={13} className="text-[#ff006a] animate-bounce" />
@@ -1091,8 +1091,8 @@ export default function ChatWidget() {
               </div>
             )}
   
-            {/* Chat Input Area */}
-            <div className="p-2.5 sm:p-3 border-t border-white/10 bg-[#0a0a10] relative shrink-0">
+            {/* Chat Input Area - 100% Frosted Glass */}
+            <div className="p-2.5 sm:p-3 border-t border-white/15 bg-black/50 backdrop-blur-md relative shrink-0">
               {user ? (
                 isRecording ? (
                   /* Audio Recording Bar */

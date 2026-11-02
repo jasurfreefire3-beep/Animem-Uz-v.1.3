@@ -163,7 +163,7 @@ export default function InstallAppButton() {
           >
             <div 
               onClick={handleInstallClick}
-              className="group relative flex items-center gap-3 p-2.5 sm:p-3 bg-[#0d0d12]/95 hover:bg-[#14141c] backdrop-blur-xl border border-[#ff006a]/40 hover:border-[#ff006a] rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.8),0_0_25px_rgba(255,0,106,0.25)] transition-all duration-300 cursor-pointer overflow-hidden"
+              className="group relative flex items-center gap-3 p-2.5 sm:p-3 bg-black/55 hover:bg-black/70 backdrop-blur-2xl border border-white/20 hover:border-[#ff006a] rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.8),0_0_25px_rgba(255,0,106,0.25)] transition-all duration-300 cursor-pointer overflow-hidden"
             >
               {/* Glowing Background Radial */}
               <div className="absolute -left-4 -top-4 w-20 h-20 bg-[#ff006a]/20 rounded-full blur-xl pointer-events-none group-hover:bg-[#ff006a]/35 transition-colors" />
