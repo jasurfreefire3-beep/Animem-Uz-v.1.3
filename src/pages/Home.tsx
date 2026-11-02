@@ -97,19 +97,19 @@ export default function Home() {
   const newAnimes = useMemo(() => {
     return [...animes]
       .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-      .slice(0, 10);
+      .slice(0, 12);
   }, [animes]);
 
   const mostViewedAnimes = useMemo(() => {
     return [...animes]
       .sort((a, b) => (b.korishlar || 0) - (a.korishlar || 0))
-      .slice(0, 10);
+      .slice(0, 12);
   }, [animes]);
 
   const mostRatedAnimes = useMemo(() => {
     return [...animes]
       .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-      .slice(0, 10);
+      .slice(0, 12);
   }, [animes]);
 
   if (loading) {

@@ -89,26 +89,20 @@ function HeroBanner({ banners }: HeroBannerProps) {
             loading="eager"
             fetchPriority="high"
             decoding="async"
-            className="w-full h-full object-cover object-top sm:object-center lg:object-[center_20%] brightness-105 contrast-[1.05]"
+            className="w-full h-full object-cover object-top sm:object-center lg:object-[center_20%] brightness-110 contrast-[1.08] saturate-[1.12]"
           />
         </motion.div>
       </AnimatePresence>
 
-      {/* Multi-Directional Gradient Masks (Crisp and transparent on mobile, protects artwork clarity) */}
-      {/* 1. Desktop Left Gradient (Only active on md+ screens so phone artwork is never washed out) */}
-      <div className="hidden md:block absolute inset-0 bg-gradient-to-r from-[#060609] via-[#060609]/80 via-50% to-transparent pointer-events-none z-[1]" />
+      {/* Ultra-Slim Edge Blends Only (Never covers or dims the artwork, 100% bright & crisp everywhere) */}
+      {/* 1. Subtle top shadow for navbar readability */}
+      <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-[1]" />
       
-      {/* 2. Bottom Fade to Black (Smooth transition behind bottom-aligned text & into page) */}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/85 via-45% md:via-25% to-transparent pointer-events-none z-[1]" />
-      
-      {/* 3. Top Vignette (navbar blend) */}
-      <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-[#060609]/80 to-transparent pointer-events-none z-[1]" />
-      
-      {/* 4. Ambient Glow Accent */}
-      <div className="hidden sm:block absolute left-10 top-1/3 w-96 h-96 rounded-full bg-[#ff006a]/15 blur-[140px] pointer-events-none z-[1]" />
+      {/* 2. Slim bottom transition into page */}
+      <div className="absolute bottom-0 inset-x-0 h-20 sm:h-28 bg-gradient-to-t from-[#060609] via-[#060609]/60 to-transparent pointer-events-none z-[1]" />
 
-      {/* Hero Content Box (Anchored nicely towards bottom on mobile) */}
-      <div className="relative z-10 max-w-2xl lg:max-w-3xl space-y-2.5 sm:space-y-4 pt-0 pb-2 sm:pb-4">
+      {/* Hero Content Box with Sleek Glassmorphism (Protects artwork while keeping text 100% legible) */}
+      <div className="relative z-10 max-w-2xl lg:max-w-3xl space-y-2.5 sm:space-y-4 p-3 min-[400px]:p-4 sm:p-6 rounded-3xl bg-black/40 backdrop-blur-md border border-white/15 shadow-[0_15px_45px_rgba(0,0,0,0.65)]">
         {/* Row 1: Badges */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <span className="px-2.5 py-0.5 sm:px-3 sm:py-0.5 bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white text-[9px] sm:text-[11px] font-black uppercase tracking-wider rounded-full shadow-[0_0_15px_rgba(255,0,106,0.6)] flex items-center gap-1.5 animate-pulse">
@@ -306,3 +300,4 @@ function HeroBanner({ banners }: HeroBannerProps) {
 }
 
 export default memo(HeroBanner);
+
