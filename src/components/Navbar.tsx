@@ -278,10 +278,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         </Link>
 
         {/* Desktop Nav Links (The Sidebar integrated directly into Top Navbar!) */}
-        <nav className="hidden lg:flex items-center space-x-1 xl:space-x-1.5 shrink-0">
+        <nav className="hidden lg:flex items-center space-x-0.5 xl:space-x-1.5 shrink-0">
           <Link
             to={getLocalizedPath('/')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/')
                 ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
                 : 'text-white/75 hover:text-white hover:bg-white/10'
@@ -292,7 +292,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/animelar')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/animelar')
                 ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
                 : 'text-white/75 hover:text-white hover:bg-white/10'
@@ -303,7 +303,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/jadval')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/jadval')
                 ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
                 : 'text-white/75 hover:text-white hover:bg-white/10'
@@ -314,7 +314,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/yangi-chiqishlar')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/yangi-chiqishlar')
                 ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
                 : 'text-white/75 hover:text-white hover:bg-white/10'
@@ -325,7 +325,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/top100')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/top100')
                 ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
                 : 'text-white/75 hover:text-white hover:bg-white/10'
@@ -336,7 +336,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/music')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
               isItemActive('/music')
                 ? 'bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 shadow-[0_0_12px_rgba(0,240,255,0.4)]'
                 : 'text-white/75 hover:text-[#00c8ff] hover:bg-white/10'
@@ -354,7 +354,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           <div className="relative" ref={moreRef}>
             <button
               onClick={() => setShowMoreDropdown(!showMoreDropdown)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs xl:text-sm font-bold text-white/75 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs xl:text-sm font-bold text-white/75 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             >
               <span>Yana</span>
               <ChevronDown size={14} className={`transition-transform duration-200 ${showMoreDropdown ? 'rotate-180' : ''}`} />
@@ -415,8 +415,8 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           </div>
         </nav>
 
-        {/* Search Bar Input (Desktop) */}
-        <div className="relative max-w-xs xl:max-w-sm w-full hidden sm:block ml-auto" ref={searchContainerRef}>
+        {/* Search Bar Input (Desktop - Auto Adapts to Display Size) */}
+        <div className="relative w-32 min-[500px]:w-44 lg:w-48 xl:w-72 2xl:w-80 hidden sm:block ml-auto shrink transition-all" ref={searchContainerRef}>
           <form onSubmit={handleSearchSubmit} className="relative w-full">
             <input
               type="text"

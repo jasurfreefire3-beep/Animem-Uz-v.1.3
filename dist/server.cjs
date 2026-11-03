@@ -210,9 +210,9 @@ var DATABASE_URL = process.env.DATABASE_URL || "postgres://user_f51af4cc:pw_q2C8
 var pgPool = new import_pg.Pool({
   connectionString: DATABASE_URL,
   ssl: { rejectUnauthorized: false },
-  max: 20,
-  idleTimeoutMillis: 3e4,
-  connectionTimeoutMillis: 1e4
+  max: 10,
+  idleTimeoutMillis: 15e3,
+  connectionTimeoutMillis: 8e3
 });
 pgPool.on("error", (err) => {
   console.warn("[PostgreSQL Pool Error Caught]:", err.message);
@@ -396,10 +396,50 @@ async function d1ExecuteQuery(sql, params) {
   }
 }
 var LOCAL_STORE_PATH = import_path.default.join(process.cwd(), "local_store.json");
+var memoryLocalStore = null;
+var saveStoreTimeout = null;
+function loadLocalStore() {
+  if (memoryLocalStore) return memoryLocalStore;
+  try {
+    if (import_fs.default.existsSync(LOCAL_STORE_PATH)) {
+      memoryLocalStore = JSON.parse(import_fs.default.readFileSync(LOCAL_STORE_PATH, "utf-8"));
+      return memoryLocalStore;
+    }
+  } catch (e) {
+    console.warn("loadLocalStore read error:", e);
+  }
+  return {
+    animes: [],
+    notifications: [],
+    comments: [],
+    episodes: [],
+    users: [],
+    ratings: [],
+    messages: [],
+    mangas: [],
+    manga_chapters: [],
+    dramas: [],
+    drama_episodes: [],
+    donations: [],
+    gifs: [],
+    songs: []
+  };
+}
+function saveLocalStore(data) {
+  memoryLocalStore = data;
+  if (saveStoreTimeout) clearTimeout(saveStoreTimeout);
+  saveStoreTimeout = setTimeout(() => {
+    try {
+      import_fs.default.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(data, null, 2), "utf-8");
+    } catch (e) {
+      console.warn("saveLocalStore write error:", e);
+    }
+  }, 1e3);
+}
 function queryLocalStore(sql, params = []) {
   try {
-    if (!import_fs.default.existsSync(LOCAL_STORE_PATH)) return [];
-    const store = JSON.parse(import_fs.default.readFileSync(LOCAL_STORE_PATH, "utf-8"));
+    const store = loadLocalStore();
+    if (!store) return [];
     const lower = sql.toLowerCase();
     let table = "";
     const match = lower.match(/from\s+([a-zA-Z0-9_]+)/);
@@ -553,46 +593,6 @@ function invalidateServerCache(pattern) {
       serverCache.delete(k);
     }
   }
-}
-var memoryLocalStore = null;
-var saveStoreTimeout = null;
-function loadLocalStore() {
-  if (memoryLocalStore) return memoryLocalStore;
-  try {
-    if (import_fs.default.existsSync(LOCAL_STORE_PATH)) {
-      memoryLocalStore = JSON.parse(import_fs.default.readFileSync(LOCAL_STORE_PATH, "utf-8"));
-      return memoryLocalStore;
-    }
-  } catch (e) {
-    console.warn("loadLocalStore read error:", e);
-  }
-  return {
-    animes: [],
-    notifications: [],
-    comments: [],
-    episodes: [],
-    users: [],
-    ratings: [],
-    messages: [],
-    mangas: [],
-    manga_chapters: [],
-    dramas: [],
-    drama_episodes: [],
-    donations: [],
-    gifs: [],
-    songs: []
-  };
-}
-function saveLocalStore(data) {
-  memoryLocalStore = data;
-  if (saveStoreTimeout) clearTimeout(saveStoreTimeout);
-  saveStoreTimeout = setTimeout(() => {
-    try {
-      import_fs.default.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(data, null, 2), "utf-8");
-    } catch (e) {
-      console.warn("saveLocalStore write error:", e);
-    }
-  }, 1e3);
 }
 var server = import_http.default.createServer(app);
 var io = new import_socket.Server(server, {

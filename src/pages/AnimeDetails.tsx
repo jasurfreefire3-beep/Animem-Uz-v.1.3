@@ -1069,7 +1069,7 @@ export default function AnimeDetails() {
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative w-full min-h-[460px] sm:min-h-[520px] md:h-[60vh] md:min-h-[520px] bg-[#09090b] flex flex-col justify-end pt-16 md:pt-24 pb-4 md:pb-0"
+        className="relative w-full min-h-[420px] sm:min-h-[460px] md:min-h-[500px] h-auto bg-[#09090b] flex flex-col justify-end pt-16 sm:pt-20 md:pt-24 pb-6 md:pb-10 overflow-hidden"
       >
         {/* Background Image Banner */}
         <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -1101,7 +1101,7 @@ export default function AnimeDetails() {
         <div className="relative w-full px-4 md:px-8 z-10 pb-4 md:pb-12">
           <div className="flex flex-col md:flex-row gap-5 md:gap-8 items-start md:items-end max-w-7xl w-full mx-auto">
              {/* Poster Overlay */}
-             <div className="hidden md:block w-40 sm:w-44 md:w-56 lg:w-60 shrink-0 relative transform translate-y-0 md:translate-y-16 hover:scale-105 transition-all duration-300 group z-20">
+             <div className="hidden md:block w-36 sm:w-44 md:w-48 lg:w-56 shrink-0 relative hover:scale-105 transition-all duration-300 group z-20">
                <div className="relative p-[3px] rounded-2xl bg-gradient-to-b from-[#ff006a] via-purple-500/60 to-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_35px_rgba(255,0,106,0.4)]">
                  <div className="aspect-[3/4] rounded-[13px] overflow-hidden bg-[#0c0c0e] relative">
                    <img loading="lazy" decoding="async" src={anime.image_url} alt={anime.title} title={anime.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -1134,7 +1134,7 @@ export default function AnimeDetails() {
                   </span>
                 </div>
                 
-                <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 leading-tight tracking-tight uppercase drop-shadow-[0_2px_15px_rgba(0,0,0,0.8)]">
+                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black text-white mb-2 leading-tight tracking-tight uppercase drop-shadow-[0_2px_15px_rgba(0,0,0,0.8)]">
                   {anime.title}
                 </h1>
                 
@@ -1178,7 +1178,7 @@ export default function AnimeDetails() {
                     <span className="text-white/40 text-[11px] ml-2">({anime.rating_count || 0} baho)</span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5 md:gap-3.5 w-full mt-2 md:mt-1">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 md:gap-3 w-full mt-2 md:mt-1">
                   <button 
                     onClick={() => {
                       const playerSec = document.getElementById('player-section');
@@ -1186,7 +1186,7 @@ export default function AnimeDetails() {
                         playerSec.scrollIntoView({ behavior: 'smooth' });
                       }
                     }}
-                    className="flex-1 min-w-[150px] md:flex-none bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:opacity-95 text-white px-6 md:px-8 py-3.5 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,0,106,0.4)] text-xs md:text-sm uppercase tracking-wider cursor-pointer"
+                    className="px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 md:py-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:opacity-95 text-white font-black flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,0,106,0.4)] text-xs sm:text-sm uppercase tracking-wider cursor-pointer shrink-0"
                   >
                     <Play className="w-4 h-4 fill-current shrink-0" /> 
                     <span>TOMOSHA QILISH</span>
@@ -1198,7 +1198,7 @@ export default function AnimeDetails() {
                         const targetEp = combinedEpisodes.find(e => e.number === lastWatchedEp) || { number: lastWatchedEp };
                         handleEpisodeClick(targetEp);
                       }}
-                      className="flex-1 min-w-[170px] md:flex-none bg-gradient-to-r from-purple-600 to-[#ff006a] hover:opacity-95 text-white px-5 md:px-7 py-3.5 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(147,51,234,0.35)] text-xs md:text-sm uppercase tracking-wider cursor-pointer"
+                      className="px-3.5 sm:px-5 md:px-6 py-2.5 sm:py-3 md:py-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-purple-600 to-[#ff006a] hover:opacity-95 text-white font-black flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(147,51,234,0.35)] text-xs sm:text-sm uppercase tracking-wider cursor-pointer shrink-0"
                     >
                       <Play className="w-3.5 h-3.5 fill-current shrink-0" /> 
                       <span>{lastWatchedEp}-QISMDAN DAVOM</span>
@@ -1206,19 +1206,19 @@ export default function AnimeDetails() {
                   )}
 
                   {/* Personal List Status Dropdown */}
-                  <PersonalListButton anime={anime} className="flex-1 min-w-[150px] md:flex-none" />
+                  <PersonalListButton anime={anime} className="shrink-0" />
 
                   <button 
                     onClick={toggleFavorite}
-                    className={`flex-1 min-w-[130px] md:flex-none px-5 md:px-7 py-3.5 md:py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-2.5 text-xs md:text-sm border uppercase tracking-wider cursor-pointer hover:scale-105 ${
+                    className={`px-3.5 sm:px-4 md:px-5 py-2.5 sm:py-3 md:py-3.5 rounded-xl sm:rounded-2xl font-black transition-all flex items-center justify-center gap-2 text-xs sm:text-sm border uppercase tracking-wider cursor-pointer hover:scale-105 shrink-0 ${
                       isFavorited 
                         ? 'bg-[#ff006a]/20 border-[#ff006a] text-white shadow-[0_0_20px_rgba(255,0,106,0.3)]' 
                         : 'bg-black/60 backdrop-blur-md border-white/20 hover:border-white/40 text-white'
                     }`}
                   >
                     <Heart className={`w-4 h-4 shrink-0 ${isFavorited ? 'fill-current text-[#ff006a]' : ''}`} /> 
-                    <span className="hidden min-[400px]:inline">{isFavorited ? 'SEVIMLILARDA' : 'SEVIMLILAR'}</span>
-                    <span className="inline min-[400px]:hidden">{isFavorited ? 'SAQLANDI' : 'SAQLASH'}</span>
+                    <span className="hidden min-[450px]:inline">{isFavorited ? 'SEVIMLILARDA' : 'SEVIMLILAR'}</span>
+                    <span className="inline min-[450px]:hidden">{isFavorited ? 'SAQLANDI' : 'SAQLASH'}</span>
                   </button>
 
                   {/* Watch Together Action Button */}
@@ -1226,7 +1226,7 @@ export default function AnimeDetails() {
                     type="button"
                     onClick={handleStartWatchTogether}
                     disabled={isCreatingRoom}
-                    className="flex-1 min-w-[155px] md:flex-none px-5 md:px-7 py-3.5 md:py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-2.5 text-xs md:text-sm border uppercase tracking-wider bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 border-[#ff006a]/50 hover:border-[#ff006a] text-white shadow-[0_0_20px_rgba(255,0,106,0.25)] cursor-pointer hover:scale-105"
+                    className="px-3.5 sm:px-4 md:px-5 py-2.5 sm:py-3 md:py-3.5 rounded-xl sm:rounded-2xl font-black transition-all flex items-center justify-center gap-2 text-xs sm:text-sm border uppercase tracking-wider bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 border-[#ff006a]/50 hover:border-[#ff006a] text-white shadow-[0_0_20px_rgba(255,0,106,0.25)] cursor-pointer hover:scale-105 shrink-0"
                     title="Do'stlar bilan jonli birga ko'rish"
                   >
                     <Users className="w-4 h-4 text-[#ff006a] shrink-0" />
@@ -1245,7 +1245,7 @@ export default function AnimeDetails() {
         </div>
       )}
 
-      <div className="flex flex-col xl:flex-row gap-6 mt-6 md:mt-10 max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8">
+      <div className="flex flex-col lg:flex-row gap-6 mt-6 md:mt-8 max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8">
          {/* Main Left Content */}
          <div className="flex-1 space-y-6 min-w-0">
             {/* If Standard Mode, render player right here at top of left column */}
@@ -1764,7 +1764,7 @@ export default function AnimeDetails() {
          </div>
          
          {/* Right Sidebar */}
-         <div className="hidden xl:block w-[320px] 2xl:w-[360px] shrink-0">
+         <div className="hidden lg:block w-[280px] xl:w-[320px] 2xl:w-[360px] shrink-0">
            <div className="sticky top-24 space-y-6">
               {similarAnimes.length > 0 && (
                 <div className="bg-black/60 backdrop-blur-2xl border border-white/15 rounded-2xl md:rounded-3xl p-5 shadow-xl">

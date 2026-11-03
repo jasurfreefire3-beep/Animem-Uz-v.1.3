@@ -67,11 +67,11 @@ export default function PersonalListButton({ anime, className = '', variant = 'f
   };
 
   return (
-    <div className={`relative inline-block ${className}`} ref={dropdownRef}>
+    <div className={`relative inline-block shrink-0 ${className}`} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`px-4 md:px-6 py-3 rounded-sm font-black transition-all flex items-center justify-center gap-2 text-[11px] md:text-sm border uppercase tracking-wider cursor-pointer select-none ${
+        className={`px-3.5 sm:px-5 py-2.5 sm:py-3 md:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 border uppercase tracking-wider cursor-pointer select-none hover:scale-105 shrink-0 ${
           currentStatus
             ? 'bg-[#1a1726] border-[#ff006a]/50 text-white shadow-[0_0_15px_rgba(255,0,106,0.2)]'
             : 'bg-[#18181b] border-[#27272a] hover:bg-[#27272a] text-white'
