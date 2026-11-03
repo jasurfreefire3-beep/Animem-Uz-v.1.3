@@ -1,9 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
-  "buildCommand": "vite build",
-  "outputDirectory": "dist",
-  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -12,6 +8,10 @@
     {
       "source": "/stream/:path*",
       "destination": "https://site--anime--jpdsl9nq68nb.code.run/stream/:path*"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "https://site--anime--jpdsl9nq68nb.code.run/sitemap.xml"
     },
     {
       "source": "/(.*)",
