@@ -128,7 +128,8 @@ export default function Home() {
       )}
 
       {/* Edge-to-Edge Main Content Layout with Large Impactful Anime Cards */}
-      <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 md:px-10 lg:px-12 space-y-12 sm:space-y-16 mt-10 sm:mt-14">
+      <div className="relative z-20 w-full bg-[#060609] pt-4 sm:pt-8">
+        <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 md:px-10 lg:px-12 space-y-12 sm:space-y-16">
         {/* Yangi qo'shilganlar */}
         <section>
           <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -184,5 +185,6 @@ export default function Home() {
         <EmaCommentsBoard comments={recentComments} loading={loadingComments} />
       </div>
     </div>
+  </div>
   );
 }

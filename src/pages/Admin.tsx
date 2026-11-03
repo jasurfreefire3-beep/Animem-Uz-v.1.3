@@ -29,6 +29,7 @@ export default function Admin() {
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [holati, setHolati] = useState('Faol');
   const [yil, setYil] = useState('');
   const [studiyasi, setStudiyasi] = useState('');
@@ -133,6 +134,7 @@ export default function Admin() {
         description,
         image_url: imageUrl,
         banner_url: bannerUrl,
+        logo_url: logoUrl,
         holati,
         yil: yil ? parseInt(yil) : null,
         studiyasi,
@@ -209,6 +211,7 @@ export default function Admin() {
     setDescription(anime.description || '');
     setImageUrl(anime.image_url || '');
     setBannerUrl(anime.banner_url || '');
+    setLogoUrl(anime.logo_url || '');
     setHolati(anime.holati || 'Faol');
     setYil(anime.yil ? anime.yil.toString() : '');
     setStudiyasi(anime.studiyasi || '');
@@ -238,6 +241,7 @@ export default function Admin() {
     setDescription('');
     setImageUrl('');
     setBannerUrl('');
+    setLogoUrl('');
     setHolati('Faol');
     setYil('');
     setStudiyasi('');
@@ -1131,6 +1135,17 @@ export default function Admin() {
                   aspectRatio="banner"
                   placeholder="https://... yoki qurilmadan yuklang"
                   helpText="Anime bosh sahifasi va detallar tepasida chiqadigan gorizontal banner"
+                />
+              </div>
+
+              {/* Anime Logo (PNG / catbox.moe) */}
+              <div>
+                <ImageUploader
+                  label="Anime Logosi (PNG shaffof / catbox.moe)"
+                  value={logoUrl}
+                  onChange={(url) => setLogoUrl(url)}
+                  placeholder="https://files.catbox.moe/... yoki shaffof PNG yuklang"
+                  helpText="Bosh bannerda chiroyli chiqadigan sarlavha logosi (PNG). Bo'sh qolsa anime nomi yoziladi."
                 />
               </div>
               
