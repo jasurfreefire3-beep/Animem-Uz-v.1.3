@@ -109,22 +109,6 @@ export const usePresenceTracker = () => {
       } catch (err) {
         console.warn('Presence firestore ping warning:', err);
       }
-
-      // 4. Heartbeat ping to user table
-      try {
-        if (typeof window !== 'undefined') {
-          const token = localStorage.getItem('token');
-          if (token) {
-            fetch('/api/user/ping', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              }
-            }).catch(() => {});
-          }
-        }
-      } catch {}
     };
 
     // Register active viewing update listener
@@ -136,8 +120,8 @@ export const usePresenceTracker = () => {
     // Send immediately on route change or auth change
     sendPing();
 
-    // Regular interval heartbeat every 12 seconds
-    const interval = setInterval(sendPing, 12000);
+    // Regular interval heartbeat every 45 seconds (optimized for low server load)
+    const interval = setInterval(sendPing, 45000);
 
     // Cleanup on window unload
     const handleUnload = () => {

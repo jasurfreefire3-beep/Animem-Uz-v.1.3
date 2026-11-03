@@ -604,8 +604,8 @@ function toSlugLocal(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-// Resilient query wrapper: Cloudflare D1 with local_store fallback
-async function dbQuery<T = any>(sql: string, params?: any[], retries = 3): Promise<T> {
+// Resilient query wrapper: PostgreSQL with local_store fallback
+async function dbQuery<T = any>(sql: string, params?: any[], retries = 1): Promise<T> {
   try {
     return await d1ExecuteQuery<T>(sql, params);
   } catch (err: any) {
@@ -616,7 +616,7 @@ async function dbQuery<T = any>(sql: string, params?: any[], retries = 3): Promi
     }
     const isSelect = /^\s*(SELECT|PRAGMA|WITH|SHOW|DESCRIBE|EXPLAIN)/i.test(sql.trim());
     if (isSelect) {
-      console.warn("[DB D1 Fallback] Query failed (" + (err?.message || err) + "), using local_store fallback");
+      console.warn("[DB Fallback] Query failed (" + (err?.message || err) + "), using local_store fallback");
       const fallbackRows = queryLocalStore(sql, params);
       return [fallbackRows, []] as unknown as T;
     }
@@ -652,12 +652,33 @@ function setCache<T>(key: string, data: T): void {
   serverCache.set(key, { data, timestamp: Date.now() });
 }
 
+// Throttled user last_seen updater: prevents remote PostgreSQL pool saturation from presence pings
+const userLastSeenDbMap = new Map<string, number>();
+
+function touchUserLastSeenDb(userId: string | number | undefined | null): void {
+  if (!userId) return;
+  const idStr = String(userId).trim();
+  if (!idStr || idStr === 'null' || idStr === 'undefined') return;
+  const now = Date.now();
+  const lastUpdated = userLastSeenDbMap.get(idStr) || 0;
+  // Write to remote DB at most once every 5 minutes (300,000 ms) per user
+  if (now - lastUpdated > 300000) {
+    userLastSeenDbMap.set(idStr, now);
+    dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [idStr]).catch(() => {});
+  }
+}
+
 // Periodic cleanup of expired cache items to prevent memory growth
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of serverCache.entries()) {
-    if (now - v.timestamp > 120000) {
+    if (now - v.timestamp > 180000) {
       serverCache.delete(k);
+    }
+  }
+  for (const [id, ts] of userLastSeenDbMap.entries()) {
+    if (now - ts > 600000) {
+      userLastSeenDbMap.delete(id);
     }
   }
 }, 2 * 60 * 1000);
@@ -781,7 +802,7 @@ const authenticateToken = async (req: any, res: any, next: any) => {
 
   req.user = decoded;
   if (decoded && decoded.id) {
-    dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {});
+    touchUserLastSeenDb(decoded.id);
   }
   next();
 };
@@ -863,7 +884,7 @@ const optionalAuth = (req: any, res: any, next: any) => {
     if (decoded) {
       req.user = decoded;
       if (decoded.id) {
-        dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [decoded.id]).catch(() => {});
+        touchUserLastSeenDb(decoded.id);
       }
     }
   }
@@ -988,6 +1009,9 @@ async function initAnimeTables() {
     await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT ''`);
     await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS is_adult INTEGER DEFAULT 0`);
     await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS is_banner INTEGER DEFAULT 0`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS logo_url TEXT DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS banner_title_color VARCHAR(50) DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS banner_title_font VARCHAR(50) DEFAULT ''`);
 
     // 2. Ensure columns in episodes table
     await pgPool.query(`ALTER TABLE episodes ADD COLUMN IF NOT EXISTS is_filler INTEGER DEFAULT 0`);
@@ -1009,6 +1033,9 @@ async function initAnimeTables() {
         COALESCE(poster_url, banner_url, ''::text) AS image_url,
         poster_url,
         banner_url,
+        COALESCE(logo_url, ''::text) AS logo_url,
+        COALESCE(banner_title_color, ''::character varying) AS banner_title_color,
+        COALESCE(banner_title_font, ''::character varying) AS banner_title_font,
         season,
         COALESCE(status, 'Faol'::character varying) AS holati,
         status,
@@ -1056,7 +1083,8 @@ async function initAnimeTables() {
 
         INSERT INTO anime (
           title_uz, title_orig, title_en, slug, description,
-          poster_url, banner_url, season, status, release_year,
+          poster_url, banner_url, logo_url, banner_title_color, banner_title_font,
+          season, status, release_year,
           episodes_count, rating, views, is_featured, is_banner,
           type, age_rating, genres, studio, rating_count,
           telegram_url, video_url, tags, is_adult, updated_at
@@ -1068,6 +1096,9 @@ async function initAnimeTables() {
           COALESCE(NEW.description, ''),
           COALESCE(NEW.image_url, NEW.poster_url, ''),
           COALESCE(NEW.banner_url, ''),
+          COALESCE(NEW.logo_url, ''),
+          COALESCE(NEW.banner_title_color, ''),
+          COALESCE(NEW.banner_title_font, ''),
           COALESCE(NEW.season, '2024'),
           COALESCE(NEW.holati, NEW.status, 'Faol'),
           COALESCE(NEW.yil, NEW.release_year, 2024),
@@ -1106,6 +1137,9 @@ async function initAnimeTables() {
           description = COALESCE(NEW.description, description),
           poster_url = COALESCE(NEW.image_url, NEW.poster_url, poster_url),
           banner_url = COALESCE(NEW.banner_url, banner_url),
+          logo_url = COALESCE(NEW.logo_url, logo_url),
+          banner_title_color = COALESCE(NEW.banner_title_color, banner_title_color),
+          banner_title_font = COALESCE(NEW.banner_title_font, banner_title_font),
           rating = COALESCE(NEW.rating, rating),
           rating_count = COALESCE(NEW.rating_count, rating_count),
           status = COALESCE(NEW.holati, NEW.status, status),
@@ -1238,8 +1272,8 @@ const broadcastPresenceUpdate = () => {
     // Only broadcast when there are active connected sockets to save CPU
     if (!io || io.engine.clientsCount === 0) return;
     const list = getActivePresenceList();
-    io.emit("online_users_count", list.length);
-    io.emit("online_users_update", list);
+    // Only broadcast detailed user array to admin presence room subscribers
+    io.to("admin_presence").emit("online_users_update", list);
   } catch (e) {}
 };
 
@@ -1248,6 +1282,16 @@ setInterval(broadcastPresenceUpdate, 25000);
 // --- Socket.io Real-time Chat & Watch Together Logic ---
 io.on("connection", (socket) => {
   console.log("A user connected to socket:", socket.id);
+
+  // Admin Presence Room Subscription
+  socket.on("subscribe_presence", () => {
+    socket.join("admin_presence");
+    socket.emit("online_users_update", getActivePresenceList());
+  });
+
+  socket.on("unsubscribe_presence", () => {
+    socket.leave("admin_presence");
+  });
 
   // 1. Synchronously register Watch Together room listeners immediately
   socket.on("joinWatchRoom", (data) => {
@@ -1434,7 +1478,7 @@ io.on("connection", (socket) => {
       });
 
       if (data?.userId) {
-        dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [data.userId]).catch(() => {});
+        touchUserLastSeenDb(data.userId);
       }
     } catch (e) {
       console.warn("Error in socket presencePing:", e);
@@ -3223,18 +3267,25 @@ app.post("/api/push/subscribe", async (req, res) => {
   }
 });
 
-// Get all notifications from MySQL with local store fallback
+// Get all notifications from MySQL with local store fallback (Cached in RAM for 60 seconds)
 app.get("/api/notifications", async (req, res) => {
+  const cached = getCache<any[]>("api_notifications", 60000);
+  if (cached) {
+    return res.json(cached);
+  }
   try {
     const [rows]: any = await dbQuery("SELECT * FROM notifications ORDER BY id DESC LIMIT 50");
     if (Array.isArray(rows) && rows.length > 0) {
+      setCache("api_notifications", rows);
       return res.json(rows);
     }
   } catch (err) {
     console.warn("Notifications fetch falling back to local store:", (err as any)?.message);
   }
   const store = loadLocalStore();
-  res.json(store.notifications || []);
+  const notifs = store.notifications || [];
+  setCache("api_notifications", notifs);
+  res.json(notifs);
 });
 
 // Post a new notification (Admin only)
@@ -3267,6 +3318,9 @@ app.post("/api/notifications", authenticateToken, requireAdmin, async (req: any,
     store.notifications = store.notifications || [];
     store.notifications.unshift(newNotif);
     saveLocalStore(store);
+
+    // Invalidate in-memory notifications cache
+    invalidateServerCache("api_notifications");
 
     // Send Web Push notification to all devices (whether online or offline)
     broadcastPushNotification({
@@ -4558,7 +4612,7 @@ app.get("/api/user/:id", async (req, res) => {
 app.post("/api/user/ping", authenticateToken, async (req: any, res) => {
   try {
     const userId = req.user.id;
-    await dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [userId]);
+    touchUserLastSeenDb(userId);
     res.json({ success: true, timestamp: new Date().toISOString() });
   } catch (e) {
     res.status(500).json({ error: "Ping failed" });
@@ -5015,7 +5069,7 @@ app.get(["/api/tgstream/:channelId/:messageId", "/api/tghls/*"], (req, res) => {
 
 app.get("/api/animes", async (req, res) => {
   res.setHeader("Cache-Control", "no-cache, must-revalidate");
-  const cached = getCache<any[]>("api_all_animes", 15000);
+  const cached = getCache<any[]>("api_all_animes", 180000);
   if (cached) {
     return res.json(cached);
   }
@@ -5040,7 +5094,7 @@ app.get("/api/animes/:id", async (req, res) => {
   res.setHeader("Cache-Control", "no-cache, must-revalidate");
   const id = req.params.id;
   const cacheKey = `api_anime_${id}`;
-  const cached = getCache<any>(cacheKey, 15000);
+  const cached = getCache<any>(cacheKey, 120000);
   if (cached) {
     dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [cached.id || id]).catch(() => {});
     return res.json(cached);
@@ -5924,6 +5978,9 @@ app.post("/api/animes", authenticateToken, requireAdmin, async (req: any, res) =
       description,
       image_url,
       banner_url,
+      logo_url,
+      banner_title_color,
+      banner_title_font,
       rating,
       rating_count,
       holati,
@@ -5962,18 +6019,24 @@ app.post("/api/animes", authenticateToken, requireAdmin, async (req: any, res) =
 
     const cleanImageUrl = normalizeImageUrl(image_url);
     const cleanBannerUrl = normalizeImageUrl(banner_url);
+    const cleanLogoUrl = normalizeImageUrl(logo_url);
+    const cleanColor = String(banner_title_color || "").trim().slice(0, 50);
+    const cleanFont = String(banner_title_font || "").trim().slice(0, 50);
 
     let insertId = 0;
     try {
       const [result]: any = await dbQuery(
         `INSERT INTO animes 
-        (title, description, image_url, banner_url, rating, rating_count, holati, yil, studiyasi, qismlar_soni, korishlar, janrlar, telegram_url, video_url, tavsiya, is_banner, tags, is_adult) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (title, description, image_url, banner_url, logo_url, banner_title_color, banner_title_font, rating, rating_count, holati, yil, studiyasi, qismlar_soni, korishlar, janrlar, telegram_url, video_url, tavsiya, is_banner, tags, is_adult) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           cleanTitle,
           description || "",
           cleanImageUrl,
           cleanBannerUrl,
+          cleanLogoUrl,
+          cleanColor,
+          cleanFont,
           Number(rating) || 9.0,
           Number(rating_count) || 0,
           holati || "Faol",
@@ -6015,7 +6078,9 @@ app.post("/api/animes", authenticateToken, requireAdmin, async (req: any, res) =
       description: description || "",
       image_url: cleanImageUrl,
       banner_url: cleanBannerUrl,
-      logo_url: normalizeImageUrl(req.body.logo_url || ""),
+      logo_url: cleanLogoUrl,
+      banner_title_color: cleanColor,
+      banner_title_font: cleanFont,
       rating: Number(rating) || 9.0,
       rating_count: Number(rating_count) || 0,
       holati: holati || "Faol",
@@ -6038,6 +6103,7 @@ app.post("/api/animes", authenticateToken, requireAdmin, async (req: any, res) =
     // Invalidate server cache immediately
     invalidateServerCache("api_all_animes");
     invalidateServerCache("api_anime_");
+    invalidateServerCache("sitemap");
 
     // Notify Telegram
     notifyTelegramNewAnime(insertId, qismlar_soni ? Number(qismlar_soni) : null);
@@ -6070,6 +6136,9 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, res
       description,
       image_url,
       banner_url,
+      logo_url,
+      banner_title_color,
+      banner_title_font,
       rating,
       rating_count,
       holati,
@@ -6127,6 +6196,9 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, res
     const finalDescription = description !== undefined ? description : (existing?.description || "");
     const finalImageUrl = normalizeImageUrl(image_url !== undefined ? image_url : (existing?.image_url || ""));
     const finalBannerUrl = normalizeImageUrl(banner_url !== undefined ? banner_url : (existing?.banner_url || ""));
+    const finalLogoUrl = logo_url !== undefined ? normalizeImageUrl(logo_url) : (existing?.logo_url || "");
+    const finalBannerTitleColor = banner_title_color !== undefined ? String(banner_title_color).trim().slice(0, 50) : (existing?.banner_title_color || "");
+    const finalBannerTitleFont = banner_title_font !== undefined ? String(banner_title_font).trim().slice(0, 50) : (existing?.banner_title_font || "");
     const finalHolati = holati !== undefined ? holati : (existing?.holati || "Faol");
     const finalYil = yil !== undefined ? (yil ? Number(yil) : null) : (existing?.yil || null);
     const finalStudiyasi = studiyasi !== undefined ? studiyasi : (existing?.studiyasi || "");
@@ -6142,7 +6214,7 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, res
     try {
       await dbQuery(
         `UPDATE animes SET 
-        title = ?, description = ?, image_url = ?, banner_url = ?, rating = ?, rating_count = ?, 
+        title = ?, description = ?, image_url = ?, banner_url = ?, logo_url = ?, banner_title_color = ?, banner_title_font = ?, rating = ?, rating_count = ?, 
         holati = ?, yil = ?, studiyasi = ?, qismlar_soni = ?, korishlar = ?, janrlar = ?, telegram_url = ?, video_url = ?, tavsiya = ?, is_banner = ?, tags = ?, is_adult = ? 
         WHERE id = ?`,
         [
@@ -6150,6 +6222,9 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, res
           finalDescription,
           finalImageUrl,
           finalBannerUrl,
+          finalLogoUrl,
+          finalBannerTitleColor,
+          finalBannerTitleFont,
           finalRating,
           finalRatingCount,
           finalHolati,
@@ -6181,7 +6256,9 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, res
       description: finalDescription,
       image_url: finalImageUrl,
       banner_url: finalBannerUrl,
-      logo_url: req.body.logo_url !== undefined ? normalizeImageUrl(req.body.logo_url) : (existing?.logo_url || ""),
+      logo_url: finalLogoUrl,
+      banner_title_color: finalBannerTitleColor,
+      banner_title_font: finalBannerTitleFont,
       rating: finalRating,
       rating_count: finalRatingCount,
       holati: finalHolati,
@@ -6205,6 +6282,10 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, res
       store.animes.push(updatedObj);
     }
     saveLocalStore(store);
+
+    invalidateServerCache("api_all_animes");
+    invalidateServerCache(`api_anime_${id}`);
+    invalidateServerCache("sitemap");
 
     notifyContentUpdate("anime");
 
@@ -8733,7 +8814,7 @@ app.post("/api/presence/ping", async (req: any, res: any) => {
     });
 
     if (data.userId) {
-      dbQuery("UPDATE users SET last_seen = NOW() WHERE id = ?", [data.userId]).catch(() => {});
+      touchUserLastSeenDb(data.userId);
     }
 
     res.json({ success: true, timestamp: Date.now() });
@@ -10781,9 +10862,19 @@ async function start() {
     }
   };
 
+  // In-memory cache for dynamic sitemap (1 hour TTL to eliminate remote DB loads)
+  let cachedSitemapXml: string | null = null;
+  let sitemapCacheTime = 0;
+
   // Dynamic Sitemap XML generator (Optimized for Yandex & Google)
   app.get("/sitemap.xml", async (req, res) => {
     try {
+      const now = Date.now();
+      if (cachedSitemapXml && now - sitemapCacheTime < 3600000) {
+        res.setHeader("Content-Type", "text/xml; charset=utf-8");
+        return res.status(200).send(cachedSitemapXml);
+      }
+
       const domain = "https://animem.uz";
       const todayIso = new Date().toISOString().split("T")[0];
       
@@ -10814,7 +10905,7 @@ async function start() {
         xml += `  <url>\n    <loc>${domain}/${g}</loc>\n    <lastmod>${todayIso}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n`;
       }
 
-      // 1. Anime pages in Sitemap (Always dynamic from PostgreSQL database)
+      // 1. Anime pages in Sitemap (Dynamic from PostgreSQL + local_store merge)
       let animesList: any[] = [];
       try {
         const [rows]: any = await dbQuery("SELECT * FROM animes ORDER BY id DESC");
@@ -10831,10 +10922,11 @@ async function start() {
       }
       
       for (const a of animesList) {
-        const slug = toSlugLocal(a.title) || String(a.id);
+        const rawTitle = a.title || a.title_uz || a.title_orig || "anime";
+        const slug = a.slug || toSlugLocal(rawTitle) || String(a.id);
         if (slug) {
-          const imgUrl = escapeXml(toAbsoluteUrl(a.image_url, domain));
-          const titleClean = escapeXml(a.title || "Anime");
+          const imgUrl = escapeXml(toAbsoluteUrl(a.image_url || a.poster_url, domain));
+          const titleClean = escapeXml(rawTitle);
           const animeDate = safeIsoDate(a.updated_at || a.created_at, todayIso);
           xml += `  <url>\n`;
           xml += `    <loc>${domain}/anime/${slug}</loc>\n`;
@@ -10885,7 +10977,7 @@ async function start() {
         }
       }
 
-      // 3. Drama pages in Sitemap (For Google & Yandex fast indexing)
+      // 3. Drama pages in Sitemap
       let dramasList: any[] = [];
       try {
         const [dRows]: any = await dbQuery("SELECT * FROM dramas");
@@ -10921,11 +11013,27 @@ async function start() {
       }
       
       xml += `</urlset>`;
+      cachedSitemapXml = xml;
+      sitemapCacheTime = Date.now();
+
+      // Write static backup to public/sitemap.xml
+      try {
+        fs.writeFileSync(path.join(publicPath, "sitemap.xml"), xml, "utf-8");
+      } catch (_) {}
+
       res.setHeader("Content-Type", "text/xml; charset=utf-8");
       return res.status(200).send(xml);
     } catch (err) {
       console.error("Sitemap generation error:", err);
-      return res.sendFile(path.join(publicPath, "sitemap.xml"));
+      if (cachedSitemapXml) {
+        res.setHeader("Content-Type", "text/xml; charset=utf-8");
+        return res.status(200).send(cachedSitemapXml);
+      }
+      const staticFile = path.join(publicPath, "sitemap.xml");
+      if (fs.existsSync(staticFile)) {
+        return res.sendFile(staticFile);
+      }
+      return res.status(500).send("Sitemap error");
     }
   });
 

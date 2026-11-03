@@ -86,6 +86,7 @@ export const OnlineUsersTab: React.FC = () => {
     try {
       const socketUrl = getSocketUrl();
       socket = io(socketUrl);
+      socket.emit('subscribe_presence');
       socket.on('online_users_update', (users: OnlineUserItem[]) => {
         if (Array.isArray(users)) {
           setOnlineUsers(users);
@@ -97,10 +98,10 @@ export const OnlineUsersTab: React.FC = () => {
       console.warn('Socket presence connection warning:', e);
     }
 
-    // 3. Fallback interval polling every 4 seconds
+    // 3. Fallback interval polling every 10 seconds
     const pollInterval = setInterval(() => {
       fetchBackendUsers();
-    }, 4000);
+    }, 10000);
 
     // 4. Optional Firestore listener (if active)
     let unsubscribeFirestore = () => {};
@@ -162,7 +163,12 @@ export const OnlineUsersTab: React.FC = () => {
 
     return () => {
       clearInterval(pollInterval);
-      if (socket) socket.disconnect();
+      if (socket) {
+        try {
+          socket.emit('unsubscribe_presence');
+          socket.disconnect();
+        } catch (_) {}
+      }
       unsubscribeFirestore();
     };
   }, []);

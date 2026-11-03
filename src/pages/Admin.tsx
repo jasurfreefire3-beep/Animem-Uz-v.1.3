@@ -30,6 +30,8 @@ export default function Admin() {
   const [imageUrl, setImageUrl] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [bannerTitleColor, setBannerTitleColor] = useState('');
+  const [bannerTitleFont, setBannerTitleFont] = useState('');
   const [holati, setHolati] = useState('Faol');
   const [yil, setYil] = useState('');
   const [studiyasi, setStudiyasi] = useState('');
@@ -135,6 +137,8 @@ export default function Admin() {
         image_url: imageUrl,
         banner_url: bannerUrl,
         logo_url: logoUrl,
+        banner_title_color: bannerTitleColor,
+        banner_title_font: bannerTitleFont,
         holati,
         yil: yil ? parseInt(yil) : null,
         studiyasi,
@@ -212,6 +216,8 @@ export default function Admin() {
     setImageUrl(anime.image_url || '');
     setBannerUrl(anime.banner_url || '');
     setLogoUrl(anime.logo_url || '');
+    setBannerTitleColor(anime.banner_title_color || '');
+    setBannerTitleFont(anime.banner_title_font || '');
     setHolati(anime.holati || 'Faol');
     setYil(anime.yil ? anime.yil.toString() : '');
     setStudiyasi(anime.studiyasi || '');
@@ -242,6 +248,8 @@ export default function Admin() {
     setImageUrl('');
     setBannerUrl('');
     setLogoUrl('');
+    setBannerTitleColor('');
+    setBannerTitleFont('');
     setHolati('Faol');
     setYil('');
     setStudiyasi('');
@@ -1145,8 +1153,112 @@ export default function Admin() {
                   value={logoUrl}
                   onChange={(url) => setLogoUrl(url)}
                   placeholder="https://files.catbox.moe/... yoki shaffof PNG yuklang"
-                  helpText="Bosh bannerda chiroyli chiqadigan sarlavha logosi (PNG). Bo'sh qolsa anime nomi yoziladi."
+                  helpText="Bosh bannerda chiroyli chiqadigan sarlavha logosi (PNG). Bo'sh qolsa anime nomi quyidagi uslubda yoziladi."
                 />
+              </div>
+
+              {/* Banner Title Typography Customization (When no PNG logo exists) */}
+              <div className="bg-[#0f1016] border border-white/10 rounded-lg p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white/90 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#ff006a] shadow-[0_0_8px_#ff006a]" />
+                    Banner Sarlavhasi Uslubi (Agar Logo bo'lmasa)
+                  </label>
+                  <span className="text-[11px] text-white/40">Shrift va rang</span>
+                </div>
+
+                {/* Font Family Selector */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-white/60 mb-2">Sarlavha Shrifti (Font)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: '', name: 'Standart (Bebas Neue)', font: "'Bebas Neue', sans-serif" },
+                      { id: 'Bebas Neue', name: 'Bebas Neue (Jangari)', font: "'Bebas Neue', sans-serif" },
+                      { id: 'Cinzel', name: 'Cinzel (Epik / Fantaziya)', font: "'Cinzel', serif" },
+                      { id: 'Permanent Marker', name: 'Permanent Marker (Manga)', font: "'Permanent Marker', cursive" },
+                      { id: 'Montserrat', name: 'Montserrat (Zamonaviy)', font: "'Montserrat', sans-serif" },
+                      { id: 'Impact', name: 'Impact (Klassik)', font: "Impact, sans-serif" }
+                    ].map(f => (
+                      <button
+                        type="button"
+                        key={f.id}
+                        onClick={() => setBannerTitleFont(f.id)}
+                        className={`px-3 py-2 text-left rounded border transition-all text-xs ${
+                          bannerTitleFont === f.id
+                            ? 'bg-[#ff006a]/20 border-[#ff006a] text-white shadow-[0_0_12px_rgba(255,0,106,0.3)]'
+                            : 'bg-black/50 border-white/10 text-white/70 hover:border-white/30'
+                        }`}
+                      >
+                        <span className="block truncate text-[13px]" style={{ fontFamily: f.font }}>{f.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color Selector */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-white/60 mb-2">Sarlavha Rangi (Color)</label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      { hex: '', label: 'Standart Qizil', color: '#ff2442' },
+                      { hex: '#ff2442', label: 'One Punch Qizil', color: '#ff2442' },
+                      { hex: '#f59e0b', label: 'Oltin Sarig\'i', color: '#f59e0b' },
+                      { hex: '#00f0ff', label: 'Neon Moviy', color: '#00f0ff' },
+                      { hex: '#ff006a', label: 'Neon Pushti', color: '#ff006a' },
+                      { hex: '#ffffff', label: 'Toza Oq', color: '#ffffff' },
+                      { hex: '#10b981', label: 'Zumrad Yashil', color: '#10b981' },
+                      { hex: '#a855f7', label: 'Binafsha', color: '#a855f7' }
+                    ].map(c => (
+                      <button
+                        type="button"
+                        key={c.hex || 'default'}
+                        onClick={() => setBannerTitleColor(c.hex)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-xs transition-all ${
+                          bannerTitleColor === c.hex
+                            ? 'bg-white/15 border-white text-white font-bold'
+                            : 'bg-black/40 border-white/10 text-white/70 hover:border-white/30'
+                        }`}
+                      >
+                        <span className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0" style={{ backgroundColor: c.color }} />
+                        <span>{c.label}</span>
+                      </button>
+                    ))}
+
+                    <div className="flex items-center gap-2 ml-auto">
+                      <input
+                        type="color"
+                        value={bannerTitleColor || '#ff2442'}
+                        onChange={(e) => setBannerTitleColor(e.target.value)}
+                        className="w-8 h-8 rounded border border-white/20 cursor-pointer bg-transparent"
+                        title="Boshqa istalgan rang tanlash"
+                      />
+                      <input
+                        type="text"
+                        value={bannerTitleColor}
+                        onChange={(e) => setBannerTitleColor(e.target.value)}
+                        placeholder="#ff2442"
+                        className="w-24 bg-black/70 border border-white/20 rounded px-2.5 py-1 text-xs text-white uppercase font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Preview Box */}
+                {!logoUrl && (
+                  <div className="p-4 rounded-lg bg-black/85 border border-white/15 relative overflow-hidden mt-3 shadow-inner">
+                    <span className="text-[10px] text-white/40 uppercase tracking-wider block mb-2 font-mono">Jonli Ko'rinish (Bannerda shunday chiqadi):</span>
+                    <h2
+                      style={{
+                        color: bannerTitleColor || '#ff2442',
+                        fontFamily: bannerTitleFont ? `'${bannerTitleFont}', sans-serif` : "'Bebas Neue', sans-serif",
+                        textShadow: `0 4px 28px ${bannerTitleColor ? `${bannerTitleColor}77` : 'rgba(255,36,66,0.6)'}`
+                      }}
+                      className="text-3xl sm:text-4xl font-black uppercase tracking-tight truncate leading-tight"
+                    >
+                      {title || 'ANIME NOMI'}
+                    </h2>
+                  </div>
+                )}
               </div>
               
               {/* Status */}

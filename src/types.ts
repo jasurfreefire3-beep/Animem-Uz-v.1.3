@@ -31,6 +31,8 @@ export interface Anime {
   image_url: string;
   banner_url: string;
   logo_url?: string;
+  banner_title_color?: string;
+  banner_title_font?: string;
   rating: number;
   rating_count: number;
   holati: string;

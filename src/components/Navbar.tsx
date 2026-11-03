@@ -92,7 +92,8 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
     fetchNotifications();
     fetchAnimes();
 
-    const interval = setInterval(fetchNotifications, 15000);
+    // Check notifications once every 60 seconds (prevents server CPU saturation)
+    const interval = setInterval(fetchNotifications, 60000);
     return () => {
       isMounted = false;
       controller.abort();

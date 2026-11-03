@@ -186,7 +186,14 @@ function HeroBanner({ banners }: HeroBannerProps) {
                 className="max-h-20 sm:max-h-28 md:max-h-36 max-w-[260px] sm:max-w-[380px] md:max-w-[460px] object-contain object-left drop-shadow-[0_12px_35px_rgba(0,0,0,0.95)]"
               />
             ) : (
-              <h1 className="text-3xl min-[400px]:text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight text-[#ff2442] drop-shadow-[0_4px_30px_rgba(255,36,66,0.55)] leading-[1.05]">
+              <h1 
+                style={{ 
+                  color: featuredAnime.banner_title_color || '#ff2442',
+                  fontFamily: featuredAnime.banner_title_font ? `'${featuredAnime.banner_title_font}', sans-serif` : undefined,
+                  textShadow: `0 4px 32px ${featuredAnime.banner_title_color ? `${featuredAnime.banner_title_color}88` : 'rgba(255,36,66,0.6)'}`
+                }}
+                className="text-3xl min-[400px]:text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight leading-[1.05]"
+              >
                 {featuredAnime.title}
               </h1>
             )}
