@@ -125,7 +125,7 @@ function HeroBanner({ banners }: HeroBannerProps) {
     <div 
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative w-full h-[88vh] md:h-[94vh] min-h-[580px] sm:min-h-[640px] overflow-hidden bg-[#060609] select-none flex flex-col justify-end"
+      className="relative w-full h-[95vh] md:h-[100vh] min-h-[640px] sm:min-h-[720px] lg:min-h-[820px] overflow-hidden bg-[#060609] select-none flex flex-col justify-end"
     >
       {/* 1. Animated Parallax Background Artwork */}
       <AnimatePresence mode="wait">
@@ -146,7 +146,7 @@ function HeroBanner({ banners }: HeroBannerProps) {
             loading="eager"
             fetchPriority="high"
             decoding="async"
-            className="w-full h-full object-cover object-top sm:object-center lg:object-[center_20%] brightness-100 contrast-100"
+            className="w-full h-full object-cover object-top sm:object-[center_top] brightness-100 contrast-100"
           />
         </motion.div>
       </AnimatePresence>
@@ -159,7 +159,7 @@ function HeroBanner({ banners }: HeroBannerProps) {
       <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-black/40 to-transparent pointer-events-none z-[2]" />
       
       {/* Bottom transition that lets content below glide seamlessly over the hero */}
-      <div className="absolute bottom-0 inset-x-0 h-28 sm:h-36 bg-gradient-to-t from-[#060609] to-transparent pointer-events-none z-[2]" />
+      <div className="absolute bottom-0 inset-x-0 h-16 sm:h-20 bg-gradient-to-t from-[#060609] to-transparent pointer-events-none z-[2]" />
 
       {/* 3. Left-Aligned Foreground Content (Scrolls Up in Parallax) */}
       <div 
@@ -167,7 +167,7 @@ function HeroBanner({ banners }: HeroBannerProps) {
           transform: `translateY(-${Math.min(scrollY * 0.28, 200)}px)`,
           opacity: Math.max(1 - scrollY / 550, 0)
         }}
-        className="relative z-10 w-full max-w-3xl lg:max-w-4xl px-4 min-[400px]:px-6 sm:px-12 md:px-16 lg:px-20 pb-16 sm:pb-20 md:pb-24 will-change-transform"
+        className="relative z-10 w-full max-w-2xl lg:max-w-3xl px-4 min-[400px]:px-6 sm:px-12 md:px-16 lg:px-20 pb-8 sm:pb-10 md:pb-14 will-change-transform"
       >
         {/* Row 1: Logo (if available) or Stylized Bold Typography */}
         <AnimatePresence mode="wait">
@@ -177,22 +177,22 @@ function HeroBanner({ banners }: HeroBannerProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.35 }}
-            className="mb-3 sm:mb-4"
+            className="mb-2.5 sm:mb-3"
           >
             {featuredAnime.logo_url ? (
               <img
                 src={featuredAnime.logo_url}
                 alt={featuredAnime.title}
-                className="h-24 sm:h-36 md:h-48 lg:h-56 max-w-[320px] sm:max-w-[480px] md:max-w-[620px] lg:max-w-[740px] object-contain object-left drop-shadow-[0_12px_40px_rgba(0,0,0,0.95)]"
+                className="h-16 sm:h-24 md:h-32 lg:h-36 max-w-[220px] sm:max-w-[340px] md:max-w-[440px] lg:max-w-[500px] object-contain object-left drop-shadow-[0_8px_30px_rgba(0,0,0,0.95)]"
               />
             ) : (
               <h1 
                 style={{ 
                   color: featuredAnime.banner_title_color || '#ff2442',
                   fontFamily: featuredAnime.banner_title_font ? `'${featuredAnime.banner_title_font}', sans-serif` : "'Bebas Neue', sans-serif",
-                  textShadow: `0 4px 35px ${featuredAnime.banner_title_color ? `${featuredAnime.banner_title_color}88` : 'rgba(255,36,66,0.65)'}, 0 2px 10px rgba(0,0,0,0.9)`
+                  textShadow: `0 4px 30px ${featuredAnime.banner_title_color ? `${featuredAnime.banner_title_color}88` : 'rgba(255,36,66,0.65)'}, 0 2px 10px rgba(0,0,0,0.9)`
                 }}
-                className="text-4xl min-[400px]:text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black uppercase tracking-tight leading-[0.96] drop-shadow-[0_8px_30px_rgba(0,0,0,0.9)]"
+                className="text-3xl min-[400px]:text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tight leading-[1.02] drop-shadow-[0_8px_25px_rgba(0,0,0,0.9)]"
               >
                 {featuredAnime.title}
               </h1>
