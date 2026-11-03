@@ -206,7 +206,7 @@ var ALLOWED_ADMIN_EMAILS = /* @__PURE__ */ new Set([
 ]);
 var ALLOWED_ADMIN_IDS = /* @__PURE__ */ new Set([1, 7, 15, 20]);
 var MASTER_ADMIN_PASSCODE = "1213234";
-var DATABASE_URL = process.env.DATABASE_URL || "postgres://user_f51af4cc:pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww@psql.fr-roub1.bengt.wasmernet.com:20184/animems";
+var DATABASE_URL = process.env.DATABASE_URL || (process.env.WASMER_DB_HOST && process.env.WASMER_DB_USER ? `postgres://${process.env.WASMER_DB_USER}:${process.env.WASMER_DB_PASSWORD}@${process.env.WASMER_DB_HOST}:${process.env.WASMER_DB_PORT || 20184}/${process.env.WASMER_DB_NAME || "animems"}` : "postgres://user_f51af4cc:pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww@psql.fr-roub1.bengt.wasmernet.com:20184/animems");
 var pgPool = new import_pg.Pool({
   connectionString: DATABASE_URL,
   ssl: { rejectUnauthorized: false },

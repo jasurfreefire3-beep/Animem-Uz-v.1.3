@@ -3,15 +3,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://site--anime--jpdsl9nq68nb.code.run/api/:path*"
+      "destination": "https://ss-test.wasmer.app/api/:path*"
     },
     {
       "source": "/stream/:path*",
-      "destination": "https://site--anime--jpdsl9nq68nb.code.run/stream/:path*"
+      "destination": "https://ss-test.wasmer.app/stream/:path*"
     },
     {
       "source": "/sitemap.xml",
-      "destination": "https://site--anime--jpdsl9nq68nb.code.run/sitemap.xml"
+      "destination": "https://ss-test.wasmer.app/sitemap.xml"
     },
     {
       "source": "/(.*)",

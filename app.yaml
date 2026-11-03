@@ -5,7 +5,7 @@ owner: mosinjonovjasurbek00
 package: .
 annotations:
   anybuild.run/provider: node
-  anybuild.run/version: 0.33.0
+  anybuild.run/version: 0.33.2
   wasmer.io/version: 7.5.0
   anybuild.run/config:
     commands:
@@ -24,18 +24,15 @@ annotations:
     node_install_requires_all_files: true
     node_package_name: react-example
     static_dir: dist
+    pnpm_version: '10'
 env:
   NODE_ENV: "production"
   PORT: "8080"
-  SUPABASE_DB_HOST: "aws-0-ap-northeast-2.pooler.supabase.com"
-  SUPABASE_DB_PORT: "6543"
-  SUPABASE_DB_USER: "postgres.bkvowaestqzxwlrhkbhk"
-  SUPABASE_DB_PASSWORD: "animemuz_200"
-  SUPABASE_DB_NAME: "postgres"
+  DATABASE_URL: "postgres://user_f51af4cc:pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww@psql.fr-roub1.bengt.wasmernet.com:20184/animems"
   WASMER_DB_HOST: "psql.fr-roub1.bengt.wasmernet.com"
   WASMER_DB_PORT: "20184"
-  WASMER_DB_USER: "user_82ffe893"
-  WASMER_DB_PASSWORD: "pw_1DuID9AO03FagRCGyr9cBuO13NCui0wd"
-  WASMER_DB_NAME: "Animem"
-  JWT_SECRET: "anime_super_secret_key"
+  WASMER_DB_USER: "user_f51af4cc"
+  WASMER_DB_PASSWORD: "pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww"
+  WASMER_DB_NAME: "animems"
+  JWT_SECRET: "animem_uz_secure_jwt_token_key_9f81a7b3c2d4e6f0a5b8c9d1e2f3a4b5c6d7e8f9a0"
 enableDatabase: true

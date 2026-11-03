@@ -1,5 +1,6 @@
-// Backend API configuration for Northflank & Vercel
-export const NORTHFLANK_BACKEND_URL = 'https://site--anime--jpdsl9nq68nb.code.run';
+// Backend API configuration for Wasmer Edge & Vercel
+export const WASMER_BACKEND_URL = 'https://ss-test.wasmer.app';
+export const NORTHFLANK_BACKEND_URL = WASMER_BACKEND_URL;
 
 export const getApiBase = (): string => {
   // 1. If explicitly configured in environment
@@ -8,7 +9,7 @@ export const getApiBase = (): string => {
     return envUrl.trim().replace(/\/$/, '');
   }
 
-  // 2. Default to same-origin (on Vercel, vercel.json rewrites /api/* to Northflank)
+  // 2. Default to same-origin (on Vercel, vercel.json rewrites /api/* to Wasmer)
   return '';
 };
 
@@ -29,6 +30,6 @@ export const getSocketUrl = (): string => {
     }
   }
 
-  // 3. In production (e.g. Vercel), connect WebSockets directly to Northflank
-  return NORTHFLANK_BACKEND_URL;
+  // 3. In production (e.g. Vercel), connect WebSockets directly to Wasmer Edge
+  return WASMER_BACKEND_URL;
 };

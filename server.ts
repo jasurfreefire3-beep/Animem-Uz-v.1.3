@@ -222,9 +222,12 @@ const MASTER_ADMIN_PASSCODE = "1213234";
 // MySQL Database Pool Connection
 
 // =================================================================
-// DATABASE CONFIGURATION: SOLE POSTGRESQL (animems)
+// DATABASE CONFIGURATION: SOLE POSTGRESQL (animems on Wasmer)
 // =================================================================
-const DATABASE_URL = process.env.DATABASE_URL || "postgres://user_f51af4cc:pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww@psql.fr-roub1.bengt.wasmernet.com:20184/animems";
+const DATABASE_URL = process.env.DATABASE_URL || 
+  (process.env.WASMER_DB_HOST && process.env.WASMER_DB_USER
+    ? `postgres://${process.env.WASMER_DB_USER}:${process.env.WASMER_DB_PASSWORD}@${process.env.WASMER_DB_HOST}:${process.env.WASMER_DB_PORT || 20184}/${process.env.WASMER_DB_NAME || 'animems'}`
+    : "postgres://user_f51af4cc:pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww@psql.fr-roub1.bengt.wasmernet.com:20184/animems");
 
 const pgPool = new PgPool({
   connectionString: DATABASE_URL,
