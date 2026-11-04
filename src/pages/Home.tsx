@@ -6,6 +6,7 @@ import { Star, Clock, Eye } from 'lucide-react';
 import AnimeCard from '../components/AnimeCard';
 import HeroBanner from '../components/HeroBanner';
 import EmaCommentsBoard from '../components/EmaCommentsBoard';
+import AdsterraNativeBanner from '../components/AdsterraNativeBanner';
 import { getSocketUrl } from '../lib/api';
 
 export default function Home() {
@@ -147,6 +148,11 @@ export default function Home() {
               <AnimeCard key={`new-${anime.id}`} anime={anime} />
             ))}
           </div>
+        </section>
+
+        {/* Adsterra Native Recommendation Banner */}
+        <section className="w-full my-2 sm:my-4">
+          <AdsterraNativeBanner />
         </section>
 
         {/* Eng ko'p ko'rilganlar */}

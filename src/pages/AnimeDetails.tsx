@@ -18,6 +18,7 @@ import GifPicker from '../components/GifPicker';
 import FormattedContent from '../components/FormattedContent';
 import LoadingScreen from '../components/LoadingScreen';
 import UserAvatar from '../components/UserAvatar';
+import AdsterraNativeBanner from '../components/AdsterraNativeBanner';
 
 export default function AnimeDetails() {
   const params = useParams();
@@ -1046,6 +1047,11 @@ export default function AnimeDetails() {
                ))}
             </div>
           </div>
+       </div>
+
+       {/* Adsterra Native Recommendation Banner */}
+       <div className="mt-4 sm:mt-5 px-2 sm:px-0">
+         <AdsterraNativeBanner />
        </div>
     </motion.section>
   );
