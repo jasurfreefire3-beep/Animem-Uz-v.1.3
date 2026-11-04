@@ -30,6 +30,18 @@ declare global {
 
 export const TURNSTILE_SITE_KEY = "0x4AAAAAAC_bMoaIUWm54Wj";
 
+// Detect hostname to avoid "Неверный ключ сайта" when developing on localhost
+export const getActiveSiteKey = () => {
+  if (typeof window !== 'undefined') {
+    const h = window.location.hostname;
+    // If running on local machine, use Cloudflare's official testing sitekey
+    if (h === 'localhost' || h === '127.0.0.1') {
+      return '1x00000000000000000000AA';
+    }
+  }
+  return TURNSTILE_SITE_KEY;
+};
+
 export default function TurnstileWidget({
   onSuccess,
   onExpire,
@@ -55,8 +67,9 @@ export default function TurnstileWidget({
       }
 
       try {
+        const sitekey = getActiveSiteKey();
         const id = window.turnstile.render(containerRef.current, {
-          sitekey: TURNSTILE_SITE_KEY,
+          sitekey,
           theme,
           callback: (token: string) => {
             if (isMounted) onSuccess(token);
