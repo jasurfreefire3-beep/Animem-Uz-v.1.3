@@ -181,43 +181,26 @@ app.use((req, res, next) => {
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// --- CLOUDFLARE TURNSTILE VERIFICATION ---
-const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || "0x4AAAAAAC_bMp56mgWP9ZSud3cuRHbq-Kw";
-const TURNSTILE_TEST_SECRET = "1x0000000000000000000000000000000AA";
+// --- RECAPTCHA VERIFICATION ---
+const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET || "6LdADY8tAAAAADio9AzwRTgqDCKluKa3pspF6aE3";
 
 async function verifyCaptchaToken(token: string, ip: string): Promise<boolean> {
   if (!token) return false;
   try {
     const formData = new URLSearchParams();
-    formData.append('secret', TURNSTILE_SECRET);
+    formData.append('secret', RECAPTCHA_SECRET);
     formData.append('response', token);
-    if (ip) {
-      formData.append('remoteip', ip);
-    }
+    formData.append('remoteip', ip);
     
-    let res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
       method: 'POST',
       body: formData,
     });
     
-    let data = await res.json();
-
-    // Support Cloudflare test tokens for local development
-    if (!data.success && data['error-codes']?.includes('invalid-input-secret')) {
-      const testData = new URLSearchParams();
-      testData.append('secret', TURNSTILE_TEST_SECRET);
-      testData.append('response', token);
-      const testRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-        method: 'POST',
-        body: testData,
-      });
-      const testJson = await testRes.json();
-      if (testJson.success) return true;
-    }
-
+    const data = await res.json();
     return data.success === true;
   } catch (err) {
-    console.error("Cloudflare Turnstile verification error:", err);
+    console.error("Recaptcha verification error:", err);
     return false;
   }
 }
