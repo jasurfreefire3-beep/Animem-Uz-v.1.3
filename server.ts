@@ -181,18 +181,20 @@ app.use((req, res, next) => {
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// --- TURNSTILE VERIFICATION ---
-const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET || "6LdADY8tAAAAADio9AzwRTgqDCKluKa3pspF6aE3";
+// --- CLOUDFLARE TURNSTILE VERIFICATION ---
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || "0x4AAAAAAC_bMp56mgWP9ZSud3cuRHbq-Kw";
 
 async function verifyCaptchaToken(token: string, ip: string): Promise<boolean> {
   if (!token) return false;
   try {
     const formData = new URLSearchParams();
-    formData.append('secret', RECAPTCHA_SECRET);
+    formData.append('secret', TURNSTILE_SECRET);
     formData.append('response', token);
-    formData.append('remoteip', ip);
+    if (ip) {
+      formData.append('remoteip', ip);
+    }
     
-    const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       body: formData,
     });
@@ -200,7 +202,7 @@ async function verifyCaptchaToken(token: string, ip: string): Promise<boolean> {
     const data = await res.json();
     return data.success === true;
   } catch (err) {
-    console.error("Turnstile verification error:", err);
+    console.error("Cloudflare Turnstile verification error:", err);
     return false;
   }
 }

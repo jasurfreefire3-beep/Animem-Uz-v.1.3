@@ -35,4 +35,6 @@ env:
   WASMER_DB_PASSWORD: "pw_q2C80HbXCwGb5qDwIC2IoysaX1nqbzww"
   WASMER_DB_NAME: "animems"
   JWT_SECRET: "animem_uz_secure_jwt_token_key_9f81a7b3c2d4e6f0a5b8c9d1e2f3a4b5c6d7e8f9a0"
+  TURNSTILE_SECRET: "0x4AAAAAAC_bMp56mgWP9ZSud3cuRHbq-Kw"
+  TURNSTILE_SITE_KEY: "0x4AAAAAAC_bMoaIUWm54Wj"
 enableDatabase: true

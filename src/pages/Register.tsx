@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, User, Phone, ArrowLeft, Loader2, CheckCircle2, Send, ShieldCheck, KeyRound, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import ReCAPTCHA from 'react-google-recaptcha';
+import TurnstileWidget from '../components/TurnstileWidget';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 import { auth, googleProvider, facebookAuth, facebookProvider } from '../lib/firebase';
 import TelegramAuthModal from '../components/TelegramAuthModal';
@@ -831,20 +831,22 @@ export default function Register() {
                 </p>
               </div>
 
-              <div className="flex justify-center mb-4">
-                    {captchaError && (
-          <div className="p-3 mb-4 text-sm text-red-900 bg-red-100 border border-red-300 rounded-lg">
-            <b>{captchaError}</b>
-          </div>
-        )}
-        <ReCAPTCHA
-  sitekey="6LdADY8tAAAAAJeHBsf1HLV-ArmkHgRNvQgZfClP"
-  onChange={(token) => setCaptchaToken(token || '')}
-  onExpired={() => setCaptchaToken('')}
-  onErrored={() => setCaptchaError('ReCAPTCHA xatosi')}
-  theme="dark"
-/>
+              <div className="flex flex-col items-center justify-center mb-4">
+                {captchaError && (
+                  <div className="p-3 mb-3 w-full text-center text-xs text-red-400 bg-red-950/40 border border-red-500/30 rounded-lg">
+                    <b>{captchaError}</b>
                   </div>
+                )}
+                <TurnstileWidget
+                  onSuccess={(token) => {
+                    setCaptchaToken(token);
+                    setCaptchaError('');
+                  }}
+                  onExpire={() => setCaptchaToken('')}
+                  onError={() => setCaptchaError("Cloudflare Turnstile xatosi. Qaytadan urinib ko'ring")}
+                  theme="dark"
+                />
+              </div>
                   <button
                     type="submit"
                     disabled={loading || !captchaToken}
