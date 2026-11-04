@@ -3395,7 +3395,16 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   } catch (e) {}
 }
-app.use("/uploads", express.static(uploadsDir, { maxAge: "30d" }));
+app.use("/uploads", express.static(uploadsDir, { 
+  maxAge: "365d",
+  immutable: true,
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+}));
 
 // High performance in-memory media cache to minimize DB load on frequent hits
 const mediaMemoryCache = new Map<string, { mimeType: string; base64: string; buffer: Buffer }>();
@@ -5071,7 +5080,7 @@ app.get(["/api/tgstream/:channelId/:messageId", "/api/tghls/*"], (req, res) => {
 });
 
 app.get("/api/animes", async (req, res) => {
-  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=300");
   const cached = getCache<any[]>("api_all_animes", 180000);
   if (cached) {
     return res.json(cached);
@@ -5094,7 +5103,7 @@ app.get("/api/animes", async (req, res) => {
 
 // Get single anime
 app.get("/api/animes/:id", async (req, res) => {
-  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=600");
   const id = req.params.id;
   const cacheKey = `api_anime_${id}`;
   const cached = getCache<any>(cacheKey, 120000);
@@ -5112,6 +5121,18 @@ app.get("/api/animes/:id", async (req, res) => {
       .replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-")
       .replace(/^-+|-+$/g, "");
   };
+
+  // Instant check in RAM all-animes cache (<0.1ms)
+  const allAnimesCached = getCache<any[]>("api_all_animes", 180000);
+  if (Array.isArray(allAnimesCached)) {
+    const match = allAnimesCached.find((r: any) => String(r.id) === String(id) || toSlugLocal(r.title) === id);
+    if (match) {
+      dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [match.id]).catch(() => {});
+      match.korishlar = (match.korishlar || 0) + 1;
+      setCache(cacheKey, match);
+      return res.json(match);
+    }
+  }
 
   try {
     const [rows]: any = await dbQuery("SELECT * FROM animes WHERE id = ?", [id]);
@@ -5152,10 +5173,10 @@ app.get("/api/animes/:id", async (req, res) => {
 
 // Get single anime by slug
 app.get("/api/animes/by-slug/:slug", async (req, res) => {
-  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=600");
   const slug = req.params.slug;
   const cacheKey = `api_anime_slug_${slug}`;
-  const cached = getCache<any>(cacheKey, 15000);
+  const cached = getCache<any>(cacheKey, 120000);
   if (cached) {
     dbQuery("UPDATE animes SET korishlar = COALESCE(korishlar, 0) + 1 WHERE id = ?", [cached.id]).catch(() => {});
     cached.korishlar = (cached.korishlar || 0) + 1;
@@ -5171,6 +5192,18 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
       .replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-")
       .replace(/^-+|-+$/g, "");
   };
+
+  // Instant RAM check in all-animes cache (<0.1ms)
+  const allAnimesCached = getCache<any[]>("api_all_animes", 180000);
+  if (Array.isArray(allAnimesCached)) {
+    const match = allAnimesCached.find((r: any) => toSlugLocal(r.title) === slug || String(r.id) === String(slug));
+    if (match) {
+      dbQuery("UPDATE animes SET korishlar = COALESCE(korishlar, 0) + 1 WHERE id = ?", [match.id]).catch(() => {});
+      match.korishlar = (match.korishlar || 0) + 1;
+      setCache(cacheKey, match);
+      return res.json(match);
+    }
+  }
 
   try {
     const [rows]: any = await dbQuery("SELECT * FROM animes");

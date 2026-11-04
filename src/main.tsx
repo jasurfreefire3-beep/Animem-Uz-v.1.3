@@ -55,13 +55,25 @@ try {
   console.warn("Storage not accessible for theme check:", e);
 }
 
-// PWA Service Worker registration
+// Ultra-Speed PWA Service Worker registration (Immediate Activation)
 if ('serviceWorker' in navigator && typeof window !== 'undefined') {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
+  navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    .then((reg) => {
+      // Auto-update SW if new version is detected
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        }
+      });
+    })
+    .catch((err) => {
       console.log('SW registration notice:', err);
     });
-  });
 }
 
 const rootElement = document.getElementById('root');

@@ -83728,7 +83728,16 @@ if (!fs4.existsSync(uploadsDir)) {
   } catch (e) {
   }
 }
-app.use("/uploads", import_express.default.static(uploadsDir, { maxAge: "30d" }));
+app.use("/uploads", import_express.default.static(uploadsDir, {
+  maxAge: "365d",
+  immutable: true,
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+}));
 var mediaMemoryCache = /* @__PURE__ */ new Map();
 async function uploadImageBuffer(buffer, filename = "image.jpg", mimeType = "image/jpeg") {
   let cleanExt = "";
@@ -85165,7 +85174,7 @@ app.get(["/api/tgstream/:channelId/:messageId", "/api/tghls/*"], (req, res) => {
   res.redirect(302, `https://s3.animem.uz${req.url}`);
 });
 app.get("/api/animes", async (req, res) => {
-  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=300");
   const cached = getCache("api_all_animes", 18e4);
   if (cached) {
     return res.json(cached);
@@ -85186,7 +85195,7 @@ app.get("/api/animes", async (req, res) => {
   res.json(merged);
 });
 app.get("/api/animes/:id", async (req, res) => {
-  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=600");
   const id = req.params.id;
   const cacheKey = `api_anime_${id}`;
   const cached = getCache(cacheKey, 12e4);
@@ -85199,6 +85208,17 @@ app.get("/api/animes/:id", async (req, res) => {
     if (!text) return "";
     return text.toLowerCase().replace(/o['’`‘ʻʼ]/g, "o").replace(/g['’`‘ʻʼ]/g, "g").replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-").replace(/^-+|-+$/g, "");
   };
+  const allAnimesCached = getCache("api_all_animes", 18e4);
+  if (Array.isArray(allAnimesCached)) {
+    const match = allAnimesCached.find((r) => String(r.id) === String(id) || toSlugLocal2(r.title) === id);
+    if (match) {
+      dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [match.id]).catch(() => {
+      });
+      match.korishlar = (match.korishlar || 0) + 1;
+      setCache(cacheKey, match);
+      return res.json(match);
+    }
+  }
   try {
     const [rows] = await dbQuery("SELECT * FROM animes WHERE id = ?", [id]);
     if (rows && rows.length > 0) {
@@ -85236,10 +85256,10 @@ app.get("/api/animes/:id", async (req, res) => {
   res.json(merged[0]);
 });
 app.get("/api/animes/by-slug/:slug", async (req, res) => {
-  res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=600");
   const slug = req.params.slug;
   const cacheKey = `api_anime_slug_${slug}`;
-  const cached = getCache(cacheKey, 15e3);
+  const cached = getCache(cacheKey, 12e4);
   if (cached) {
     dbQuery("UPDATE animes SET korishlar = COALESCE(korishlar, 0) + 1 WHERE id = ?", [cached.id]).catch(() => {
     });
@@ -85250,6 +85270,17 @@ app.get("/api/animes/by-slug/:slug", async (req, res) => {
     if (!text) return "";
     return text.toLowerCase().replace(/o['’`‘ʻʼ]/g, "o").replace(/g['’`‘ʻʼ]/g, "g").replace(/[^a-z0-9\u0400-\u04FF]+/gi, "-").replace(/^-+|-+$/g, "");
   };
+  const allAnimesCached = getCache("api_all_animes", 18e4);
+  if (Array.isArray(allAnimesCached)) {
+    const match = allAnimesCached.find((r) => toSlugLocal2(r.title) === slug || String(r.id) === String(slug));
+    if (match) {
+      dbQuery("UPDATE animes SET korishlar = COALESCE(korishlar, 0) + 1 WHERE id = ?", [match.id]).catch(() => {
+      });
+      match.korishlar = (match.korishlar || 0) + 1;
+      setCache(cacheKey, match);
+      return res.json(match);
+    }
+  }
   try {
     const [rows] = await dbQuery("SELECT * FROM animes");
     if (Array.isArray(rows) && rows.length > 0) {

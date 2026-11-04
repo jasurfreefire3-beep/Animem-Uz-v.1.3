@@ -8,20 +8,30 @@ import HeroBanner from '../components/HeroBanner';
 import EmaCommentsBoard from '../components/EmaCommentsBoard';
 import AdsterraNativeBanner from '../components/AdsterraNativeBanner';
 import { getSocketUrl } from '../lib/api';
+import { prefetchImages } from '../utils/imageOptimizer';
 
 export default function Home() {
-  // Instant fast-load from cache if available
+  // Instant 0ms fast-load from localStorage / sessionStorage cache
   const [animes, setAnimes] = useState<Anime[]>(() => {
     try {
-      const cached = sessionStorage.getItem('cached_home_animes');
-      return cached ? JSON.parse(cached) : [];
+      const cached = localStorage.getItem('cached_home_animes') || sessionStorage.getItem('cached_home_animes');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Immediately pre-warm images in background
+          prefetchImages(parsed.slice(0, 30).map((a: any) => a.image_url));
+          prefetchImages(parsed.slice(0, 5).map((a: any) => a.banner_url || a.image_url));
+          return parsed;
+        }
+      }
+      return [];
     } catch {
       return [];
     }
   });
   const [recentComments, setRecentComments] = useState<any[]>(() => {
     try {
-      const cached = sessionStorage.getItem('cached_home_comments');
+      const cached = localStorage.getItem('cached_home_comments') || sessionStorage.getItem('cached_home_comments');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
@@ -29,7 +39,7 @@ export default function Home() {
   });
   const [loading, setLoading] = useState(() => {
     try {
-      return !sessionStorage.getItem('cached_home_animes');
+      return !(localStorage.getItem('cached_home_animes') || sessionStorage.getItem('cached_home_animes'));
     } catch {
       return true;
     }
@@ -52,7 +62,13 @@ export default function Home() {
             if (isMounted && Array.isArray(data)) {
               setAnimes(data);
               setLoading(false);
-              try { sessionStorage.setItem('cached_home_animes', JSON.stringify(data)); } catch {}
+              try { 
+                localStorage.setItem('cached_home_animes', JSON.stringify(data));
+                sessionStorage.setItem('cached_home_animes', JSON.stringify(data)); 
+              } catch {}
+              // Preload first 30 posters and hero banners for 0ms transitions
+              prefetchImages(data.slice(0, 30).map(a => a.image_url));
+              prefetchImages(data.slice(0, 5).map(a => a.banner_url || a.image_url));
             }
           })
           .catch(() => isMounted && setLoading(false));
@@ -63,7 +79,10 @@ export default function Home() {
             if (isMounted && Array.isArray(data)) {
               setRecentComments(data);
               setLoadingComments(false);
-              try { sessionStorage.setItem('cached_home_comments', JSON.stringify(data)); } catch {}
+              try { 
+                localStorage.setItem('cached_home_comments', JSON.stringify(data));
+                sessionStorage.setItem('cached_home_comments', JSON.stringify(data)); 
+              } catch {}
             }
           })
           .catch(() => isMounted && setLoadingComments(false));

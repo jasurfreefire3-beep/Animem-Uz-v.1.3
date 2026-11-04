@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Anime, toSlug } from '../types';
 import { Star, Play, Eye } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { prefetchAnimeDetails, isImagePreloaded, markImageLoaded } from '../utils/imageOptimizer';
 
 // Global cache of successfully loaded poster URLs in this session.
 // Once an image loads, we remember it so scrolling back up never unloads or re-evaluates it!
@@ -21,20 +22,28 @@ function AnimeCard({ anime, showBadge }: AnimeCardProps) {
   const targetPath = getLocalizedPath(`/anime/${slug}`);
   const targetUrl = `https://animem.uz/anime/${slug}`;
 
-  const isAlreadyLoaded = loadedImageCache.has(anime.image_url);
+  const isAlreadyLoaded = loadedImageCache.has(anime.image_url) || isImagePreloaded(anime.image_url);
   const [loaded, setLoaded] = useState(isAlreadyLoaded);
 
   const handleImageLoad = useCallback(() => {
     if (anime.image_url) {
       loadedImageCache.add(anime.image_url);
+      markImageLoaded(anime.image_url);
     }
     setLoaded(true);
   }, [anime.image_url]);
+
+  const handleWarmup = useCallback(() => {
+    prefetchAnimeDetails(slug);
+  }, [slug]);
 
   return (
     <Link
       to={targetPath}
       title={`${anime.title} - O'zbek tilida ko'rish`}
+      onMouseEnter={handleWarmup}
+      onTouchStart={handleWarmup}
+      onFocus={handleWarmup}
       className="group relative block focus:outline-none select-none transform-gpu"
       style={{
         contentVisibility: 'auto',
@@ -46,6 +55,11 @@ function AnimeCard({ anime, showBadge }: AnimeCardProps) {
         
         {/* Inner Card Canvas with tall cinematic aspect ratio */}
         <div className="relative aspect-[2/3] overflow-hidden rounded-[14px] bg-[#0c0d14]">
+          {/* Instant dark placeholder skeleton while image loads */}
+          {!loaded && !isAlreadyLoaded && (
+            <div className="absolute inset-0 bg-gradient-to-tr from-[#0a0b12] via-[#151724] to-[#0c0d16] animate-pulse pointer-events-none" />
+          )}
+
           {/* Crisp, Vivid Poster Image (Loaded once, stays in memory and sw cache forever) */}
           <img
             src={anime.image_url}
@@ -53,6 +67,7 @@ function AnimeCard({ anime, showBadge }: AnimeCardProps) {
             title={`${anime.title} - Animem.uz`}
             loading={isAlreadyLoaded || loaded ? "eager" : "lazy"}
             decoding="async"
+            fetchPriority={showBadge ? "high" : "auto"}
             onLoad={handleImageLoad}
             className={`w-full h-full object-cover brightness-105 contrast-[1.06] group-hover:scale-106 transition-transform duration-500 ease-out ${
               loaded || isAlreadyLoaded ? 'opacity-100' : 'opacity-90'

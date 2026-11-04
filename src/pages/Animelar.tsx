@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import AnimeCard from '../components/AnimeCard';
 import LoadingScreen from '../components/LoadingScreen';
 import { getSocketUrl } from '../lib/api';
+import { prefetchImages } from '../utils/imageOptimizer';
 
 // Generous responsive batch sizes so the grid is fully filled edge-to-edge
 const getBatchSize = () => {
@@ -25,15 +26,22 @@ export default function Animelar() {
 
   const [animes, setAnimes] = useState<Anime[]>(() => {
     try {
-      const cached = sessionStorage.getItem('cached_home_animes');
-      return cached ? JSON.parse(cached) : [];
+      const cached = localStorage.getItem('cached_home_animes') || sessionStorage.getItem('cached_home_animes');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          prefetchImages(parsed.slice(0, 30).map((a: any) => a.image_url));
+          return parsed;
+        }
+      }
+      return [];
     } catch {
       return [];
     }
   });
   const [loading, setLoading] = useState(() => {
     try {
-      return !sessionStorage.getItem('cached_home_animes');
+      return !(localStorage.getItem('cached_home_animes') || sessionStorage.getItem('cached_home_animes'));
     } catch {
       return true;
     }
@@ -73,8 +81,10 @@ export default function Animelar() {
           if (isMounted) {
             setAnimes(data);
             try {
+              localStorage.setItem('cached_home_animes', JSON.stringify(data));
               sessionStorage.setItem('cached_home_animes', JSON.stringify(data));
             } catch {}
+            prefetchImages(data.slice(0, 30).map(a => a.image_url));
           }
         }
         if (isMounted) setLoading(false);

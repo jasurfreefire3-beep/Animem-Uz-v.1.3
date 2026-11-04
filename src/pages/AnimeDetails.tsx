@@ -26,7 +26,20 @@ export default function AnimeDetails() {
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-  const [anime, setAnime] = useState<Anime | null>(null);
+  const [anime, setAnime] = useState<Anime | null>(() => {
+    try {
+      if (!slug) return null;
+      const cached = localStorage.getItem('cached_home_animes') || sessionStorage.getItem('cached_home_animes');
+      if (cached) {
+        const list = JSON.parse(cached);
+        if (Array.isArray(list)) {
+          const found = list.find((a: any) => toSlug(a.title) === slug || String(a.id) === String(slug));
+          if (found) return found;
+        }
+      }
+    } catch {}
+    return null;
+  });
   const [comments, setComments] = useState<Comment[]>([]);
   const [episodesList, setEpisodesList] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
