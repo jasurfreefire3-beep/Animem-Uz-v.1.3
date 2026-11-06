@@ -36,4 +36,8 @@ env:
   WASMER_DB_NAME: "animems"
   JWT_SECRET: "animem_uz_secure_jwt_token_key_9f81a7b3c2d4e6f0a5b8c9d1e2f3a4b5c6d7e8f9a0"
   RECAPTCHA_SECRET: "6LdADY8tAAAAADio9AzwRTgqDCKluKa3pspF6aE3"
+  R2_ACCOUNT_ID: "ae4b759aa4d1a48fef03cf9cf04a0f6f"
+  R2_ACCESS_KEY_ID: "da5aa855463513970ceb65968a8357f0"
+  R2_SECRET_ACCESS_KEY: "e31e808260702307835136ab9a0bbc4731747b191ff1b5a69045fdc8ebb165fe"
+  R2_BUCKET: "animem"
 enableDatabase: true
