@@ -507,7 +507,7 @@ async function initPgDb() {
       await pgPool.query(`
         UPDATE reels r
         SET user_name = COALESCE(NULLIF(u.name, ''), r.user_name),
-            user_avatar = COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), r.user_avatar, '')
+            user_avatar = COALESCE(NULLIF(u.avatar_url, ''), r.user_avatar, '')
         FROM users u
         WHERE r.user_id::text = u.id::text AND (r.user_name = 'Foydalanuvchi' OR r.user_avatar IS NULL OR r.user_avatar = '');
       `);
@@ -4593,7 +4593,7 @@ app.get("/api/reels", async (req: any, res: any) => {
     let query = `
       SELECT r.*,
              COALESCE(NULLIF(u.name, ''), r.user_name, 'Foydalanuvchi') as user_name,
-             COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), r.user_avatar, '') as user_avatar
+             COALESCE(NULLIF(u.avatar_url, ''), r.user_avatar, '') as user_avatar
       FROM reels r
       LEFT JOIN users u ON r.user_id::text = u.id::text
       WHERE r.status = 'active'
@@ -4644,7 +4644,7 @@ app.get("/api/reels/:id", async (req: any, res: any) => {
     const { rows } = await pgPool.query(`
       SELECT r.*,
              COALESCE(NULLIF(u.name, ''), r.user_name, 'Foydalanuvchi') as user_name,
-             COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), r.user_avatar, '') as user_avatar
+             COALESCE(NULLIF(u.avatar_url, ''), r.user_avatar, '') as user_avatar
       FROM reels r
       LEFT JOIN users u ON r.user_id::text = u.id::text
       WHERE r.id = $1 LIMIT 1
@@ -4690,11 +4690,10 @@ app.post("/api/reels/upload", authenticateToken, reelVideoUpload.single("video")
     let userName = req.user.name || "Foydalanuvchi";
     let userAvatar = req.user.avatar || "";
     try {
-      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar_url, avatar FROM users WHERE id = $1 LIMIT 1`, [userId]);
+      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar_url FROM users WHERE id = $1 LIMIT 1`, [userId]);
       if (uRows && uRows.length > 0) {
         if (uRows[0].name) userName = uRows[0].name;
         if (uRows[0].avatar_url) userAvatar = uRows[0].avatar_url;
-        else if (uRows[0].avatar) userAvatar = uRows[0].avatar;
       }
     } catch (_) {}
 
@@ -4845,7 +4844,7 @@ app.get("/api/reels/:id/comments", async (req: any, res: any) => {
     const { rows: comments } = await pgPool.query(`
       SELECT c.*,
              COALESCE(NULLIF(u.name, ''), c.user_name, 'Foydalanuvchi') as user_name,
-             COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), c.user_avatar, '') as user_avatar
+             COALESCE(NULLIF(u.avatar_url, ''), c.user_avatar, '') as user_avatar
       FROM reel_comments c
       LEFT JOIN users u ON c.user_id::text = u.id::text
       WHERE c.reel_id = $1
@@ -4870,11 +4869,10 @@ app.post("/api/reels/:id/comments", authenticateToken, async (req: any, res: any
     let userName = req.user.name || "Foydalanuvchi";
     let userAvatar = req.user.avatar || "";
     try {
-      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar_url, avatar FROM users WHERE id = $1 LIMIT 1`, [userId]);
+      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar_url FROM users WHERE id = $1 LIMIT 1`, [userId]);
       if (uRows && uRows.length > 0) {
         if (uRows[0].name) userName = uRows[0].name;
         if (uRows[0].avatar_url) userAvatar = uRows[0].avatar_url;
-        else if (uRows[0].avatar) userAvatar = uRows[0].avatar;
       }
     } catch (_) {}
 
@@ -4992,7 +4990,7 @@ app.get("/api/user/:userId/reels", async (req: any, res: any) => {
     const { rows: reels } = await pgPool.query(`
       SELECT r.*,
              COALESCE(NULLIF(u.name, ''), r.user_name, 'Foydalanuvchi') as user_name,
-             COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), r.user_avatar, '') as user_avatar
+             COALESCE(NULLIF(u.avatar_url, ''), r.user_avatar, '') as user_avatar
       FROM reels r
       LEFT JOIN users u ON r.user_id::text = u.id::text
       WHERE r.user_id = $1 AND r.status = 'active'
