@@ -90,3 +90,4 @@ export function prefetchAnimeDetails(slugOrId: string | number | undefined | nul
     })
     .catch(() => {});
 }
+

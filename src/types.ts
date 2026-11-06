@@ -8,6 +8,7 @@ export interface User {
   avatar_url?: string;
   avatar_frame_url?: string;
   banner_url?: string;
+  background_url?: string;
   bio?: string;
   telegram?: string;
   instagram?: string;

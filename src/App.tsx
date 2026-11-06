@@ -11,7 +11,6 @@ import CookieBanner from './components/CookieBanner';
 import { Send, X, Instagram } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Footer from './components/Footer';
-import DonatModal from './components/DonatModal';
 
 import { AdminPasscodeGate } from './components/AdminPasscodeGate';
 import { usePresenceTracker } from './hooks/usePresenceTracker';
@@ -35,7 +34,6 @@ const Tarix = lazy(() => import('./pages/Tarix'));
 const Sozlamalar = lazy(() => import('./pages/Sozlamalar'));
 const Profil = lazy(() => import('./pages/Profil'));
 const Shop = lazy(() => import('./pages/Shop'));
-const Donat = lazy(() => import('./pages/Donat'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const SupportBot = lazy(() => import('./pages/SupportBot'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -290,8 +288,8 @@ export default function App() {
               <Route path="/user/:id" element={<Profil />} />
               <Route path="/:lang/user/:id" element={<Profil />} />
 
-              <Route path="/donat" element={<Donat />} />
-              <Route path="/:lang/donat" element={<Donat />} />
+              <Route path="/donat" element={<Navigate to="/" replace />} />
+              <Route path="/:lang/donat" element={<Navigate to="/" replace />} />
               
               {/* Legal & Moderation Compliance Routes */}
               <Route path="/maxfiylik-siyosati" element={<PrivacyPolicy />} />
@@ -330,7 +328,6 @@ export default function App() {
       <MusicPlayerBar />
       <MusicExpandedPlayer />
       <ChatWidget />
-      <DonatModal />
       <InstallAppButton />
       <NotificationPromptModal />
       <CookieBanner />

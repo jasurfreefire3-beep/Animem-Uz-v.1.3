@@ -217,7 +217,8 @@ const ALLOWED_ADMIN_EMAILS = new Set([
   "admin@animem.uz"
 ]);
 const ALLOWED_ADMIN_IDS = new Set([1, 7, 15, 20]);
-const MASTER_ADMIN_PASSCODE = "1213234";
+const MASTER_ADMIN_USERNAME = process.env.ADMIN_USERNAME || "adminadmin1213234a11";
+const MASTER_ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "1213234";
 
 // MySQL Database Pool Connection
 
@@ -853,12 +854,14 @@ const requireAdmin = async (req: any, res: any, next: any) => {
   }
 };
 
-// Verify Admin Passcode and generate valid Admin JWT Token
+// Verify Admin Login + Passcode and generate valid Admin JWT Token
 app.post("/api/admin/verify-passcode", async (req: any, res: any) => {
   try {
-    const { passcode } = req.body;
-    if (passcode !== MASTER_ADMIN_PASSCODE) {
-      return res.status(401).json({ error: "Noto'g'ri maxfiy parol!" });
+    const { username, passcode } = req.body;
+    const cleanUser = String(username || "").trim();
+    const cleanPass = String(passcode || "").trim();
+    if (cleanUser !== MASTER_ADMIN_USERNAME || cleanPass !== MASTER_ADMIN_PASSCODE) {
+      return res.status(401).json({ error: "Noto'g'ri login yoki maxfiy parol!" });
     }
     const adminUser = {
       id: 1,
@@ -943,6 +946,36 @@ async function initShopTables() {
       )
     `);
 
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS banner_url TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS background_url TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tiktok TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS youtube TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS discord TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS facebook TEXT DEFAULT NULL`);
+    } catch (e) {}
+    try {
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS vk TEXT DEFAULT NULL`);
+    } catch (e) {}
     try {
       await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_frame_url TEXT DEFAULT NULL`);
     } catch (e) {}
@@ -3460,46 +3493,47 @@ async function uploadImageBuffer(
     console.warn("[media_files] DB save notice:", dbErr?.message || dbErr);
   }
 
-  // 4. Also optionally sync to Catbox in background (non-blocking)
-  (async () => {
-    try {
-      const userHash = process.env.CATBOX_USERHASH ? process.env.CATBOX_USERHASH.trim() : "";
-      const formData = new FormData();
-      formData.append("reqtype", "fileupload");
-      if (userHash) formData.append("userhash", userHash);
-      formData.append("fileToUpload", new Blob([buffer], { type: mimeType }), filename);
+  // 4. Upload to Catbox (100% global CDN compatible with Vercel and Wasmer)
+  try {
+    const userHash = process.env.CATBOX_USERHASH ? process.env.CATBOX_USERHASH.trim() : "";
+    const formData = new FormData();
+    formData.append("reqtype", "fileupload");
+    if (userHash) formData.append("userhash", userHash);
+    formData.append("fileToUpload", new Blob([buffer], { type: mimeType }), filename);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const res = await fetch("https://catbox.moe/user/api.php", {
-        method: "POST",
-        body: formData,
-        signal: controller.signal,
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0" }
-      });
-      clearTimeout(timeoutId);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const catRes = await fetch("https://catbox.moe/user/api.php", {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0" }
+    });
+    clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const text = (await res.text()).trim();
-        if (text.startsWith("http://") || text.startsWith("https://")) {
-          const fname = text.split("/").pop();
-          if (fname) {
-            mediaMemoryCache.set(fname, { mimeType, base64: base64String, buffer });
-            try {
-              fs.writeFileSync(path.join(uploadsDir, fname), buffer);
-              await dbQuery(
-                `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)
-                 ON CONFLICT (id) DO NOTHING`,
-                [fname, filename, mimeType, base64String, buffer.length]
-              );
-            } catch (e) {}
-          }
+    if (catRes.ok) {
+      const text = (await catRes.text()).trim();
+      if (text.startsWith("http://") || text.startsWith("https://")) {
+        const catboxUrl = text.startsWith("http://") ? text.replace("http://", "https://") : text;
+        const fname = text.split("/").pop();
+        if (fname) {
+          mediaMemoryCache.set(fname, { mimeType, base64: base64String, buffer });
+          try {
+            fs.writeFileSync(path.join(uploadsDir, fname), buffer);
+            await dbQuery(
+              `INSERT INTO media_files (id, filename, mime_type, data, size) VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (id) DO NOTHING`,
+              [fname, filename, mimeType, base64String, buffer.length]
+            );
+          } catch (e) {}
         }
+        return catboxUrl;
       }
-    } catch (e) {}
-  })();
+    }
+  } catch (e) {}
 
-  return `https://image.animem.uz/api/media/${mediaId}`;
+  // Fallback: Return direct /api/media/ path which Vercel proxies directly to Wasmer!
+  return `/api/media/${mediaId}`;
 }
 
 app.post("/api/media/upload", optionalAuth, memoryUpload.single("file"), async (req: any, res: any) => {
@@ -4663,7 +4697,7 @@ app.post("/api/user/avatar", authenticateToken, memoryUpload.single("file"), asy
     await dbQuery("UPDATE users SET avatar_url = ? WHERE id = ?", [avatar_url, userId]);
 
     // Get updated user details
-    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
+    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, background_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
     const updatedUser = rows?.[0] || { id: userId, avatar_url };
 
     res.json({ message: "Profil rasmi muvaffaqiyatli yangilandi", avatar_url, user: updatedUser });
@@ -4673,7 +4707,7 @@ app.post("/api/user/avatar", authenticateToken, memoryUpload.single("file"), asy
   }
 });
 
-// Update user profile background / banner - stored with https://image.animem.uz domain
+// Update user profile banner (avatarka orqasidagi banner)
 app.post("/api/user/banner", authenticateToken, memoryUpload.single("file"), async (req: any, res) => {
   try {
     const userId = req.user.id;
@@ -4699,27 +4733,69 @@ app.post("/api/user/banner", authenticateToken, memoryUpload.single("file"), asy
     }
 
     if (!banner_url) {
-      return res.status(400).json({ error: "Fon rasmi topilmadi" });
+      return res.status(400).json({ error: "Banner rasmi topilmadi" });
     }
 
     await dbQuery("UPDATE users SET banner_url = ? WHERE id = ?", [banner_url, userId]);
 
     // Get updated user details
-    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
+    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, background_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
     const updatedUser = rows?.[0] || { id: userId, banner_url };
 
-    res.json({ message: "Profil orqa foni muvaffaqiyatli yangilandi", banner_url, user: updatedUser });
+    res.json({ message: "Banner muvaffaqiyatli yangilandi", banner_url, user: updatedUser });
   } catch (err: any) {
     console.error("Upload banner error:", err);
-    res.status(500).json({ error: "Profil fon rasmini yuklashda xatolik yuz berdi: " + (err?.message || err) });
+    res.status(500).json({ error: "Banner rasmini yuklashda xatolik: " + (err?.message || err) });
   }
 });
 
-// Update user profile details (name, bio, banner, social links)
+// Update user profile full page background (profil butun sahifa foni)
+app.post("/api/user/background", authenticateToken, memoryUpload.single("file"), async (req: any, res) => {
+  try {
+    const userId = req.user.id;
+    let background_url = req.body?.background_url;
+
+    if (req.file) {
+      background_url = await uploadImageBuffer(
+        req.file.buffer,
+        req.file.originalname || "background.jpg",
+        req.file.mimetype || "image/jpeg"
+      );
+    } else if (background_url) {
+      if (typeof background_url === "string" && (background_url.startsWith("data:image/") || background_url.startsWith("data:video/"))) {
+        const match = background_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (match) {
+          const mime = match[1];
+          const buf = Buffer.from(match[2], "base64");
+          background_url = await uploadImageBuffer(buf, "background.jpg", mime);
+        }
+      } else {
+        background_url = normalizeImageUrl(background_url);
+      }
+    }
+
+    if (!background_url) {
+      return res.status(400).json({ error: "Fon rasmi topilmadi" });
+    }
+
+    await dbQuery("UPDATE users SET background_url = ? WHERE id = ?", [background_url, userId]);
+
+    // Get updated user details
+    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, background_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
+    const updatedUser = rows?.[0] || { id: userId, background_url };
+
+    res.json({ message: "Profil orqa foni muvaffaqiyatli yangilandi", background_url, user: updatedUser });
+  } catch (err: any) {
+    console.error("Upload background error:", err);
+    res.status(500).json({ error: "Profil fon rasmini yuklashda xatolik: " + (err?.message || err) });
+  }
+});
+
+// Update user profile details (name, bio, banner, background, social links)
 app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
   try {
     const userId = req.user.id;
-    let { name, bio, banner_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = req.body;
+    let { name, bio, banner_url, background_url, avatar_url, telegram, instagram, tiktok, youtube, discord, facebook, vk, favorites } = req.body;
 
     let cleanName = (name && typeof name === "string") ? name.trim() : "";
     if (!cleanName) {
@@ -4753,6 +4829,19 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
       }
     }
 
+    if (background_url) {
+      if (typeof background_url === "string" && (background_url.startsWith("data:image/") || background_url.startsWith("data:video/"))) {
+        const match = background_url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (match) {
+          const mime = match[1];
+          const buf = Buffer.from(match[2], "base64");
+          background_url = await uploadImageBuffer(buf, "background.jpg", mime);
+        }
+      } else {
+        background_url = normalizeImageUrl(background_url);
+      }
+    }
+
     let favsJson: string | null = null;
     if (favorites) {
       favsJson = typeof favorites === 'string' ? favorites : JSON.stringify(favorites);
@@ -4764,6 +4853,7 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
           name = ?, 
           bio = ?, 
           banner_url = ?, 
+          background_url = ?,
           avatar_url = COALESCE(?, avatar_url),
           telegram = ?, 
           instagram = ?, 
@@ -4777,7 +4867,8 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
         [
           cleanName,
           bio || null,
-          banner_url || null,
+          banner_url !== undefined ? banner_url : null,
+          background_url !== undefined ? background_url : null,
           avatar_url || null,
           telegram || null,
           instagram || null,
@@ -4801,6 +4892,7 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
       storeUser.name = cleanName;
       if (bio !== undefined) storeUser.bio = bio;
       if (banner_url !== undefined) storeUser.banner_url = banner_url;
+      if (background_url !== undefined) storeUser.background_url = background_url;
       if (avatar_url !== undefined) storeUser.avatar_url = avatar_url;
       if (telegram !== undefined) storeUser.telegram = telegram;
       if (instagram !== undefined) storeUser.instagram = instagram;
@@ -4813,7 +4905,7 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
       saveLocalStore(store);
     }
 
-    const [rows]: any = await dbQuery("SELECT * FROM users WHERE id = ?", [userId]);
+    const [rows]: any = await dbQuery("SELECT id, name, email, role, avatar_url, avatar_frame_url, banner_url, background_url, bio, telegram, instagram, tiktok, youtube, discord, facebook, vk FROM users WHERE id = ?", [userId]);
     const updatedUser = rows && rows[0] ? rows[0] : (storeUser || { id: userId, name: cleanName });
 
     const tokenPayload = {

@@ -65,7 +65,7 @@ export default function AdminMusic() {
 
   const getAdminHeaders = () => {
     const currentToken = token || localStorage.getItem('token') || '';
-    const adminPasscode = sessionStorage.getItem('animem_admin_passcode') || '1213234';
+    const adminPasscode = sessionStorage.getItem('animem_admin_passcode') || '';
     return {
       ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
       'x-admin-passcode': adminPasscode

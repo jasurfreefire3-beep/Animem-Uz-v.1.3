@@ -64,8 +64,12 @@ export default function UserAvatar({
     if (cleanSrc.startsWith('uploads/')) {
       cleanSrc = '/' + cleanSrc;
     }
-    if (cleanSrc.startsWith('https://files.catbox.moe/')) {
-      cleanSrc = cleanSrc.replace('https://files.catbox.moe/', 'https://image.animem.uz/');
+    // If image.animem.uz is used, fallback to relative /api/media/ or Wasmer backend so Vercel can proxy it
+    if (cleanSrc.includes('image.animem.uz/api/media/')) {
+      cleanSrc = cleanSrc.replace('https://image.animem.uz/api/media/', '/api/media/');
+    } else if (cleanSrc.startsWith('https://image.animem.uz/')) {
+      const filename = cleanSrc.replace('https://image.animem.uz/', '');
+      cleanSrc = `https://files.catbox.moe/${filename}`;
     }
   }
 
@@ -76,8 +80,11 @@ export default function UserAvatar({
     if (cleanFrame.startsWith('uploads/')) {
       cleanFrame = '/' + cleanFrame;
     }
-    if (cleanFrame.startsWith('https://files.catbox.moe/')) {
-      cleanFrame = cleanFrame.replace('https://files.catbox.moe/', 'https://image.animem.uz/');
+    if (cleanFrame.includes('image.animem.uz/api/media/')) {
+      cleanFrame = cleanFrame.replace('https://image.animem.uz/api/media/', '/api/media/');
+    } else if (cleanFrame.startsWith('https://image.animem.uz/')) {
+      const filename = cleanFrame.replace('https://image.animem.uz/', '');
+      cleanFrame = `https://files.catbox.moe/${filename}`;
     }
   }
 

@@ -69,6 +69,7 @@ export default function Profil() {
   const [editName, setEditName] = useState('');
   const [editBio, setEditBio] = useState('');
   const [editBannerUrl, setEditBannerUrl] = useState('');
+  const [editBackgroundUrl, setEditBackgroundUrl] = useState('');
   const [editAvatarUrl, setEditAvatarUrl] = useState('');
   const [editTelegram, setEditTelegram] = useState('');
   const [editInstagram, setEditInstagram] = useState('');
@@ -81,6 +82,7 @@ export default function Profil() {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
 
 
   // Format watch time accurately into hours and minutes in Uzbek
@@ -214,6 +216,7 @@ export default function Profil() {
         setEditName(data.user.name || '');
         setEditBio(data.user.bio || '');
         setEditBannerUrl(data.user.banner_url || '');
+        setEditBackgroundUrl(data.user.background_url || '');
         setEditAvatarUrl(data.user.avatar_url || '');
         setEditTelegram(data.user.telegram || '');
         setEditInstagram(data.user.instagram || '');
@@ -313,16 +316,16 @@ export default function Profil() {
 
     setUploadingAvatar(true);
     try {
-      const resizedBase64 = await resizeImage(file, 400, 400);
+      const formData = new FormData();
+      formData.append('file', file);
 
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
       const res = await fetch(`${API_BASE}/api/user/avatar`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${effectiveToken}`
         },
-        body: JSON.stringify({ avatar_url: resizedBase64 })
+        body: formData
       });
 
       const contentType = res.headers.get("content-type") || "";
@@ -331,9 +334,6 @@ export default function Profil() {
         data = await res.json().catch(() => ({}));
       } else {
         const rawText = await res.text().catch(() => "");
-        if (res.status === 401 || res.status === 403 || rawText.includes("Forbidden")) {
-          throw new Error("Sessiyangiz muddati tugagan. Iltimos, tizimga qayta kiring.");
-        }
         throw new Error(rawText || `Server xatosi (${res.status})`);
       }
 
@@ -341,11 +341,13 @@ export default function Profil() {
         throw new Error(data.error || "Avatarni yuklashda xatolik yuz berdi");
       }
 
-      const finalAvatar = data.avatar_url || data.user?.avatar_url || resizedBase64;
+      const finalAvatar = data.avatar_url || data.user?.avatar_url;
       setProfileUser(prev => prev ? { ...prev, avatar_url: finalAvatar } : null);
       setEditAvatarUrl(finalAvatar);
       if (currentUser) {
-        login(effectiveToken, { ...currentUser, avatar_url: finalAvatar });
+        const updated = { ...currentUser, avatar_url: finalAvatar };
+        login(effectiveToken, updated);
+        try { localStorage.setItem('user', JSON.stringify(updated)); } catch (e) {}
       }
     } catch (err: any) {
       console.error("Avatar upload error:", err);
@@ -368,16 +370,16 @@ export default function Profil() {
 
     setUploadingBanner(true);
     try {
-      const resizedBase64 = await resizeImage(file, 1920, 1080);
+      const formData = new FormData();
+      formData.append('file', file);
 
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
       const res = await fetch(`${API_BASE}/api/user/banner`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${effectiveToken}`
         },
-        body: JSON.stringify({ banner_url: resizedBase64 })
+        body: formData
       });
 
       const contentType = res.headers.get("content-type") || "";
@@ -386,25 +388,24 @@ export default function Profil() {
         data = await res.json().catch(() => ({}));
       } else {
         const rawText = await res.text().catch(() => "");
-        if (res.status === 401 || res.status === 403 || rawText.includes("Forbidden")) {
-          throw new Error("Sessiyangiz muddati tugagan. Iltimos, tizimga qayta kiring.");
-        }
         throw new Error(rawText || `Server xatosi (${res.status})`);
       }
 
       if (!res.ok) {
-        throw new Error(data.error || "Fon rasmini yuklashda xatolik yuz berdi");
+        throw new Error(data.error || "Baner rasmini yuklashda xatolik yuz berdi");
       }
 
-      const savedBanner = data.banner_url || data?.user?.banner_url || resizedBase64;
+      const savedBanner = data.banner_url || data?.user?.banner_url;
       setProfileUser(prev => prev ? { ...prev, banner_url: savedBanner } : null);
       setEditBannerUrl(savedBanner);
       if (currentUser) {
-        login(effectiveToken, { ...currentUser, banner_url: savedBanner });
+        const updated = { ...currentUser, banner_url: savedBanner };
+        login(effectiveToken, updated);
+        try { localStorage.setItem('user', JSON.stringify(updated)); } catch (e) {}
       }
     } catch (err: any) {
       console.error("Banner upload error:", err);
-      alert(err.message || "Fon rasmini yuklashda xatolik yuz berdi");
+      alert(err.message || "Baner rasmini yuklashda xatolik yuz berdi");
     } finally {
       setUploadingBanner(false);
     }
@@ -413,7 +414,7 @@ export default function Profil() {
   const handleRemoveBanner = async () => {
     const effectiveToken = token || localStorage.getItem('token') || (currentUser as any)?.token;
     if (!effectiveToken || !isOwner) return;
-    if (!window.confirm("Haqiqatan ham profil orqa fon rasmini o'chirmoqchimisiz?")) return;
+    if (!window.confirm("Haqiqatan ham baner rasmini olib tashlamoqchimisiz?")) return;
 
     setUploadingBanner(true);
     try {
@@ -425,31 +426,118 @@ export default function Profil() {
           'Authorization': `Bearer ${effectiveToken}`
         },
         body: JSON.stringify({
-          name: profileUser?.name,
           banner_url: ''
         })
+      });
+
+      if (!res.ok) {
+        throw new Error("Banerni o'chirishda xatolik");
+      }
+
+      setProfileUser(prev => prev ? { ...prev, banner_url: undefined } : null);
+      setEditBannerUrl('');
+      if (currentUser) {
+        const updated = { ...currentUser, banner_url: undefined };
+        login(effectiveToken, updated);
+        try { localStorage.setItem('user', JSON.stringify(updated)); } catch (e) {}
+      }
+    } catch (err: any) {
+      console.error("Remove banner error:", err);
+      alert(err.message || "Banerni o'chirishda xatolik yuz berdi");
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
+  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+
+    const effectiveToken = token || localStorage.getItem('token') || (currentUser as any)?.token;
+    if (!file) return;
+    if (!effectiveToken) {
+      alert("Iltimos, avval hisobingizga kiring!");
+      return;
+    }
+
+    setUploadingBackground(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_BASE}/api/user/background`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${effectiveToken}`
+        },
+        body: formData
       });
 
       const contentType = res.headers.get("content-type") || "";
       let data: any = {};
       if (contentType.includes("application/json")) {
         data = await res.json().catch(() => ({}));
+      } else {
+        const rawText = await res.text().catch(() => "");
+        throw new Error(rawText || `Server xatosi (${res.status})`);
       }
 
       if (!res.ok) {
-        throw new Error(data.error || "Fon rasmini o'chirishda xatolik");
+        throw new Error(data.error || "Fon rasmini yuklashda xatolik yuz berdi");
       }
 
-      setProfileUser(prev => prev ? { ...prev, banner_url: undefined } : null);
-      setEditBannerUrl('');
+      const savedBg = data.background_url || data?.user?.background_url;
+      setProfileUser(prev => prev ? { ...prev, background_url: savedBg } : null);
+      setEditBackgroundUrl(savedBg);
       if (currentUser) {
-        login(effectiveToken, { ...currentUser, banner_url: undefined });
+        const updated = { ...currentUser, background_url: savedBg };
+        login(effectiveToken, updated);
+        try { localStorage.setItem('user', JSON.stringify(updated)); } catch (e) {}
       }
     } catch (err: any) {
-      console.error("Remove banner error:", err);
+      console.error("Background upload error:", err);
+      alert(err.message || "Fon rasmini yuklashda xatolik yuz berdi");
+    } finally {
+      setUploadingBackground(false);
+    }
+  };
+
+  const handleRemoveBackground = async () => {
+    const effectiveToken = token || localStorage.getItem('token') || (currentUser as any)?.token;
+    if (!effectiveToken || !isOwner) return;
+    if (!window.confirm("Haqiqatan ham profil orqa fon rasmini olib tashlamoqchimisiz?")) return;
+
+    setUploadingBackground(true);
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_BASE}/api/user/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${effectiveToken}`
+        },
+        body: JSON.stringify({
+          background_url: ''
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error("Fon rasmini o'chirishda xatolik");
+      }
+
+      setProfileUser(prev => prev ? { ...prev, background_url: undefined } : null);
+      setEditBackgroundUrl('');
+      if (currentUser) {
+        const updated = { ...currentUser, background_url: undefined };
+        login(effectiveToken, updated);
+        try { localStorage.setItem('user', JSON.stringify(updated)); } catch (e) {}
+      }
+    } catch (err: any) {
+      console.error("Remove background error:", err);
       alert(err.message || "Fon rasmini o'chirishda xatolik yuz berdi");
     } finally {
-      setUploadingBanner(false);
+      setUploadingBackground(false);
     }
   };
 
@@ -463,16 +551,17 @@ export default function Profil() {
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
       const payload = {
         name: editName.trim(),
-        bio: editBio,
+        bio: editBio.trim(),
         banner_url: editBannerUrl,
+        background_url: editBackgroundUrl,
         avatar_url: editAvatarUrl,
-        telegram: editTelegram,
-        instagram: editInstagram,
-        tiktok: editTiktok,
-        youtube: editYoutube,
-        discord: editDiscord,
-        facebook: editFacebook,
-        vk: editVk
+        telegram: editTelegram.trim(),
+        instagram: editInstagram.trim(),
+        tiktok: editTiktok.trim(),
+        youtube: editYoutube.trim(),
+        discord: editDiscord.trim(),
+        facebook: editFacebook.trim(),
+        vk: editVk.trim()
       };
 
       const res = await fetch(`${API_BASE}/api/user/profile`, {
@@ -489,19 +578,23 @@ export default function Profil() {
         throw new Error(data.error || "Profilni saqlashda xatolik");
       }
 
-      setProfileUser(prev => prev ? {
-        ...prev,
-        ...payload
-      } : null);
+      const mergedUser = {
+        ...(currentUser || {}),
+        ...(profileUser || {}),
+        ...payload,
+        ...(data.user || {})
+      };
 
-      if (currentUser && data.user) {
-        login(data.token || token, { ...currentUser, name: editName.trim(), avatar_url: editAvatarUrl || currentUser.avatar_url });
+      setProfileUser(mergedUser);
+      if (currentUser) {
+        login(effectiveToken, mergedUser);
+        try { localStorage.setItem('user', JSON.stringify(mergedUser)); } catch (e) {}
       }
 
       setIsEditing(false);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Saqlashda xatolik");
+      alert(err.message || "Saqlashda xatolik yuz berdi");
     } finally {
       setSaving(false);
     }
@@ -633,16 +726,16 @@ export default function Profil() {
     }).catch(() => {});
   };
 
-  const hasCustomBg = Boolean(profileUser?.banner_url && profileUser.banner_url.trim() !== '');
+  const hasCustomBg = Boolean(profileUser?.background_url && profileUser.background_url.trim() !== '');
 
   return (
     <div className="relative min-h-[85vh]">
       {/* FULL PROFILE PAGE BACKGROUND - No blur, no darkening, 100% natural crisp quality */}
       {hasCustomBg && (
         <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden select-none">
-          {isVideoMedia(profileUser.banner_url!) ? (
+          {isVideoMedia(profileUser.background_url!) ? (
             <video
-              src={profileUser.banner_url!}
+              src={profileUser.background_url!}
               autoPlay
               loop
               muted
@@ -651,7 +744,7 @@ export default function Profil() {
             />
           ) : (
             <img
-              src={profileUser.banner_url!}
+              src={profileUser.background_url!}
               alt="Profile Background"
               className="w-full h-full object-cover object-center"
             />
@@ -696,12 +789,12 @@ export default function Profil() {
                 : 'bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent'
             }`} />
 
-            {/* Banner / Background Controls (For Owner) */}
+            {/* Banner Controls (For Owner) in top right */}
             {isOwner && (
               <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
-                <label className="bg-[#ff006a] hover:bg-[#d40058] text-white text-xs font-black px-3.5 py-2 rounded-xl border border-white/20 cursor-pointer shadow-[0_0_20px_rgba(255,0,106,0.5)] transition-all flex items-center gap-1.5 active:scale-95">
-                  <Camera size={15} />
-                  <span>{uploadingBanner ? "Yuklanmoqda..." : "Fon rasmi yuklash"}</span>
+                <label className="bg-black/75 hover:bg-[#ff006a] text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-white/20 cursor-pointer backdrop-blur-md shadow-lg transition-all flex items-center gap-1.5 active:scale-95">
+                  <Camera size={14} />
+                  <span>{uploadingBanner ? "Yuklanmoqda..." : "Banerni o'zgartirish"}</span>
                   <input 
                     type="file" 
                     accept="image/*,video/webm,video/mp4,.gif,.webm" 
@@ -713,10 +806,10 @@ export default function Profil() {
                 {profileUser.banner_url && (
                   <button
                     onClick={handleRemoveBanner}
-                    title="Fon rasmini o'chirish"
-                    className="bg-black/80 hover:bg-red-600/90 text-white px-3 py-2 rounded-xl border border-white/20 cursor-pointer backdrop-blur-md transition-all shadow-lg flex items-center gap-1 text-xs font-bold"
+                    title="Baner rasmini o'chirish"
+                    className="bg-black/75 hover:bg-rose-600/90 text-white px-2.5 py-1.5 rounded-xl border border-white/20 cursor-pointer backdrop-blur-md transition-all shadow-lg flex items-center gap-1 text-xs font-bold"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={13} />
                     <span className="hidden sm:inline">O'chirish</span>
                   </button>
                 )}
@@ -862,22 +955,22 @@ export default function Profil() {
 
           {/* Edit Action Buttons */}
           {isOwner && (
-            <div className="shrink-0 flex flex-wrap items-center gap-2.5">
-              <label className="bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:from-[#e0005d] hover:to-[#6820b0] border border-white/20 text-white font-black text-xs px-4 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(255,0,106,0.35)] flex items-center gap-2 uppercase tracking-wider cursor-pointer active:scale-95">
-                <Camera size={16} />
-                <span>{uploadingBanner ? "Yuklanmoqda..." : "Fon rasmi yuklash"}</span>
+            <div className="shrink-0 flex flex-wrap items-center gap-2">
+              <label className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all backdrop-blur-md flex items-center gap-1.5 cursor-pointer active:scale-95">
+                <Sparkles size={14} className="text-cyan-400" />
+                <span>{uploadingBackground ? "Yuklanmoqda..." : "Fon rasmi (Oboy)"}</span>
                 <input 
                   type="file" 
                   accept="image/*,video/webm,video/mp4,.gif,.webm" 
                   className="hidden" 
-                  onChange={handleBannerUpload}
-                  disabled={uploadingBanner}
+                  onChange={handleBackgroundUpload}
+                  disabled={uploadingBackground}
                 />
               </label>
 
               <button
                 onClick={() => setIsEditing(!isEditing)}
-                className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all backdrop-blur-md flex items-center gap-2 uppercase tracking-wider cursor-pointer active:scale-95"
+                className="bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:from-[#e0005d] hover:to-[#6820b0] border border-white/20 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-[0_0_20px_rgba(255,0,106,0.35)] flex items-center gap-2 uppercase tracking-wider cursor-pointer active:scale-95"
               >
                 <Edit3 size={15} /> Tahrirlash
               </button>
@@ -894,226 +987,343 @@ export default function Profil() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className={`rounded-2xl p-6 shadow-2xl space-y-5 transition-all ${
+            className={`rounded-2xl p-5 sm:p-6 shadow-2xl space-y-6 transition-all ${
               hasCustomBg 
-                ? 'bg-[#0a0a14]/90 backdrop-blur-2xl border border-[#ff006a]/40 shadow-[0_12px_40px_rgba(0,0,0,0.6)]' 
+                ? 'bg-[#0a0a14]/95 backdrop-blur-2xl border border-[#ff006a]/40 shadow-[0_12px_40px_rgba(0,0,0,0.6)]' 
                 : 'bg-[#111] border border-[#ff006a]/30'
             }`}
           >
             <div className={`flex items-center justify-between border-b pb-3 ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
-              <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Sparkles size={18} className="text-[#ff006a]" /> Profil Ma'lumotlarini Tahrirlash
-              </h3>
-              <button onClick={() => setIsEditing(false)} className="text-white/50 hover:text-white p-1">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#ff006a]/20 border border-[#ff006a]/40 flex items-center justify-center text-[#ff006a]">
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
+                    Profilni Tahrirlash
+                  </h3>
+                  <p className="text-[11px] text-white/50">Suratlarni qurilmangizdan to'g'ridan-to'g'ri yuklashingiz mumkin</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsEditing(false)} 
+                className="p-1.5 text-white/50 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+              >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} className="space-y-4">
+            <form onSubmit={handleSaveProfile} className="space-y-6">
               
-              {/* Name & Bio */}
+              {/* 1. MEDIA SURATLAR (AVATAR, BANER, ORQA FON) - Clean Visual Cards, NO URL inputs! */}
+              <div className="space-y-3">
+                <span className="text-[11px] font-black uppercase tracking-wider text-[#ff006a] block">
+                  Rasmlar va Bezaklar
+                </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  
+                  {/* Card 1: Avatarka */}
+                  <div className={`p-3.5 rounded-2xl border flex flex-col justify-between ${
+                    hasCustomBg ? 'bg-white/[0.04] border-white/10' : 'bg-[#16161c] border-[#27272e]'
+                  }`}>
+                    <div>
+                      <span className="text-xs font-black uppercase text-white tracking-wide block mb-2">
+                        1. Avatarka
+                      </span>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-14 h-14 rounded-2xl border-2 border-[#ff006a]/40 bg-black/60 overflow-hidden flex items-center justify-center shrink-0">
+                          {editAvatarUrl ? (
+                            isVideoMedia(editAvatarUrl) ? (
+                              <video src={editAvatarUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                            ) : (
+                              <img src={editAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                            )
+                          ) : (
+                            <span className="text-xl font-black text-[#ff006a]">{(editName || 'U').charAt(0)}</span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-white/70 font-medium">Profil bosh surati</p>
+                          <p className="text-[10px] text-white/40">JPG, PNG, GIF</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <label className="w-full bg-[#ff006a] hover:bg-[#d40058] text-white text-xs font-black py-2.5 px-3 rounded-xl cursor-pointer text-center flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md">
+                      {uploadingAvatar ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>Yuklanmoqda...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={13} />
+                          <span>Qurilmadan yuklash</span>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        accept="image/*,video/webm,video/mp4,.gif,.webm" 
+                        className="hidden" 
+                        onChange={handleAvatarUpload}
+                        disabled={uploadingAvatar}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Card 2: Baner (Avatarka orqasidagi rasm) */}
+                  <div className={`p-3.5 rounded-2xl border flex flex-col justify-between ${
+                    hasCustomBg ? 'bg-white/[0.04] border-white/10' : 'bg-[#16161c] border-[#27272e]'
+                  }`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black uppercase text-white tracking-wide">
+                          2. Baner surati
+                        </span>
+                        {editBannerUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setEditBannerUrl('')}
+                            className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 font-bold"
+                          >
+                            <Trash2 size={11} /> O'chirish
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative w-full h-14 rounded-xl overflow-hidden border border-white/10 mb-3 bg-black/60">
+                        {editBannerUrl ? (
+                          isVideoMedia(editBannerUrl) ? (
+                            <video src={editBannerUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={editBannerUrl} alt="Banner" className="w-full h-full object-cover" />
+                          )
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[10px] text-white/30 italic">
+                            Standart baner
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <label className="w-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-black py-2.5 px-3 rounded-xl cursor-pointer text-center flex items-center justify-center gap-2 transition-all active:scale-95">
+                      {uploadingBanner ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin text-[#ff006a]" />
+                          <span>Yuklanmoqda...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Camera size={13} className="text-[#ff006a]" />
+                          <span>Qurilmadan yuklash</span>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        accept="image/*,video/webm,video/mp4,.gif,.webm" 
+                        className="hidden" 
+                        onChange={handleBannerUpload}
+                        disabled={uploadingBanner}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Card 3: Orqa Fon Rasmi (Butun profil foni) */}
+                  <div className={`p-3.5 rounded-2xl border flex flex-col justify-between ${
+                    hasCustomBg ? 'bg-white/[0.04] border-white/10' : 'bg-[#16161c] border-[#27272e]'
+                  }`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black uppercase text-white tracking-wide">
+                          3. Orqa fon (Oboy)
+                        </span>
+                        {editBackgroundUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setEditBackgroundUrl('')}
+                            className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 font-bold"
+                          >
+                            <Trash2 size={11} /> O'chirish
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative w-full h-14 rounded-xl overflow-hidden border border-white/10 mb-3 bg-black/60">
+                        {editBackgroundUrl ? (
+                          isVideoMedia(editBackgroundUrl) ? (
+                            <video src={editBackgroundUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={editBackgroundUrl} alt="Background" className="w-full h-full object-cover" />
+                          )
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[10px] text-white/30 italic">
+                            Standart qora fon
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <label className="w-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-black py-2.5 px-3 rounded-xl cursor-pointer text-center flex items-center justify-center gap-2 transition-all active:scale-95">
+                      {uploadingBackground ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin text-cyan-400" />
+                          <span>Yuklanmoqda...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={13} className="text-cyan-400" />
+                          <span>Qurilmadan yuklash</span>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        accept="image/*,video/webm,video/mp4,.gif,.webm" 
+                        className="hidden" 
+                        onChange={handleBackgroundUpload}
+                        disabled={uploadingBackground}
+                      />
+                    </label>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* 2. ISMI VA BIO */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-white/70 uppercase mb-1">Ism va Familiya</label>
+                  <label className="block text-xs font-bold text-white/80 uppercase mb-1.5">Ism va Familiya</label>
                   <input
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     required
-                    className={`w-full rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
-                      hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                    className={`w-full rounded-xl px-4 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
+                      hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                     }`}
                     placeholder="Ismingizni kiriting"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-white/70 uppercase mb-1">Bio (O'zingiz haqingizda status)</label>
+                  <label className="block text-xs font-bold text-white/80 uppercase mb-1.5">Bio (Status)</label>
                   <input
                     type="text"
                     value={editBio}
                     onChange={(e) => setEditBio(e.target.value)}
-                    className={`w-full rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
-                      hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                    className={`w-full rounded-xl px-4 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
+                      hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                     }`}
-                    placeholder="Masalan: Anime ixlosmandi va manga ishqibozi..."
+                    placeholder="O'zingiz haqingizda qisqacha ma'lumot..."
                   />
                 </div>
               </div>
 
-              {/* Background Wallpaper Section */}
-              <div className={`p-4 rounded-xl space-y-3 ${hasCustomBg ? 'bg-white/5 border border-white/10' : 'bg-black/40 border border-[#222]'}`}>
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-[#ff006a] uppercase tracking-wider">
-                    Orqa Fon Rasmi (Profil Bosh Foni / Wallpaper)
-                  </label>
-                  {editBannerUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setEditBannerUrl('')}
-                      className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-bold"
-                    >
-                      <Trash2 size={12} /> Fonni tozalash
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={editBannerUrl}
-                      onChange={(e) => setEditBannerUrl(e.target.value)}
-                      className={`w-full rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
-                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
-                      }`}
-                      placeholder="https://... rasm yoki GIF havolasi"
-                    />
-                  </div>
-                  <label className="shrink-0 bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-lg border border-white/20 cursor-pointer backdrop-blur-md transition-all flex items-center justify-center gap-2">
-                    <Upload size={14} className="text-[#ff006a]" />
-                    <span>{uploadingBanner ? "Yuklanmoqda..." : "Fayl yuklash"}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*,video/webm,video/mp4,.gif,.webm" 
-                      className="hidden" 
-                      onChange={handleBannerUpload}
-                      disabled={uploadingBanner}
-                    />
-                  </label>
-                </div>
-                {editBannerUrl && (
-                  <div className="relative w-full h-24 rounded-lg overflow-hidden border border-white/20">
-                    <img src={editBannerUrl} alt="Fon preview" className="w-full h-full object-cover" />
-                    <span className="absolute bottom-1 right-2 bg-black/75 text-[10px] text-white/90 px-2 py-0.5 rounded backdrop-blur-sm">
-                      Tanlangan fon rasmi
-                    </span>
-                  </div>
-                )}
-                <p className="text-[11px] text-white/40">
-                  Ushbu rasm butun profil orqa foniga to'liq va tiniq sifatda joylashadi. Kartochkalar esa zamonaviy shaffof oyna (glassmorphism) ko'rinishiga o'tadi.
-                </p>
-              </div>
-
-              {/* Avatar URL */}
-              <div>
-                <label className="block text-xs font-bold text-white/70 uppercase mb-1">Avatar Havolasi (URL, GIF yoki .webm)</label>
-                <input
-                  type="text"
-                  value={editAvatarUrl}
-                  onChange={(e) => setEditAvatarUrl(e.target.value)}
-                  className={`w-full rounded-lg px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-[#ff006a] ${
-                    hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
-                  }`}
-                  placeholder="https://.../avatar.gif yoki .webm"
-                />
-              </div>
-
-              {/* Social Media Links Inputs */}
+              {/* 3. IJTIMOIY TARMOQLAR */}
               <div className={`border-t pt-4 ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
                 <h4 className="text-xs font-bold text-[#ff006a] uppercase tracking-wider mb-3">
-                  Ijtimoiy Tarmoq Sahifalari (Telegram, Instagram, YouTube, Discord, Facebook, TikTok, VK)
+                  Ijtimoiy Tarmoq Sahifalari
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] text-white/50 mb-1">Telegram (username yoki havola)</label>
+                    <label className="block text-[11px] text-white/60 mb-1">Telegram (@username)</label>
                     <input
                       type="text"
                       value={editTelegram}
                       onChange={(e) => setEditTelegram(e.target.value)}
-                      placeholder="@username yoki t.me/username"
-                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#0088cc] ${
-                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      placeholder="@username"
+                      className={`w-full rounded-xl px-3 py-2 text-white text-xs focus:border-[#0088cc] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-white/50 mb-1">Instagram (username)</label>
+                    <label className="block text-[11px] text-white/60 mb-1">Instagram (@username)</label>
                     <input
                       type="text"
                       value={editInstagram}
                       onChange={(e) => setEditInstagram(e.target.value)}
                       placeholder="@username"
-                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#e1306c] ${
-                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      className={`w-full rounded-xl px-3 py-2 text-white text-xs focus:border-[#e1306c] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-white/50 mb-1">YouTube (Kanal havolasi)</label>
+                    <label className="block text-[11px] text-white/60 mb-1">YouTube (Kanal)</label>
                     <input
                       type="text"
                       value={editYoutube}
                       onChange={(e) => setEditYoutube(e.target.value)}
                       placeholder="youtube.com/@channel"
-                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-red-500 ${
-                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      className={`w-full rounded-xl px-3 py-2 text-white text-xs focus:border-red-500 ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-white/50 mb-1">Discord (Tag yoki invite)</label>
+                    <label className="block text-[11px] text-white/60 mb-1">Discord (Tag)</label>
                     <input
                       type="text"
                       value={editDiscord}
                       onChange={(e) => setEditDiscord(e.target.value)}
-                      placeholder="username#0000 yoki invite"
-                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#5865F2] ${
-                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      placeholder="username#0000"
+                      className={`w-full rounded-xl px-3 py-2 text-white text-xs focus:border-[#5865F2] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-white/50 mb-1">Facebook (Profil havolasi)</label>
+                    <label className="block text-[11px] text-white/60 mb-1">Facebook (Profil)</label>
                     <input
                       type="text"
                       value={editFacebook}
                       onChange={(e) => setEditFacebook(e.target.value)}
                       placeholder="facebook.com/username"
-                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#1877F2] ${
-                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      className={`w-full rounded-xl px-3 py-2 text-white text-xs focus:border-[#1877F2] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-white/50 mb-1">TikTok (username)</label>
+                    <label className="block text-[11px] text-white/60 mb-1">TikTok (@username)</label>
                     <input
                       type="text"
                       value={editTiktok}
                       onChange={(e) => setEditTiktok(e.target.value)}
                       placeholder="@username"
-                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-400 ${
-                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      className={`w-full rounded-xl px-3 py-2 text-white text-xs focus:border-cyan-400 ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-white/50 mb-1">VK / VKontakte (username yoki id)</label>
+                    <label className="block text-[11px] text-white/60 mb-1">VKontakte (ID)</label>
                     <input
                       type="text"
                       value={editVk}
                       onChange={(e) => setEditVk(e.target.value)}
-                      placeholder="vk.com/username yoki id"
-                      className={`w-full rounded-lg px-3 py-2 text-white text-xs focus:border-[#0077FF] ${
-                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#222]'
+                      placeholder="vk.com/username"
+                      className={`w-full rounded-xl px-3 py-2 text-white text-xs focus:border-[#0077FF] ${
+                        hasCustomBg ? 'bg-black/60 border border-white/20' : 'bg-[#000] border border-[#27272e]'
                       }`}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Submit / Cancel Buttons */}
-              <div className={`flex justify-end gap-3 pt-3 border-t ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
+              {/* 4. ACTIONS */}
+              <div className={`flex justify-end gap-3 pt-4 border-t ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white rounded-lg text-xs font-bold uppercase transition-all"
+                  className="px-5 py-2.5 bg-[#222] hover:bg-[#333] text-white rounded-xl text-xs font-bold uppercase transition-all"
                 >
                   Bekor qilish
                 </button>
@@ -1121,10 +1331,10 @@ export default function Profil() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-6 py-2.5 bg-[#ff006a] hover:bg-[#d40058] text-white rounded-lg text-xs font-bold uppercase flex items-center gap-2 shadow-lg transition-all"
+                  className="px-6 py-2.5 bg-[#ff006a] hover:bg-[#d40058] text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95"
                 >
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                  <span>Saqlash</span>
+                  <span>{saving ? "Saqlanmoqda..." : "Saqlash"}</span>
                 </button>
               </div>
 

@@ -19,20 +19,14 @@ const CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5
 function normalizeImageUrl(url: string | null | undefined): string {
   if (!url) return '';
   let clean = url.trim();
+  if (clean.startsWith('http://files.catbox.moe/')) {
+    return clean.replace('http://files.catbox.moe/', 'https://files.catbox.moe/');
+  }
   if (clean.startsWith('/api/media/')) {
     return `https://image.animem.uz${clean}`;
   }
   if (clean.startsWith('/media/')) {
     return `https://image.animem.uz/api${clean}`;
-  }
-  if (clean.startsWith('https://animem.uz/api/media/')) {
-    return clean.replace('https://animem.uz/api/media/', 'https://image.animem.uz/api/media/');
-  }
-  if (clean.startsWith('https://files.catbox.moe/')) {
-    return clean.replace('https://files.catbox.moe/', 'https://image.animem.uz/');
-  }
-  if (clean.startsWith('http://files.catbox.moe/')) {
-    return clean.replace('http://files.catbox.moe/', 'https://image.animem.uz/');
   }
   return clean;
 }
@@ -2573,7 +2567,7 @@ export default {
             const catUrl = (await catRes.text()).trim();
             if (catUrl.startsWith('http://') || catUrl.startsWith('https://')) {
               const fname = catUrl.split('/').pop();
-              const secureUrl = `https://image.animem.uz/${fname}`;
+              const secureUrl = `https://files.catbox.moe/${fname}`;
               return jsonResponse({ success: true, url: secureUrl, id: fname }, 201);
             }
           }

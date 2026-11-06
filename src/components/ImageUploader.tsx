@@ -232,8 +232,8 @@ export default function ImageUploader({
                         <RefreshCw size={12} /> Almashtirish
                       </button>
                       {value.includes('catbox.moe') ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] bg-sky-950/80 border border-sky-500/40 text-sky-400 font-bold px-2 py-0.5 rounded">
-                          Catbox.moe
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 font-bold px-2 py-0.5 rounded">
+                          Yuklangan
                         </span>
                       ) : value.startsWith('/api/media/') ? (
                         <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 font-bold px-2 py-0.5 rounded">
@@ -274,7 +274,7 @@ export default function ImageUploader({
                 {isUploading ? (
                   <div className="py-4 space-y-2">
                     <div className="w-8 h-8 mx-auto border-2 border-[#ff006a] border-t-transparent rounded-full animate-spin" />
-                    <div className="text-xs font-bold text-white">Catbox.moe ga yuklanmoqda... {uploadProgress}%</div>
+                    <div className="text-xs font-bold text-white">Yuklanmoqda... {uploadProgress}%</div>
                     <div className="w-48 max-w-full mx-auto bg-[#222] h-1.5 rounded-full overflow-hidden">
                       <div
                         className="bg-[#ff006a] h-full transition-all duration-200"
@@ -292,9 +292,6 @@ export default function ImageUploader({
                     </div>
                     <div className="text-[11px] text-white/40 flex items-center justify-center gap-2">
                       <span>JPG, PNG, WebP, GIF (20MB gacha)</span>
-                      <span className="text-sky-400 font-bold inline-flex items-center gap-0.5">
-                        Catbox.moe
-                      </span>
                     </div>
                   </div>
                 )}

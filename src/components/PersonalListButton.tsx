@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Bookmark, Check, ChevronDown, Trash2, Heart, Tv, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Bookmark, Check, ChevronDown, Trash2, Heart, Tv, Clock, CheckCircle2, XCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Anime, UserListStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -20,7 +21,6 @@ export default function PersonalListButton({ anime, className = '', variant = 'f
   const { user, token } = useAuth();
   const [currentStatus, setCurrentStatus] = useState<UserListStatus | null>(() => getAnimeListStatus(anime.id));
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setCurrentStatus(getAnimeListStatus(anime.id));
@@ -38,14 +38,14 @@ export default function PersonalListButton({ anime, className = '', variant = 'f
   }, [anime.id]);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
         setIsOpen(false);
       }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   const handleSelectStatus = (status: UserListStatus | null) => {
     setUserListStatus(anime.id, status, anime, token);
@@ -67,98 +67,131 @@ export default function PersonalListButton({ anime, className = '', variant = 'f
   };
 
   return (
-    <div className={`relative inline-block shrink-0 ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`px-3.5 sm:px-5 py-2.5 sm:py-3 md:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 border uppercase tracking-wider cursor-pointer select-none hover:scale-105 shrink-0 ${
-          currentStatus
-            ? 'bg-[#1a1726] border-[#ff006a]/50 text-white shadow-[0_0_15px_rgba(255,0,106,0.2)]'
-            : 'bg-[#18181b] border-[#27272a] hover:bg-[#27272a] text-white'
-        }`}
-        style={currentStatus && statusConfig ? { borderColor: statusConfig.color } : {}}
-      >
-        {currentStatus && statusConfig ? (
-          <>
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_8px_currentColor]"
-              style={{ backgroundColor: statusConfig.dotColor, color: statusConfig.dotColor }}
-            />
-            <span className="truncate">{statusConfig.label}</span>
-          </>
-        ) : (
-          <>
-            <Bookmark className="w-4 h-4 shrink-0 text-[#ff006a]" />
-            <span>RO'YXATGA QO'SHISH</span>
-          </>
-        )}
-        <ChevronDown size={14} className={`text-white/50 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
+    <>
+      <div className={`relative inline-block shrink-0 ${className}`}>
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className={`px-3.5 sm:px-5 py-2.5 sm:py-3 md:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 border uppercase tracking-wider cursor-pointer select-none hover:scale-105 shrink-0 ${
+            currentStatus
+              ? 'bg-[#1a1726] border-[#ff006a]/50 text-white shadow-[0_0_15px_rgba(255,0,106,0.2)]'
+              : 'bg-[#18181b] border-[#27272a] hover:bg-[#27272a] text-white'
+          }`}
+          style={currentStatus && statusConfig ? { borderColor: statusConfig.color } : {}}
+        >
+          {currentStatus && statusConfig ? (
+            <>
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_8px_currentColor]"
+                style={{ backgroundColor: statusConfig.dotColor, color: statusConfig.dotColor }}
+              />
+              <span className="truncate">{statusConfig.label}</span>
+            </>
+          ) : (
+            <>
+              <Bookmark className="w-4 h-4 shrink-0 text-[#ff006a]" />
+              <span>RO'YXATGA QO'SHISH</span>
+            </>
+          )}
+          <ChevronDown size={14} className={`text-white/50 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
 
-      {/* Dropdown Menu */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.96 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 sm:left-auto right-0 top-full mt-2 w-64 bg-[#14141d] border border-white/15 rounded-2xl p-2 shadow-2xl z-50 backdrop-blur-xl"
-          >
-            <div className="px-3 py-2 border-b border-white/10 mb-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-white/40">
-                Shaxsiy Ro'yxat Statusi
-              </span>
-            </div>
+      {/* High z-index portal modal: never clipped by overflow-hidden or hidden behind video players */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isOpen && (
+            <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsOpen(false)}
+                className="fixed inset-0 bg-black/80 backdrop-blur-md"
+              />
 
-            <div className="space-y-1">
-              {USER_LIST_STATUSES.map(st => {
-                const Icon = getStatusIcon(st.id);
-                const isSelected = currentStatus === st.id;
-
-                return (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => handleSelectStatus(st.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
-                      isSelected
-                        ? 'bg-white/10 text-white shadow-inner'
-                        : 'text-white/70 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span 
-                        className="w-2.5 h-2.5 rounded-full shrink-0" 
-                        style={{ backgroundColor: st.dotColor }}
-                      />
-                      <Icon size={14} style={{ color: st.color }} />
-                      <span>{st.label}</span>
-                    </div>
-
-                    {isSelected && (
-                      <Check size={14} className="text-[#ff006a]" />
-                    )}
-                  </button>
-                );
-              })}
-
-              {currentStatus && (
-                <div className="pt-1 mt-1 border-t border-white/10">
+              {/* Modal Dialog Card */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="relative w-full max-w-sm bg-[#12121a] border border-white/15 rounded-3xl p-5 shadow-[0_0_50px_rgba(0,0,0,0.85)] z-10"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3 mb-3">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#ff006a] block mb-0.5">
+                      Shaxsiy Ro'yxat
+                    </span>
+                    <h3 className="text-sm font-bold text-white truncate">
+                      {anime.title}
+                    </h3>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => handleSelectStatus(null)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                    onClick={() => setIsOpen(false)}
+                    className="p-1.5 text-white/50 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer shrink-0"
                   >
-                    <Trash2 size={13} />
-                    <span>Ro'yxatdan olib tashlash</span>
+                    <X size={18} />
                   </button>
                 </div>
-              )}
+
+                {/* Status Options */}
+                <div className="space-y-1.5">
+                  {USER_LIST_STATUSES.map(st => {
+                    const Icon = getStatusIcon(st.id);
+                    const isSelected = currentStatus === st.id;
+
+                    return (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => handleSelectStatus(st.id)}
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all text-left cursor-pointer border ${
+                          isSelected
+                            ? 'bg-[#ff006a]/15 border-[#ff006a]/50 text-white shadow-md'
+                            : 'bg-white/[0.03] border-white/5 text-white/80 hover:text-white hover:bg-white/10 hover:border-white/15'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span 
+                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_8px_currentColor]" 
+                            style={{ backgroundColor: st.dotColor, color: st.dotColor }}
+                          />
+                          <Icon size={16} style={{ color: st.color }} />
+                          <span className="tracking-wide">{st.label}</span>
+                        </div>
+
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-[#ff006a] flex items-center justify-center text-white shrink-0">
+                            <Check size={12} strokeWidth={3} />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {currentStatus && (
+                    <div className="pt-2 mt-2 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectStatus(null)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer"
+                      >
+                        <Trash2 size={14} />
+                        <span>Ro'yxatdan olib tashlash</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
   );
 }

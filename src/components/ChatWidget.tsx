@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
-import { MessageCircle, X, Send, ArrowUp, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, ChevronDown, CheckCheck, ShieldCheck, Palette } from 'lucide-react';
+import { MessageCircle, X, Send, ArrowUp, Maximize2, Minimize2, Trash2, CornerUpLeft, Sparkles, Mic, ChevronDown, CheckCheck, ShieldCheck, Palette, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { io, Socket } from 'socket.io-client';
@@ -547,6 +547,45 @@ export default function ChatWidget() {
     }
   };
   
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleChatImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !user) return;
+
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      const authToken = token || localStorage.getItem('token') || '';
+      const res = await fetch(`${API_BASE}/api/media/upload`, {
+        method: 'POST',
+        headers: {
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "Rasmni yuklab bo'lmadi");
+      }
+
+      const caption = inputValue.trim();
+      const messageContent = caption ? `[img]${data.url}[/img] ${caption}` : `[img]${data.url}[/img]`;
+      await sendChatMessage(messageContent);
+      setInputValue('');
+    } catch (err: any) {
+      console.error("Chat image upload error:", err);
+      alert(err.message || "Rasmni yuklashda xatolik yuz berdi");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || !user) return;
@@ -1131,6 +1170,29 @@ export default function ChatWidget() {
                 ) : (
                   /* Standard Input Bar */
                   <form onSubmit={handleSend} className="relative flex items-center gap-1.5">
+                    {/* Image Upload Button */}
+                    <label
+                      className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer border shrink-0 flex items-center justify-center ${
+                        isUploadingImage
+                          ? 'text-white bg-[#ff006a]/20 border-[#ff006a]/50 pointer-events-none'
+                          : 'text-[#ff006a] bg-[#ff006a]/10 border-[#ff006a]/30 hover:bg-[#ff006a] hover:text-white'
+                      }`}
+                      title={isUploadingImage ? "Yuklanmoqda..." : "Rasm yuborish"}
+                    >
+                      {isUploadingImage ? (
+                        <Loader2 size={14} className="animate-spin text-[#ff006a]" />
+                      ) : (
+                        <ImageIcon size={14} />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*,.gif,.webp"
+                        className="hidden"
+                        onChange={handleChatImageUpload}
+                        disabled={isUploadingImage}
+                      />
+                    </label>
+
                     {/* GIPHY Trigger Button */}
                     <button
                       type="button"

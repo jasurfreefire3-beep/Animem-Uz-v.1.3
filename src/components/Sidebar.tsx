@@ -84,7 +84,6 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
     { name: t.navHistory, path: '/tarix', icon: History },
     { name: t.navMusic || 'Musiqa', path: '/music', icon: Music, badge: isNewBadgeVisible ? 'New' : undefined },
     { name: t.navChat, path: '/chat', icon: MessageSquare },
-    { name: 'Donat qilish', path: '/donat', icon: Heart },
     { name: t.navSettings, path: '/sozlamalar', icon: Settings },
   ];
 

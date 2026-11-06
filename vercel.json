@@ -6,6 +6,14 @@
       "destination": "https://ss-test.wasmer.app/api/:path*"
     },
     {
+      "source": "/uploads/:path*",
+      "destination": "https://ss-test.wasmer.app/uploads/:path*"
+    },
+    {
+      "source": "/media/:path*",
+      "destination": "https://ss-test.wasmer.app/media/:path*"
+    },
+    {
       "source": "/stream/:path*",
       "destination": "https://ss-test.wasmer.app/stream/:path*"
     },

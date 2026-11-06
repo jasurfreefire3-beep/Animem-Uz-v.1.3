@@ -13,7 +13,6 @@ import AdminNotifications from '../components/AdminNotifications';
 import AdminUsers from '../components/AdminUsers';
 import AdminGifs from '../components/AdminGifs';
 import AdminShop from '../components/AdminShop';
-import AdminDonatlar from '../components/AdminDonatlar';
 import OnlineUsersTab from '../components/OnlineUsersTab';
 import ImageUploader from '../components/ImageUploader';
 import AdminMikaReports from '../components/AdminMikaReports';
@@ -22,7 +21,7 @@ import AdminMusic from '../components/AdminMusic';
 export default function Admin() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'donations' | 'music'>('manage_animes');
+  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'music'>('manage_animes');
   
   // Anime Form States
   const [title, setTitle] = useState('');
@@ -67,10 +66,12 @@ export default function Admin() {
 
   const getAdminHeaders = (extraHeaders: Record<string, string> = {}) => {
     const currentToken = token || localStorage.getItem('token') || '';
-    const adminPasscode = sessionStorage.getItem('animem_admin_passcode') || '1213234';
+    const adminPasscode = sessionStorage.getItem('animem_admin_passcode') || '';
+    const adminUsername = sessionStorage.getItem('animem_admin_username') || '';
     return {
       ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
-      'x-admin-passcode': adminPasscode,
+      ...(adminPasscode ? { 'x-admin-passcode': adminPasscode } : {}),
+      ...(adminUsername ? { 'x-admin-username': adminUsername } : {}),
       ...extraHeaders
     };
   };
@@ -912,18 +913,6 @@ export default function Admin() {
         >
           <ShieldAlert size={16} className="text-red-400" />
           <span>Mika Shikoyatlari 🌸</span>
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('donations');
-            setMessage({ type: '', text: '' });
-          }}
-          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
-            activeTab === 'donations' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
-          }`}
-        >
-          <Heart size={16} className="text-[#ff006a]" />
-          <span>Donatlar ❤️</span>
         </button>
         <button
           onClick={() => {
@@ -2098,11 +2087,6 @@ export default function Admin() {
       {/* Tab: Mika Shikoyatlari & Xavfsizlik */}
       {activeTab === 'mika_reports' && (
         <AdminMikaReports />
-      )}
-
-      {/* Tab: Donatlar Boshqaruvi */}
-      {activeTab === 'donations' && (
-        <AdminDonatlar />
       )}
 
       {/* Tab: Musiqa Boshqaruvi */}

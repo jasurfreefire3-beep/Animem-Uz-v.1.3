@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, ShieldAlert, Lock, ArrowRight, Clock, AlertTriangle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Shield, ShieldAlert, Lock, ArrowRight, Clock, AlertTriangle, Eye, EyeOff, CheckCircle2, User, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface AdminPasscodeGateProps {
   children: React.ReactNode;
 }
 
-const MASTER_PASSCODE = '1213234';
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -18,6 +17,7 @@ const STORAGE_KEYS = {
 
 export const AdminPasscodeGate: React.FC<AdminPasscodeGateProps> = ({ children }) => {
   const { user } = useAuth();
+  const [username, setUsername] = useState('');
   const [passcode, setPasscode] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -25,6 +25,7 @@ export const AdminPasscodeGate: React.FC<AdminPasscodeGateProps> = ({ children }
   const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Check if current user is an existing authorized Admin account
   const isAccountAdmin = user && (user.role === 'admin' || user.email === 'admin@animem.uz' || user.email === 'mosinjonovjasurbek00@gmail.com');
@@ -88,57 +89,74 @@ export const AdminPasscodeGate: React.FC<AdminPasscodeGateProps> = ({ children }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockoutRemaining > 0) return;
+    if (lockoutRemaining > 0 || isSubmitting) return;
 
-    const trimmed = passcode.trim();
+    const trimmedUser = username.trim();
+    const trimmedPass = passcode.trim();
 
-    if (!trimmed) {
+    if (!trimmedUser) {
+      setErrorMsg('Iltimos, admin loginini kiriting');
+      return;
+    }
+
+    if (!trimmedPass) {
       setErrorMsg('Iltimos, maxfiy parolni kiriting');
       return;
     }
 
-    if (trimmed === MASTER_PASSCODE) {
-      // Success! Clear errors and attempts
-      localStorage.removeItem(STORAGE_KEYS.ATTEMPTS);
-      localStorage.removeItem(STORAGE_KEYS.LOCKOUT_UNTIL);
-      sessionStorage.setItem(STORAGE_KEYS.AUTH_TIMESTAMP, Date.now().toString());
-      sessionStorage.setItem('animem_admin_passcode', trimmed);
+    setIsSubmitting(true);
+    setErrorMsg('');
 
-      // Exchange passcode for valid admin token from backend
-      try {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-        const res = await fetch(`${API_BASE}/api/admin/verify-passcode`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ passcode: trimmed })
-        });
-        const data = await res.json();
-        if (data && data.success && data.token) {
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_BASE}/api/admin/verify-passcode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: trimmedUser,
+          passcode: trimmedPass 
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data && data.success) {
+        // Success! Clear errors and attempts
+        localStorage.removeItem(STORAGE_KEYS.ATTEMPTS);
+        localStorage.removeItem(STORAGE_KEYS.LOCKOUT_UNTIL);
+        sessionStorage.setItem(STORAGE_KEYS.AUTH_TIMESTAMP, Date.now().toString());
+        sessionStorage.setItem('animem_admin_username', trimmedUser);
+        sessionStorage.setItem('animem_admin_passcode', trimmedPass);
+
+        if (data.token) {
           localStorage.setItem('token', data.token);
-          if (data.user) {
-            localStorage.setItem('user', JSON.stringify(data.user));
-          }
         }
-      } catch (err) {
-        console.warn("Passcode token exchange warning:", err);
-      }
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
 
-      setIsUnlocked(true);
-    } else {
-      const newAttempts = attempts + 1;
-      setAttempts(newAttempts);
-      localStorage.setItem(STORAGE_KEYS.ATTEMPTS, newAttempts.toString());
-      setPasscode('');
-
-      if (newAttempts >= MAX_ATTEMPTS) {
-        const lockoutUntil = Date.now() + LOCKOUT_DURATION_MS;
-        localStorage.setItem(STORAGE_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString());
-        setLockoutRemaining(Math.ceil(LOCKOUT_DURATION_MS / 1000));
-        setErrorMsg(`5 marta noto'g'ri kiritildi! Tizim 30 daqiqaga bloklandi.`);
+        setIsUnlocked(true);
       } else {
-        const left = MAX_ATTEMPTS - newAttempts;
-        setErrorMsg(`Parol noto'g'ri! Qolgan urinishlar: ${left} ta`);
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
+        localStorage.setItem(STORAGE_KEYS.ATTEMPTS, newAttempts.toString());
+        setPasscode('');
+
+        if (newAttempts >= MAX_ATTEMPTS) {
+          const lockoutUntil = Date.now() + LOCKOUT_DURATION_MS;
+          localStorage.setItem(STORAGE_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString());
+          setLockoutRemaining(Math.ceil(LOCKOUT_DURATION_MS / 1000));
+          setErrorMsg(`5 marta noto'g'ri kiritildi! Tizim 30 daqiqaga bloklandi.`);
+        } else {
+          const left = MAX_ATTEMPTS - newAttempts;
+          setErrorMsg(data?.error || `Login yoki parol noto'g'ri! Qolgan urinishlar: ${left} ta`);
+        }
       }
+    } catch (err: any) {
+      console.error("Admin verification error:", err);
+      setErrorMsg("Server bilan bog'lanishda xatolik yuz berdi");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -186,7 +204,7 @@ export const AdminPasscodeGate: React.FC<AdminPasscodeGateProps> = ({ children }
               Boshqaruv Paneli
             </h1>
             <p className="text-xs text-white/50 leading-relaxed max-w-xs">
-              Ushbu sahifa faqat ma'murlar uchun himoyalangan. Davom etish uchun maxfiy kirish kodini kiriting.
+              Ushbu sahifa faqat ma'murlar uchun himoyalangan. Kirish uchun maxsus login va parolni kiriting.
             </p>
           </div>
 
@@ -213,87 +231,75 @@ export const AdminPasscodeGate: React.FC<AdminPasscodeGateProps> = ({ children }
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Admin Login Input */}
+                <div>
+                  <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
+                    Admin Login
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Admin loginini kiriting..."
+                      autoComplete="username"
+                      required
+                      className="w-full bg-[#1c1c24] border border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#e50914] focus:ring-1 focus:ring-[#e50914] transition-all font-medium"
+                    />
+                    <User size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+                  </div>
+                </div>
+
+                {/* Admin Password Input */}
                 <div>
                   <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
                     Xavfsizlik Paroli
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/40">
-                      <Lock size={17} />
-                    </div>
                     <input
                       type={showPass ? 'text' : 'password'}
                       value={passcode}
-                      onChange={(e) => {
-                        setPasscode(e.target.value);
-                        if (errorMsg) setErrorMsg('');
-                      }}
+                      onChange={(e) => setPasscode(e.target.value)}
                       placeholder="Maxfiy parolni kiriting..."
-                      autoFocus
-                      className="w-full bg-[#181820] border border-white/10 focus:border-[#e50914] focus:ring-2 focus:ring-[#e50914]/20 rounded-xl py-3 pl-10 pr-11 text-white text-sm placeholder:text-white/20 transition-all duration-200 outline-none"
+                      autoComplete="current-password"
+                      required
+                      className="w-full bg-[#1c1c24] border border-white/10 rounded-2xl py-3.5 pl-11 pr-11 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#e50914] focus:ring-1 focus:ring-[#e50914] transition-all font-mono tracking-wider"
                     />
+                    <KeyRound size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
                     <button
                       type="button"
                       onClick={() => setShowPass(!showPass)}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-white/40 hover:text-white transition-colors cursor-pointer"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                      tabIndex={-1}
                     >
-                      {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
+                      {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                 </div>
 
-                {/* Attempt indicators */}
-                <div className="flex items-center justify-between px-1 text-xs">
-                  <span className="text-white/40">Ruxsat etilgan urinishlar:</span>
-                  <div className="flex items-center gap-1.5">
-                    {Array.from({ length: MAX_ATTEMPTS }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                          i < attempts
-                            ? 'bg-red-500 shadow-sm shadow-red-500'
-                            : 'bg-white/20'
-                        }`}
-                      />
-                    ))}
-                    <span className="ml-1 text-[11px] font-mono text-white/60">
-                      {MAX_ATTEMPTS - attempts}/{MAX_ATTEMPTS}
-                    </span>
-                  </div>
-                </div>
-
                 {errorMsg && (
-                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-2.5 text-red-400 text-xs animate-shake">
-                    <AlertTriangle size={16} className="shrink-0" />
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs animate-shake">
+                    <AlertTriangle size={15} className="shrink-0" />
                     <span>{errorMsg}</span>
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  className="w-full py-3 px-4 bg-gradient-to-r from-[#e50914] to-[#b80710] hover:from-[#ff1a25] hover:to-[#c70812] text-white font-bold text-sm rounded-xl shadow-lg shadow-[#e50914]/30 hover:shadow-[#e50914]/50 active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer mt-2"
+                  disabled={isSubmitting}
+                  className="w-full mt-2 bg-gradient-to-r from-[#e50914] to-[#b80710] hover:from-[#f40d1a] hover:to-[#c90812] text-white font-bold py-3.5 px-4 rounded-2xl shadow-lg shadow-[#e50914]/25 transition-all duration-200 flex items-center justify-center gap-2 group cursor-pointer active:scale-[0.98] disabled:opacity-50"
                 >
-                  <span>Panelga Kirish</span>
-                  <ArrowRight size={16} />
+                  <span>{isSubmitting ? "Tekshirilmoqda..." : "Kirish"}</span>
+                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </button>
               </form>
             )}
-          </div>
-
-          <div className="mt-6 pt-5 border-t border-white/5 flex items-center justify-between text-[11px] text-white/40">
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 size={13} className="text-emerald-500" /> 256-bit Shifrlash
-            </span>
-            <a 
-              href="/" 
-              className="hover:text-white transition-colors underline underline-offset-4 cursor-pointer"
-            >
-              Bosh sahifaga qaytish
-            </a>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
 export default AdminPasscodeGate;
+

@@ -394,14 +394,6 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                       <span>{t.navHistory || 'Tarix'}</span>
                     </Link>
                     <Link
-                      to={getLocalizedPath('/donat')}
-                      onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-                    >
-                      <Heart size={14} className="text-amber-400 fill-amber-400/20" />
-                      <span>Donat qilish</span>
-                    </Link>
-                    <Link
                       to={getLocalizedPath('/sozlamalar')}
                       onClick={() => setShowMoreDropdown(false)}
                       className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
@@ -504,17 +496,6 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           className="p-1.5 text-white/60 hover:text-white transition-colors sm:hidden cursor-pointer"
         >
           <Search size={16} />
-        </button>
-
-        {/* Donat Button */}
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent('open-donat-modal'))}
-          className="flex items-center justify-center w-7 h-7 min-[380px]:w-8 min-[380px]:h-8 md:w-auto md:h-auto md:px-3 md:py-1.5 rounded-lg bg-gradient-to-r from-[#ff006a]/20 to-purple-600/20 hover:from-[#ff006a]/30 hover:to-purple-600/30 border border-[#ff006a]/40 text-[#ff006a] hover:text-white text-xs font-black transition-all shadow-sm shadow-[#ff006a]/10 cursor-pointer shrink-0"
-          title="Saytni qo'llab-quvvatlash (Donat)"
-          aria-label="Donat qilish"
-        >
-          <Heart size={14} className="fill-[#ff006a] text-[#ff006a] shrink-0" />
-          <span className="hidden md:inline ml-1.5">Donat</span>
         </button>
 
         {/* Language Switcher Dropdown */}

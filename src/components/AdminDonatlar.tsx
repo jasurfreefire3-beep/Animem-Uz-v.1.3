@@ -23,7 +23,7 @@ export default function AdminDonatlar() {
 
   const getAdminHeaders = (extraHeaders: Record<string, string> = {}) => {
     const token = localStorage.getItem('token') || '';
-    const passcode = sessionStorage.getItem('animem_admin_passcode') || '1213234';
+    const passcode = sessionStorage.getItem('animem_admin_passcode') || '';
     return {
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       'x-admin-passcode': passcode,
