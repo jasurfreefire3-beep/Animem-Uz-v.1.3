@@ -4,6 +4,37 @@ import cors from "cors";
 import crypto from "crypto";
 import path from "path";
 import fs from "fs";
+
+// Ensure HOME is defined and safe in containerized environments (prevents uv_os_homedir ENOENT)
+if (!process.env.HOME || process.env.HOME === "/nonexistent") {
+  process.env.HOME = "/tmp";
+}
+try {
+  const origHomedir = os.homedir;
+  os.homedir = () => {
+    try {
+      const h = origHomedir();
+      if (!h || h === "/nonexistent") return "/tmp";
+      return h;
+    } catch (_) {
+      return process.env.HOME || "/tmp";
+    }
+  };
+} catch (_) {}
+
+try {
+  if (!fs.existsSync("/tmp/.aws")) {
+    fs.mkdirSync("/tmp/.aws", { recursive: true });
+  }
+  if (!fs.existsSync("/tmp/.aws/config")) {
+    fs.writeFileSync("/tmp/.aws/config", "[default]\n");
+  }
+  if (!fs.existsSync("/tmp/.aws/credentials")) {
+    fs.writeFileSync("/tmp/.aws/credentials", "[default]\n");
+  }
+} catch (_) {}
+process.env.AWS_CONFIG_FILE = "/tmp/.aws/config";
+process.env.AWS_SHARED_CREDENTIALS_FILE = "/tmp/.aws/credentials";
 import http from "http";
 import https from "https";
 import dns from "dns";
@@ -472,6 +503,7 @@ const r2Client = new S3Client({
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY,
   },
+  forcePathStyle: true,
 });
 
 const reelVideoUpload = multer({
@@ -4537,7 +4569,8 @@ app.get("/api/reels", async (req: any, res: any) => {
       query += ` AND anime_id = $${params.length}`;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const sortOrder = req.query.sort === "newest" ? "ORDER BY created_at DESC" : "ORDER BY RANDOM()";
+    query += ` ${sortOrder} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const { rows: reels } = await pgPool.query(query, params);

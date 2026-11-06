@@ -66,7 +66,7 @@ export const AdminReels: React.FC = () => {
   };
 
   const handleDeleteReel = async (reelId: string) => {
-    if (!confirm("Haqiqatan ham bu reelni butunlay o'chirmoqchimisiz? Cloudflare R2 dagi video ham o'chiriladi!")) {
+    if (!confirm("Haqiqatan ham bu reelni butunlay o'chirmoqchimisiz? Video butunlay o'chiriladi!")) {
       return;
     }
 

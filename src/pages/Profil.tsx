@@ -1549,7 +1549,7 @@ export default function Profil() {
               <h3 className="text-base font-bold text-white uppercase tracking-wider">
                 Yuklangan Reels ({userReels.length})
               </h3>
-              <p className="text-[11px] text-white/40">Cloudflare R2 yuqori tezlikdagi qisqa videolar</p>
+              <p className="text-[11px] text-white/40">Qisqa video lavhalar</p>
             </div>
           </div>
 

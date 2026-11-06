@@ -98,6 +98,21 @@ export default function App() {
     );
   }
 
+  if (isReels) {
+    return (
+      <div className="fixed inset-0 w-screen h-screen bg-black text-white overflow-hidden select-none z-[99999]">
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/reels" element={<Reels />} />
+            <Route path="/reels/:id" element={<Reels />} />
+            <Route path="/:lang/reels" element={<Reels />} />
+            <Route path="/:lang/reels/:id" element={<Reels />} />
+          </Routes>
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#060609] text-white font-sans selection:bg-[#ff006a]/30 custom-scrollbar relative flex overflow-x-hidden">
       {/* Global Ambient Glow Mesh for 100% Rich Frosted Glass Refraction */}

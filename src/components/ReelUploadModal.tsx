@@ -159,7 +159,7 @@ export const ReelUploadModal: React.FC<ReelUploadModalProps> = ({
                 Yangi Reel yuklash
               </h2>
               <p className="text-xs text-zinc-400">
-                Cloudflare R2 yuqori tezlikdagi serverga saqlanadi (60 MB gacha)
+                Maksimal hajm: 60 MB gacha
               </p>
             </div>
           </div>
@@ -281,7 +281,7 @@ export const ReelUploadModal: React.FC<ReelUploadModalProps> = ({
                   <div className="flex justify-between text-xs text-zinc-300">
                     <span className="flex items-center gap-1.5">
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-                      {progress < 90 ? "Cloudflare R2 ga yuklanmoqda..." : "Videoni saqlash..."}
+                      {progress < 90 ? "Video yuklanmoqda..." : "Videoni saqlash..."}
                     </span>
                     <span className="font-bold text-indigo-400">{progress}%</span>
                   </div>

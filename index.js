@@ -45244,7 +45244,7 @@ var require_main = __commonJS({
   "node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv/lib/main.js"(exports, module) {
     var fs5 = __require("fs");
     var path4 = __require("path");
-    var os3 = __require("os");
+    var os4 = __require("os");
     var crypto10 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
@@ -45390,7 +45390,7 @@ var require_main = __commonJS({
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path4.join(os3.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path4.join(os4.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean2(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -49927,7 +49927,7 @@ var require_make_middleware = __commonJS({
 var require_disk = __commonJS({
   "node_modules/.pnpm/multer@2.5.0/node_modules/multer/storage/disk.js"(exports, module) {
     var fs5 = __require("fs");
-    var os3 = __require("os");
+    var os4 = __require("os");
     var path4 = __require("path");
     var crypto10 = __require("crypto");
     var pipeline3 = __require("stream").pipeline;
@@ -49946,7 +49946,7 @@ var require_disk = __commonJS({
       });
     }
     function getDestination(req, file, cb) {
-      cb(null, os3.tmpdir());
+      cb(null, os4.tmpdir());
     }
     function DiskStorage(opts) {
       opts = opts || {};
@@ -65941,12 +65941,12 @@ var init_bowser = __esm({
       describe: function describe80(ua) {
         var version2 = Utils.getFirstMatch(/mac os x (\d+(\.?_?\d+)+)/i, ua).replace(/[_\s]/g, ".");
         var versionName = Utils.getMacOSVersionName(version2);
-        var os3 = {
+        var os4 = {
           name: OS_MAP.MacOS,
           version: version2
         };
-        if (versionName) os3.versionName = versionName;
-        return os3;
+        if (versionName) os4.versionName = versionName;
+        return os4;
       }
     }, {
       test: [/(ipod|iphone|ipad)/i],
@@ -65975,22 +65975,22 @@ var init_bowser = __esm({
       describe: function describe83(ua) {
         var version2 = Utils.getFirstMatch(/android[\s/-](\d+(\.\d+)*)/i, ua);
         var versionName = Utils.getAndroidVersionName(version2);
-        var os3 = {
+        var os4 = {
           name: OS_MAP.Android,
           version: version2
         };
-        if (versionName) os3.versionName = versionName;
-        return os3;
+        if (versionName) os4.versionName = versionName;
+        return os4;
       }
     }, {
       test: [/(web|hpw)[o0]s/i],
       describe: function describe84(ua) {
         var version2 = Utils.getFirstMatch(/(?:web|hpw)[o0]s\/(\d+(\.\d+)*)/i, ua);
-        var os3 = {
+        var os4 = {
           name: OS_MAP.WebOS
         };
-        if (version2 && version2.length) os3.version = version2;
-        return os3;
+        if (version2 && version2.length) os4.version = version2;
+        return os4;
       }
     }, {
       test: [/blackberry|\bbb\d+/i, /rim\stablet/i],
@@ -66603,14 +66603,14 @@ var init_bowser = __esm({
       _proto.parseOS = function parseOS() {
         var _this2 = this;
         this.parsedResult.os = {};
-        var os3 = Utils.find(parser_os_default, function(_os) {
+        var os4 = Utils.find(parser_os_default, function(_os) {
           if (typeof _os.test === "function") return _os.test(_this2);
           if (Array.isArray(_os.test)) return _os.test.some(function(condition) {
             return _this2.test(condition);
           });
           throw new Error("Browser's test function is not valid");
         });
-        if (os3) this.parsedResult.os = os3.describe(this.getUA());
+        if (os4) this.parsedResult.os = os4.describe(this.getUA());
         return this.parsedResult.os;
       };
       _proto.getOSName = function getOSName(toLowerCase) {
@@ -104973,6 +104973,7 @@ var require_src3 = __commonJS({
 // server.ts
 var import_express = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
+import os3 from "os";
 import crypto9 from "crypto";
 import path3 from "path";
 import fs4 from "fs";
@@ -119706,6 +119707,36 @@ var import_compression = __toESM(require_compression(), 1);
 var import_web_push = __toESM(require_src3(), 1);
 import { exec } from "child_process";
 import util3 from "util";
+if (!process.env.HOME || process.env.HOME === "/nonexistent") {
+  process.env.HOME = "/tmp";
+}
+try {
+  const origHomedir = os3.homedir;
+  os3.homedir = () => {
+    try {
+      const h5 = origHomedir();
+      if (!h5 || h5 === "/nonexistent") return "/tmp";
+      return h5;
+    } catch (_) {
+      return process.env.HOME || "/tmp";
+    }
+  };
+} catch (_) {
+}
+try {
+  if (!fs4.existsSync("/tmp/.aws")) {
+    fs4.mkdirSync("/tmp/.aws", { recursive: true });
+  }
+  if (!fs4.existsSync("/tmp/.aws/config")) {
+    fs4.writeFileSync("/tmp/.aws/config", "[default]\n");
+  }
+  if (!fs4.existsSync("/tmp/.aws/credentials")) {
+    fs4.writeFileSync("/tmp/.aws/credentials", "[default]\n");
+  }
+} catch (_) {
+}
+process.env.AWS_CONFIG_FILE = "/tmp/.aws/config";
+process.env.AWS_SHARED_CREDENTIALS_FILE = "/tmp/.aws/credentials";
 try {
   dns3.setDefaultResultOrder("ipv4first");
   dns3.setServers(["8.8.8.8", "1.1.1.1"]);
@@ -120106,7 +120137,8 @@ var r2Client = new import_client_s3.S3Client({
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY
-  }
+  },
+  forcePathStyle: true
 });
 var reelVideoUpload = (0, import_multer.default)({
   storage: import_multer.default.memoryStorage(),
@@ -123511,7 +123543,8 @@ app.get("/api/reels", async (req, res) => {
       params.push(animeId);
       query += ` AND anime_id = $${params.length}`;
     }
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const sortOrder = req.query.sort === "newest" ? "ORDER BY created_at DESC" : "ORDER BY RANDOM()";
+    query += ` ${sortOrder} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
     const { rows: reels } = await pgPool.query(query, params);
     if (user && user.id && reels.length > 0) {

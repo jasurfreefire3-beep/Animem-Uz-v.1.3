@@ -24,6 +24,16 @@ import { ReelCommentsDrawer } from "../components/ReelCommentsDrawer";
 import { ReelReportModal } from "../components/ReelReportModal";
 import { ReelUploadModal } from "../components/ReelUploadModal";
 
+// Helper to shuffle array randomly (Fisher-Yates)
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export default function Reels() {
   const { id: routeReelId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -82,21 +92,26 @@ export default function Reels() {
 
         // If specific reel was opened by URL (/reels/:id)
         if (routeReelId) {
-          const foundIdx = fetched.findIndex((r) => r.id === routeReelId);
-          if (foundIdx > -1) {
-            // Move it to first position or set index
-            setCurrentIndex(foundIdx);
-          } else {
-            // Fetch this specific reel
+          let targetReel = fetched.find((r) => r.id === routeReelId);
+          if (!targetReel) {
             try {
               const singleRes = await fetch(`/api/reels/${routeReelId}`, { headers });
               if (singleRes.ok) {
-                const singleReel = await singleRes.json();
-                fetched = [singleReel, ...fetched.filter((r) => r.id !== routeReelId)];
-                setCurrentIndex(0);
+                targetReel = await singleRes.json();
               }
             } catch (_) {}
           }
+          const otherReels = shuffleArray(fetched.filter((r) => r.id !== routeReelId));
+          if (targetReel) {
+            fetched = [targetReel, ...otherReels];
+          } else {
+            fetched = otherReels;
+          }
+          setCurrentIndex(0);
+        } else {
+          // Randomize reels order on each session so each visit is fresh and exciting
+          fetched = shuffleArray(fetched);
+          setCurrentIndex(0);
         }
 
         setReels(fetched);

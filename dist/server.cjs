@@ -25,6 +25,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // server.ts
 var server_exports = {};
 module.exports = __toCommonJS(server_exports);
+var import_os = __toESM(require("os"), 1);
 var import_express = __toESM(require("express"), 1);
 var import_cors = __toESM(require("cors"), 1);
 var import_crypto = __toESM(require("crypto"), 1);
@@ -45,6 +46,36 @@ var import_child_process = require("child_process");
 var import_util = __toESM(require("util"), 1);
 var import_compression = __toESM(require("compression"), 1);
 var import_web_push = __toESM(require("web-push"), 1);
+if (!process.env.HOME || process.env.HOME === "/nonexistent") {
+  process.env.HOME = "/tmp";
+}
+try {
+  const origHomedir = import_os.default.homedir;
+  import_os.default.homedir = () => {
+    try {
+      const h = origHomedir();
+      if (!h || h === "/nonexistent") return "/tmp";
+      return h;
+    } catch (_) {
+      return process.env.HOME || "/tmp";
+    }
+  };
+} catch (_) {
+}
+try {
+  if (!import_fs.default.existsSync("/tmp/.aws")) {
+    import_fs.default.mkdirSync("/tmp/.aws", { recursive: true });
+  }
+  if (!import_fs.default.existsSync("/tmp/.aws/config")) {
+    import_fs.default.writeFileSync("/tmp/.aws/config", "[default]\n");
+  }
+  if (!import_fs.default.existsSync("/tmp/.aws/credentials")) {
+    import_fs.default.writeFileSync("/tmp/.aws/credentials", "[default]\n");
+  }
+} catch (_) {
+}
+process.env.AWS_CONFIG_FILE = "/tmp/.aws/config";
+process.env.AWS_SHARED_CREDENTIALS_FILE = "/tmp/.aws/credentials";
 try {
   import_dns.default.setDefaultResultOrder("ipv4first");
   import_dns.default.setServers(["8.8.8.8", "1.1.1.1"]);
@@ -445,7 +476,8 @@ var r2Client = new import_client_s3.S3Client({
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY
-  }
+  },
+  forcePathStyle: true
 });
 var reelVideoUpload = (0, import_multer.default)({
   storage: import_multer.default.memoryStorage(),
@@ -3850,7 +3882,8 @@ app.get("/api/reels", async (req, res) => {
       params.push(animeId);
       query += ` AND anime_id = $${params.length}`;
     }
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const sortOrder = req.query.sort === "newest" ? "ORDER BY created_at DESC" : "ORDER BY RANDOM()";
+    query += ` ${sortOrder} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
     const { rows: reels } = await pgPool.query(query, params);
     if (user && user.id && reels.length > 0) {
