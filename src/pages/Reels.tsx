@@ -63,6 +63,7 @@ export default function Reels() {
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
+  const bgVideoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
   const touchStartYRef = useRef<number>(0);
@@ -158,6 +159,10 @@ export default function Reels() {
         }
       });
     }
+    if (bgVideoRef.current) {
+      bgVideoRef.current.currentTime = 0;
+      bgVideoRef.current.play().catch(() => {});
+    }
   }, [currentIndex, currentReel?.id]);
 
   // Next 4 videos to preload in advance for instant buffer-free playback
@@ -219,9 +224,11 @@ export default function Reels() {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
       videoRef.current.play();
+      if (bgVideoRef.current) bgVideoRef.current.play().catch(() => {});
       setIsPlaying(true);
     } else {
       videoRef.current.pause();
+      if (bgVideoRef.current) bgVideoRef.current.pause();
       setIsPlaying(false);
     }
     setShowPlayIcon(true);
@@ -457,7 +464,20 @@ export default function Reels() {
           </div>
         ) : currentReel ? (
           <>
-            {/* Active Video */}
+            {/* Ambient Blurred Backdrop for non-9:16 aspect ratios */}
+            <video
+              ref={bgVideoRef}
+              key={`bg-${currentReel.id}`}
+              src={currentReel.video_url}
+              loop
+              playsInline
+              autoPlay
+              muted
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-40 scale-125 pointer-events-none select-none"
+            />
+
+            {/* Active Video - Fully responsive & adaptive for all aspect ratios (9:16, 16:9, 1:1, etc.) */}
             <video
               ref={videoRef}
               key={currentReel.id}
@@ -467,7 +487,7 @@ export default function Reels() {
               autoPlay
               muted={isMuted}
               onClick={handleVideoClick}
-              className="w-full h-full object-cover cursor-pointer"
+              className="w-full h-full object-contain relative z-10 cursor-pointer"
             />
 
             {/* Play/Pause Animated Icon Pop */}

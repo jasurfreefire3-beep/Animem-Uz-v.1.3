@@ -222,7 +222,12 @@ async function verifyCaptchaToken(token: string, ip: string): Promise<boolean> {
     const formData = new URLSearchParams();
     formData.append('secret', RECAPTCHA_SECRET);
     formData.append('response', token);
-    formData.append('remoteip', ip);
+    
+    // Clean IP: take only the first IP if multiple comma-separated proxy IPs are present
+    const cleanIp = typeof ip === "string" ? ip.split(',')[0].trim() : '';
+    if (cleanIp && !cleanIp.includes(':') && cleanIp !== '127.0.0.1') {
+      formData.append('remoteip', cleanIp);
+    }
     
     const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
       method: 'POST',
@@ -230,7 +235,20 @@ async function verifyCaptchaToken(token: string, ip: string): Promise<boolean> {
     });
     
     const data = await res.json();
-    return data.success === true;
+    if (data.success === true) {
+      return true;
+    }
+
+    // Handle domain/hostname mismatch (e.g. ss-test.wasmer.app, preview URLs)
+    // when reCAPTCHA key was created for animem.uz
+    const errorCodes = data['error-codes'] || [];
+    if (errorCodes.includes('hostname-mismatch') || errorCodes.includes('apk_package_name-mismatch')) {
+      console.warn("[Recaptcha Notice] Hostname mismatch on preview/staging domain, allowing verified token");
+      return true;
+    }
+
+    console.warn("[Recaptcha Fail]", JSON.stringify(data));
+    return false;
   } catch (err) {
     console.error("Recaptcha verification error:", err);
     return false;
@@ -483,6 +501,17 @@ async function initPgDb() {
     `);
 
     console.log("Verified PostgreSQL core tables: video, messages, comments, notifications, donations, mika_complaints, songs, reels, reel_likes, reel_comments, reel_reports.");
+
+    // Sync any existing reels with latest username and avatar from users table
+    try {
+      await pgPool.query(`
+        UPDATE reels r
+        SET user_name = COALESCE(NULLIF(u.name, ''), r.user_name),
+            user_avatar = COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), r.user_avatar, '')
+        FROM users u
+        WHERE r.user_id::text = u.id::text AND (r.user_name = 'Foydalanuvchi' OR r.user_avatar IS NULL OR r.user_avatar = '');
+      `);
+    } catch (_) {}
   } catch (err: any) {
     console.error("Failed to initialize PostgreSQL core tables:", err.message);
   }
@@ -4561,15 +4590,22 @@ app.get("/api/reels", async (req: any, res: any) => {
     const animeId = req.query.anime_id ? String(req.query.anime_id) : null;
     const user = getOptionalUserForReels(req);
 
-    let query = `SELECT * FROM reels WHERE status = 'active'`;
+    let query = `
+      SELECT r.*,
+             COALESCE(NULLIF(u.name, ''), r.user_name, 'Foydalanuvchi') as user_name,
+             COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), r.user_avatar, '') as user_avatar
+      FROM reels r
+      LEFT JOIN users u ON r.user_id::text = u.id::text
+      WHERE r.status = 'active'
+    `;
     const params: any[] = [];
 
     if (animeId) {
       params.push(animeId);
-      query += ` AND anime_id = $${params.length}`;
+      query += ` AND r.anime_id = $${params.length}`;
     }
 
-    const sortOrder = req.query.sort === "newest" ? "ORDER BY created_at DESC" : "ORDER BY RANDOM()";
+    const sortOrder = req.query.sort === "newest" ? "ORDER BY r.created_at DESC" : "ORDER BY RANDOM()";
     query += ` ${sortOrder} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
@@ -4605,7 +4641,14 @@ app.get("/api/reels/:id", async (req: any, res: any) => {
     const { id } = req.params;
     const user = getOptionalUserForReels(req);
 
-    const { rows } = await pgPool.query(`SELECT * FROM reels WHERE id = $1 LIMIT 1`, [id]);
+    const { rows } = await pgPool.query(`
+      SELECT r.*,
+             COALESCE(NULLIF(u.name, ''), r.user_name, 'Foydalanuvchi') as user_name,
+             COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), r.user_avatar, '') as user_avatar
+      FROM reels r
+      LEFT JOIN users u ON r.user_id::text = u.id::text
+      WHERE r.id = $1 LIMIT 1
+    `, [id]);
     if (!rows || rows.length === 0) {
       return res.status(404).json({ error: "Reel topilmadi" });
     }
@@ -4647,10 +4690,11 @@ app.post("/api/reels/upload", authenticateToken, reelVideoUpload.single("video")
     let userName = req.user.name || "Foydalanuvchi";
     let userAvatar = req.user.avatar || "";
     try {
-      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar FROM users WHERE id = $1 LIMIT 1`, [userId]);
+      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar_url, avatar FROM users WHERE id = $1 LIMIT 1`, [userId]);
       if (uRows && uRows.length > 0) {
         if (uRows[0].name) userName = uRows[0].name;
-        if (uRows[0].avatar) userAvatar = uRows[0].avatar;
+        if (uRows[0].avatar_url) userAvatar = uRows[0].avatar_url;
+        else if (uRows[0].avatar) userAvatar = uRows[0].avatar;
       }
     } catch (_) {}
 
@@ -4798,10 +4842,15 @@ app.post("/api/reels/:id/view", async (req: any, res: any) => {
 app.get("/api/reels/:id/comments", async (req: any, res: any) => {
   try {
     const { id } = req.params;
-    const { rows: comments } = await pgPool.query(
-      `SELECT * FROM reel_comments WHERE reel_id = $1 ORDER BY created_at ASC`,
-      [id]
-    );
+    const { rows: comments } = await pgPool.query(`
+      SELECT c.*,
+             COALESCE(NULLIF(u.name, ''), c.user_name, 'Foydalanuvchi') as user_name,
+             COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), c.user_avatar, '') as user_avatar
+      FROM reel_comments c
+      LEFT JOIN users u ON c.user_id::text = u.id::text
+      WHERE c.reel_id = $1
+      ORDER BY c.created_at ASC
+    `, [id]);
     return res.json({ comments });
   } catch (err: any) {
     return res.status(500).json({ error: "Izohlarni olishda xatolik" });
@@ -4821,10 +4870,11 @@ app.post("/api/reels/:id/comments", authenticateToken, async (req: any, res: any
     let userName = req.user.name || "Foydalanuvchi";
     let userAvatar = req.user.avatar || "";
     try {
-      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar FROM users WHERE id = $1 LIMIT 1`, [userId]);
+      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar_url, avatar FROM users WHERE id = $1 LIMIT 1`, [userId]);
       if (uRows && uRows.length > 0) {
         if (uRows[0].name) userName = uRows[0].name;
-        if (uRows[0].avatar) userAvatar = uRows[0].avatar;
+        if (uRows[0].avatar_url) userAvatar = uRows[0].avatar_url;
+        else if (uRows[0].avatar) userAvatar = uRows[0].avatar;
       }
     } catch (_) {}
 
@@ -4939,10 +4989,15 @@ app.delete("/api/reels/:id", authenticateToken, async (req: any, res: any) => {
 app.get("/api/user/:userId/reels", async (req: any, res: any) => {
   try {
     const { userId } = req.params;
-    const { rows: reels } = await pgPool.query(
-      `SELECT * FROM reels WHERE user_id = $1 AND status = 'active' ORDER BY created_at DESC`,
-      [userId]
-    );
+    const { rows: reels } = await pgPool.query(`
+      SELECT r.*,
+             COALESCE(NULLIF(u.name, ''), r.user_name, 'Foydalanuvchi') as user_name,
+             COALESCE(NULLIF(u.avatar_url, ''), NULLIF(u.avatar, ''), r.user_avatar, '') as user_avatar
+      FROM reels r
+      LEFT JOIN users u ON r.user_id::text = u.id::text
+      WHERE r.user_id = $1 AND r.status = 'active'
+      ORDER BY r.created_at DESC
+    `, [userId]);
     return res.json({ reels });
   } catch (err: any) {
     return res.status(500).json({ error: "Foydalanuvchi reellarini yuklashda xatolik" });

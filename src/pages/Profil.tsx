@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { User, Anime, toSlug, Reel } from '../types';
 import { ReelUploadModal } from '../components/ReelUploadModal';
@@ -57,7 +57,8 @@ function getOnlineStatusInfo(lastSeen?: string, isOwner?: boolean) {
 
 export default function Profil() {
   const params = useParams();
-  const targetId = params.id;
+  const [searchParams] = useSearchParams();
+  const targetId = params.id || searchParams.get('id') || searchParams.get('user');
   const { user: currentUser, token, login } = useAuth();
 
   const [profileUser, setProfileUser] = useState<User | null>(null);
