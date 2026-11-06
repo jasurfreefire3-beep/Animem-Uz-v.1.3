@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { Reel } from "../types";
+import { motion, AnimatePresence } from "motion/react";
 import { ReelCommentsDrawer } from "../components/ReelCommentsDrawer";
 import { ReelReportModal } from "../components/ReelReportModal";
 import { ReelUploadModal } from "../components/ReelUploadModal";
@@ -34,12 +35,37 @@ function shuffleArray<T>(array: T[]): T[] {
   return arr;
 }
 
+// TikTok-style vertical slide transition variants
+const slideVariants = {
+  enter: (direction: number) => ({
+    y: direction > 0 ? "100%" : "-100%",
+    opacity: 0.85,
+  }),
+  center: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      y: { type: "spring", stiffness: 350, damping: 32 },
+      opacity: { duration: 0.18 },
+    },
+  },
+  exit: (direction: number) => ({
+    y: direction > 0 ? "-100%" : "100%",
+    opacity: 0.85,
+    transition: {
+      y: { type: "spring", stiffness: 350, damping: 32 },
+      opacity: { duration: 0.18 },
+    },
+  }),
+};
+
 export default function Reels() {
   const { id: routeReelId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
 
   const [reels, setReels] = useState<Reel[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
@@ -168,17 +194,44 @@ export default function Reels() {
   // Next 4 videos to preload in advance for instant buffer-free playback
   const preloadedReels = reels.slice(currentIndex + 1, currentIndex + 5);
 
-  const goToNext = () => {
+  const goToNext = useCallback(() => {
     if (currentIndex < reels.length - 1) {
+      setDirection(1);
       setCurrentIndex((prev) => prev + 1);
     }
-  };
+  }, [currentIndex, reels.length]);
 
-  const goToPrev = () => {
+  const goToPrev = useCallback(() => {
     if (currentIndex > 0) {
+      setDirection(-1);
       setCurrentIndex((prev) => prev - 1);
     }
-  };
+  }, [currentIndex]);
+
+  // Mouse Wheel navigation (TikTok web style: scroll down = next, scroll up = prev)
+  useEffect(() => {
+    let wheelTimer: any = null;
+    const handleWheel = (e: WheelEvent) => {
+      if (commentsOpen || reportOpen || uploadOpen) return;
+      if (Math.abs(e.deltaY) < 25) return;
+      if (wheelTimer) return;
+
+      if (e.deltaY > 0) {
+        goToNext();
+      } else {
+        goToPrev();
+      }
+      wheelTimer = setTimeout(() => {
+        wheelTimer = null;
+      }, 400);
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      if (wheelTimer) clearTimeout(wheelTimer);
+    };
+  }, [goToNext, goToPrev, commentsOpen, reportOpen, uploadOpen]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -200,7 +253,7 @@ export default function Reels() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentIndex, reels.length, commentsOpen, reportOpen, uploadOpen]);
+  }, [goToNext, goToPrev, commentsOpen, reportOpen, uploadOpen]);
 
   // Touch Swipe handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -210,7 +263,7 @@ export default function Reels() {
   const handleTouchEnd = (e: React.TouchEvent) => {
     const touchEndY = e.changedTouches[0].clientY;
     const diff = touchStartYRef.current - touchEndY;
-    if (Math.abs(diff) > 50) {
+    if (Math.abs(diff) > 40) {
       if (diff > 0) {
         goToNext();
       } else {
@@ -463,197 +516,225 @@ export default function Reels() {
             </button>
           </div>
         ) : currentReel ? (
-          <>
-            {/* Ambient Blurred Backdrop for non-9:16 aspect ratios */}
-            <video
-              ref={bgVideoRef}
-              key={`bg-${currentReel.id}`}
-              src={currentReel.video_url}
-              loop
-              playsInline
-              autoPlay
-              muted
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-40 scale-125 pointer-events-none select-none"
-            />
-
-            {/* Active Video - Fully responsive & adaptive for all aspect ratios (9:16, 16:9, 1:1, etc.) */}
-            <video
-              ref={videoRef}
+          <AnimatePresence initial={false} custom={direction} mode="popLayout">
+            <motion.div
               key={currentReel.id}
-              src={currentReel.video_url}
-              loop
-              playsInline
-              autoPlay
-              muted={isMuted}
-              onClick={handleVideoClick}
-              className="w-full h-full object-contain relative z-10 cursor-pointer"
-            />
+              custom={direction}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={0.25}
+              onDragEnd={(_, info) => {
+                const threshold = 35;
+                const velocityThreshold = 250;
+                if (info.offset.y < -threshold || info.velocity.y < -velocityThreshold) {
+                  goToNext();
+                } else if (info.offset.y > threshold || info.velocity.y > velocityThreshold) {
+                  goToPrev();
+                }
+              }}
+              className="absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden touch-none"
+            >
+              {/* Ambient Blurred Backdrop for non-9:16 aspect ratios */}
+              <video
+                ref={bgVideoRef}
+                key={`bg-${currentReel.id}`}
+                src={currentReel.video_url}
+                loop
+                playsInline
+                autoPlay
+                muted
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-40 scale-125 pointer-events-none select-none"
+              />
 
-            {/* Play/Pause Animated Icon Pop */}
-            {showPlayIcon && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                <div className="p-4 bg-black/50 backdrop-blur-md rounded-full text-white animate-in zoom-in duration-200">
-                  {isPlaying ? <Play className="w-10 h-10" /> : <Pause className="w-10 h-10" />}
-                </div>
-              </div>
-            )}
+              {/* Active Video - Fully responsive & adaptive for all aspect ratios (9:16, 16:9, 1:1, etc.) */}
+              <video
+                ref={videoRef}
+                key={currentReel.id}
+                src={currentReel.video_url}
+                loop
+                playsInline
+                autoPlay
+                muted={isMuted}
+                onClick={handleVideoClick}
+                className="w-full h-full object-contain relative z-10 cursor-pointer"
+              />
 
-            {/* Double Tap Heart Explosion Animation */}
-            {heartExplosion.show && (
-              <div
-                className="absolute pointer-events-none z-30 transform -translate-x-1/2 -translate-y-1/2 animate-bounce"
-                style={{ left: heartExplosion.x, top: heartExplosion.y }}
-              >
-                <Heart className="w-24 h-24 fill-red-500 text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]" />
-              </div>
-            )}
-
-            {/* Right Action Buttons */}
-            <div className="absolute right-3 bottom-20 z-20 flex flex-col items-center gap-5">
-              {/* Creator Avatar */}
-              <Link
-                to={`/profil?user=${currentReel.user_id}`}
-                className="relative group block"
-                title={currentReel.user_name}
-              >
-                <img
-                  src={currentReel.user_avatar || "https://image.animem.uz/logo.png"}
-                  alt={currentReel.user_name}
-                  className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-lg group-hover:scale-105 transition"
-                  onError={(e: any) => {
-                    e.target.src = "https://image.animem.uz/logo.png";
-                  }}
-                />
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-pink-600 rounded-full p-0.5 text-white shadow">
-                  <Plus className="w-2.5 h-2.5" />
-                </div>
-              </Link>
-
-              {/* Like Button */}
-              <button
-                onClick={handleLike}
-                className="flex flex-col items-center gap-1 text-white group active:scale-90 transition"
-              >
-                <div
-                  className={`p-2.5 rounded-full backdrop-blur-md transition ${
-                    currentReel.is_liked
-                      ? "bg-red-500/20 text-red-500"
-                      : "bg-black/40 text-white hover:bg-black/60"
-                  }`}
-                >
-                  <Heart
-                    className={`w-7 h-7 transition ${
-                      currentReel.is_liked ? "fill-red-500 scale-110" : ""
-                    }`}
-                  />
-                </div>
-                <span className="text-xs font-semibold drop-shadow">
-                  {currentReel.likes_count}
-                </span>
-              </button>
-
-              {/* Comments Button */}
-              <button
-                onClick={() => setCommentsOpen(true)}
-                className="flex flex-col items-center gap-1 text-white group active:scale-90 transition"
-              >
-                <div className="p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md transition">
-                  <MessageCircle className="w-7 h-7" />
-                </div>
-                <span className="text-xs font-semibold drop-shadow">
-                  {currentReel.comments_count}
-                </span>
-              </button>
-
-              {/* Share Button */}
-              <button
-                onClick={handleShare}
-                className="flex flex-col items-center gap-1 text-white group active:scale-90 transition"
-              >
-                <div className="p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md transition">
-                  {copiedLink ? (
-                    <Check className="w-7 h-7 text-emerald-400" />
-                  ) : (
-                    <Share2 className="w-7 h-7" />
-                  )}
-                </div>
-                <span className="text-xs font-semibold drop-shadow">
-                  {copiedLink ? "Nusxalandi" : "Ulashish"}
-                </span>
-              </button>
-
-              {/* Report Button */}
-              <button
-                onClick={() => setReportOpen(true)}
-                className="flex flex-col items-center gap-1 text-zinc-400 hover:text-amber-400 group active:scale-90 transition"
-                title="Shikoyat qilish"
-              >
-                <div className="p-2 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-md transition">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-medium drop-shadow">Shikoyat</span>
-              </button>
-
-              {/* Delete Button (Owner or Admin) */}
-              {(isOwner || isAdmin) && (
-                <button
-                  onClick={handleDeleteReel}
-                  className="flex flex-col items-center gap-1 text-zinc-400 hover:text-red-400 group active:scale-90 transition"
-                  title="O'chirish"
-                >
-                  <div className="p-2 rounded-full bg-black/30 hover:bg-red-500/20 backdrop-blur-md transition">
-                    <Trash2 className="w-5 h-5 text-red-400" />
+              {/* Play/Pause Animated Icon Pop */}
+              {showPlayIcon && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                  <div className="p-4 bg-black/50 backdrop-blur-md rounded-full text-white animate-in zoom-in duration-200">
+                    {isPlaying ? <Play className="w-10 h-10" /> : <Pause className="w-10 h-10" />}
                   </div>
-                  <span className="text-[10px] font-medium drop-shadow">O'chirish</span>
-                </button>
+                </div>
               )}
-            </div>
 
-            {/* Bottom Overlay: Creator info, caption, sound */}
-            <div className="absolute left-0 right-16 bottom-0 z-20 p-4 pb-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col gap-2">
-              {/* Creator Name */}
-              <div className="flex items-center gap-2">
+              {/* Double Tap Heart Explosion Animation */}
+              {heartExplosion.show && (
+                <div
+                  className="absolute pointer-events-none z-30 transform -translate-x-1/2 -translate-y-1/2 animate-bounce"
+                  style={{ left: heartExplosion.x, top: heartExplosion.y }}
+                >
+                  <Heart className="w-24 h-24 fill-red-500 text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]" />
+                </div>
+              )}
+
+              {/* Right Action Buttons */}
+              <div
+                onPointerDownCapture={(e) => e.stopPropagation()}
+                className="absolute right-3 bottom-20 z-20 flex flex-col items-center gap-5"
+              >
+                {/* Creator Avatar */}
                 <Link
                   to={`/profil?user=${currentReel.user_id}`}
-                  className="font-bold text-white text-sm hover:underline drop-shadow flex items-center gap-1.5"
+                  className="relative group block"
+                  title={currentReel.user_name}
                 >
-                  <span>@{currentReel.user_name}</span>
+                  <img
+                    src={currentReel.user_avatar || "https://image.animem.uz/logo.png"}
+                    alt={currentReel.user_name}
+                    className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-lg group-hover:scale-105 transition"
+                    onError={(e: any) => {
+                      e.target.src = "https://image.animem.uz/logo.png";
+                    }}
+                  />
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-pink-600 rounded-full p-0.5 text-white shadow">
+                    <Plus className="w-2.5 h-2.5" />
+                  </div>
                 </Link>
-                <span className="text-[10px] text-zinc-400 font-normal">
-                  {currentReel.views_count} ko'rildi
-                </span>
-              </div>
 
-              {/* Caption */}
-              {currentReel.caption && (
-                <p className="text-xs text-zinc-100 drop-shadow line-clamp-3 leading-relaxed">
-                  {currentReel.caption}
-                </p>
-              )}
-
-              {/* Anime Link Badge (if attached) */}
-              {currentReel.anime_title && (
-                <div className="pt-1">
-                  <Link
-                    to={currentReel.anime_id ? `/anime/${currentReel.anime_id}` : `/animelar?search=${encodeURIComponent(currentReel.anime_title)}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold backdrop-blur-md border border-white/20 transition group"
+                {/* Like Button */}
+                <button
+                  onClick={handleLike}
+                  className="flex flex-col items-center gap-1 text-white group active:scale-90 transition"
+                >
+                  <div
+                    className={`p-2.5 rounded-full backdrop-blur-md transition ${
+                      currentReel.is_liked
+                        ? "bg-red-500/20 text-red-500"
+                        : "bg-black/40 text-white hover:bg-black/60"
+                    }`}
                   >
-                    <Film className="w-3.5 h-3.5 text-pink-400 group-hover:rotate-12 transition-transform" />
-                    <span className="truncate max-w-[200px]">
-                      {currentReel.anime_title}
-                    </span>
-                  </Link>
-                </div>
-              )}
+                    <Heart
+                      className={`w-7 h-7 transition ${
+                        currentReel.is_liked ? "fill-red-500 scale-110" : ""
+                      }`}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold drop-shadow">
+                    {currentReel.likes_count}
+                  </span>
+                </button>
 
-              {/* Music / Audio Indicator */}
-              <div className="flex items-center gap-2 pt-1 text-[11px] text-zinc-300 drop-shadow">
-                <Music2 className="w-3.5 h-3.5 animate-spin text-pink-400" />
-                <span className="truncate">Animem Reels Original Sound</span>
+                {/* Comments Button */}
+                <button
+                  onClick={() => setCommentsOpen(true)}
+                  className="flex flex-col items-center gap-1 text-white group active:scale-90 transition"
+                >
+                  <div className="p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md transition">
+                    <MessageCircle className="w-7 h-7" />
+                  </div>
+                  <span className="text-xs font-semibold drop-shadow">
+                    {currentReel.comments_count}
+                  </span>
+                </button>
+
+                {/* Share Button */}
+                <button
+                  onClick={handleShare}
+                  className="flex flex-col items-center gap-1 text-white group active:scale-90 transition"
+                >
+                  <div className="p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md transition">
+                    {copiedLink ? (
+                      <Check className="w-7 h-7 text-emerald-400" />
+                    ) : (
+                      <Share2 className="w-7 h-7" />
+                    )}
+                  </div>
+                  <span className="text-xs font-semibold drop-shadow">
+                    {copiedLink ? "Nusxalandi" : "Ulashish"}
+                  </span>
+                </button>
+
+                {/* Report Button */}
+                <button
+                  onClick={() => setReportOpen(true)}
+                  className="flex flex-col items-center gap-1 text-zinc-400 hover:text-amber-400 group active:scale-90 transition"
+                  title="Shikoyat qilish"
+                >
+                  <div className="p-2 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-md transition">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px] font-medium drop-shadow">Shikoyat</span>
+                </button>
+
+                {/* Delete Button (Owner or Admin) */}
+                {(isOwner || isAdmin) && (
+                  <button
+                    onClick={handleDeleteReel}
+                    className="flex flex-col items-center gap-1 text-zinc-400 hover:text-red-400 group active:scale-90 transition"
+                    title="O'chirish"
+                  >
+                    <div className="p-2 rounded-full bg-black/30 hover:bg-red-500/20 backdrop-blur-md transition">
+                      <Trash2 className="w-5 h-5 text-red-400" />
+                    </div>
+                    <span className="text-[10px] font-medium drop-shadow">O'chirish</span>
+                  </button>
+                )}
               </div>
-            </div>
-          </>
+
+              {/* Bottom Overlay: Creator info, caption, sound */}
+              <div
+                onPointerDownCapture={(e) => e.stopPropagation()}
+                className="absolute left-0 right-16 bottom-0 z-20 p-4 pb-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col gap-2"
+              >
+                {/* Creator Name */}
+                <div className="flex items-center gap-2">
+                  <Link
+                    to={`/profil?user=${currentReel.user_id}`}
+                    className="font-bold text-white text-sm hover:underline drop-shadow flex items-center gap-1.5"
+                  >
+                    <span>@{currentReel.user_name}</span>
+                  </Link>
+                  <span className="text-[10px] text-zinc-400 font-normal">
+                    {currentReel.views_count} ko'rildi
+                  </span>
+                </div>
+
+                {/* Caption */}
+                {currentReel.caption && (
+                  <p className="text-xs text-zinc-100 drop-shadow line-clamp-3 leading-relaxed">
+                    {currentReel.caption}
+                  </p>
+                )}
+
+                {/* Anime Link Badge (if attached) */}
+                {currentReel.anime_title && (
+                  <div className="pt-1">
+                    <Link
+                      to={currentReel.anime_id ? `/anime/${currentReel.anime_id}` : `/animelar?search=${encodeURIComponent(currentReel.anime_title)}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold backdrop-blur-md border border-white/20 transition group"
+                    >
+                      <Film className="w-3.5 h-3.5 text-pink-400 group-hover:rotate-12 transition-transform" />
+                      <span className="truncate max-w-[200px]">
+                        {currentReel.anime_title}
+                      </span>
+                    </Link>
+                  </div>
+                )}
+
+                {/* Music / Audio Indicator */}
+                <div className="flex items-center gap-2 pt-1 text-[11px] text-zinc-300 drop-shadow">
+                  <Music2 className="w-3.5 h-3.5 animate-spin text-pink-400" />
+                  <span className="truncate">Animem Reels Original Sound</span>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
         ) : null}
       </div>
 
@@ -662,16 +743,16 @@ export default function Reels() {
         <button
           onClick={goToPrev}
           disabled={currentIndex === 0}
-          className="p-3 rounded-full bg-zinc-900/80 hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none text-white border border-zinc-700/60 shadow-xl transition active:scale-95"
-          title="Oldingi video (Up arrow)"
+          className="p-3.5 rounded-full bg-zinc-900/90 hover:bg-zinc-800 disabled:opacity-20 disabled:pointer-events-none text-white border border-white/10 shadow-2xl transition hover:scale-110 active:scale-95 cursor-pointer"
+          title="Oldingi video (Tepaga / ArrowUp)"
         >
           <ChevronUp className="w-6 h-6" />
         </button>
         <button
           onClick={goToNext}
           disabled={currentIndex >= reels.length - 1}
-          className="p-3 rounded-full bg-zinc-900/80 hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none text-white border border-zinc-700/60 shadow-xl transition active:scale-95"
-          title="Keyingi video (Down arrow)"
+          className="p-3.5 rounded-full bg-zinc-900/90 hover:bg-zinc-800 disabled:opacity-20 disabled:pointer-events-none text-white border border-white/10 shadow-2xl transition hover:scale-110 active:scale-95 cursor-pointer"
+          title="Keyingi video (Pastga / ArrowDown)"
         >
           <ChevronDown className="w-6 h-6" />
         </button>
