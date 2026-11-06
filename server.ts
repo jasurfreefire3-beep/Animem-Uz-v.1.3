@@ -18,6 +18,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import multer from "multer";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { GoogleGenAI } from "@google/genai";
 import { exec } from "child_process";
 import util from "util";
@@ -390,12 +391,95 @@ async function initPgDb() {
       )
     `);
 
-    console.log("Verified PostgreSQL core tables: video, messages, comments, notifications, donations, mika_complaints, songs.");
+    // 8. Reels & Short Videos tables (Cloudflare R2 Storage)
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS reels (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id BIGINT DEFAULT 0,
+        user_name VARCHAR(255) DEFAULT 'Anonim',
+        user_avatar TEXT,
+        caption TEXT,
+        video_url TEXT NOT NULL,
+        r2_key TEXT NOT NULL,
+        thumbnail_url TEXT,
+        anime_id VARCHAR(64),
+        anime_title VARCHAR(255),
+        likes_count BIGINT DEFAULT 0,
+        comments_count BIGINT DEFAULT 0,
+        views_count BIGINT DEFAULT 0,
+        shares_count BIGINT DEFAULT 0,
+        status VARCHAR(32) DEFAULT 'active',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    try { await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_reels_created_at ON reels (created_at DESC)`); } catch (_) {}
+    try { await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_reels_user_id ON reels (user_id)`); } catch (_) {}
+
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS reel_likes (
+        id BIGSERIAL PRIMARY KEY,
+        reel_id VARCHAR(64) NOT NULL,
+        user_id BIGINT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(reel_id, user_id)
+      )
+    `);
+    try { await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_reel_likes_reel_id ON reel_likes (reel_id)`); } catch (_) {}
+
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS reel_comments (
+        id BIGSERIAL PRIMARY KEY,
+        reel_id VARCHAR(64) NOT NULL,
+        user_id BIGINT NOT NULL,
+        user_name VARCHAR(255) DEFAULT 'Anonim',
+        user_avatar TEXT,
+        comment TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    try { await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_reel_comments_reel_id ON reel_comments (reel_id)`); } catch (_) {}
+
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS reel_reports (
+        id BIGSERIAL PRIMARY KEY,
+        reel_id VARCHAR(64) NOT NULL,
+        reporter_id BIGINT DEFAULT 0,
+        reporter_name VARCHAR(255) DEFAULT 'Anonim',
+        reason TEXT NOT NULL,
+        status VARCHAR(32) DEFAULT 'pending',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    console.log("Verified PostgreSQL core tables: video, messages, comments, notifications, donations, mika_complaints, songs, reels, reel_likes, reel_comments, reel_reports.");
   } catch (err: any) {
     console.error("Failed to initialize PostgreSQL core tables:", err.message);
   }
 }
 initPgDb();
+
+// --- Cloudflare R2 Client Configuration ---
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "ae4b759aa4d1a48fef03cf9cf04a0f6f";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "da5aa855463513970ceb65968a8357f0";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "e31e808260702307835136ab9a0bbc4731747b191ff1b5a69045fdc8ebb165fe";
+const R2_BUCKET = process.env.R2_BUCKET || "animem";
+const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+const r2Client = new S3Client({
+  region: "auto",
+  endpoint: R2_ENDPOINT,
+  credentials: {
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+  },
+});
+
+const reelVideoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 65 * 1024 * 1024, // 65MB max per reel
+  },
+});
 
 async function d1ExecuteQuery<T = any>(sql: string, params?: any[]): Promise<T> {
   let cleanSql = sql
@@ -4415,6 +4499,445 @@ app.get("/api/music/stream/:id", async (req: any, res: any) => {
   } catch (err: any) {
     console.error("Audio stream error:", err);
     return res.status(500).send("Audio oqimida xatolik");
+  }
+});
+
+// ==========================================
+// REELS & SHORT VIDEOS API (CLOUDFLARE R2)
+// ==========================================
+
+const getOptionalUserForReels = (req: any): any => {
+  try {
+    const authHeader = req.headers["authorization"];
+    let token = authHeader && authHeader.split(" ")[1];
+    if (!token && typeof req.query.token === "string") {
+      token = req.query.token;
+    }
+    if (!token) return null;
+    return verifyAnyJwt(token);
+  } catch {
+    return null;
+  }
+};
+
+// 1. GET /api/reels - Paginated feed with like status
+app.get("/api/reels", async (req: any, res: any) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(20, Math.max(1, parseInt(req.query.limit as string, 10) || 10));
+    const offset = (page - 1) * limit;
+    const animeId = req.query.anime_id ? String(req.query.anime_id) : null;
+    const user = getOptionalUserForReels(req);
+
+    let query = `SELECT * FROM reels WHERE status = 'active'`;
+    const params: any[] = [];
+
+    if (animeId) {
+      params.push(animeId);
+      query += ` AND anime_id = $${params.length}`;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const { rows: reels } = await pgPool.query(query, params);
+
+    // If user is logged in, attach is_liked
+    if (user && user.id && reels.length > 0) {
+      const reelIds = reels.map((r: any) => r.id);
+      const { rows: likedRows } = await pgPool.query(
+        `SELECT reel_id FROM reel_likes WHERE user_id = $1 AND reel_id = ANY($2)`,
+        [user.id, reelIds]
+      );
+      const likedSet = new Set(likedRows.map((lr: any) => lr.reel_id));
+      for (const r of reels) {
+        r.is_liked = likedSet.has(r.id);
+      }
+    } else {
+      for (const r of reels) {
+        r.is_liked = false;
+      }
+    }
+
+    return res.json({ reels, page, limit });
+  } catch (err: any) {
+    console.error("GET /api/reels error:", err);
+    return res.status(500).json({ error: "Reels yuklashda xatolik", details: err.message });
+  }
+});
+
+// 2. GET /api/reels/:id - Single reel by ID
+app.get("/api/reels/:id", async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const user = getOptionalUserForReels(req);
+
+    const { rows } = await pgPool.query(`SELECT * FROM reels WHERE id = $1 LIMIT 1`, [id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: "Reel topilmadi" });
+    }
+    const reel = rows[0];
+
+    if (user && user.id) {
+      const { rows: likedRows } = await pgPool.query(
+        `SELECT id FROM reel_likes WHERE user_id = $1 AND reel_id = $2 LIMIT 1`,
+        [user.id, id]
+      );
+      reel.is_liked = likedRows.length > 0;
+    } else {
+      reel.is_liked = false;
+    }
+
+    return res.json(reel);
+  } catch (err: any) {
+    console.error("GET /api/reels/:id error:", err);
+    return res.status(500).json({ error: "Reel yuklashda xatolik" });
+  }
+});
+
+// 3. POST /api/reels/upload - Upload reel video to Cloudflare R2 (Max 60MB)
+app.post("/api/reels/upload", authenticateToken, reelVideoUpload.single("video"), async (req: any, res: any) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Video fayl tanlanmagan" });
+    }
+
+    const maxBytes = 60 * 1024 * 1024; // 60MB limit as requested
+    if (req.file.size > maxBytes) {
+      return res.status(400).json({ error: "Video hajmi 60 MB dan oshmasligi kerak!" });
+    }
+
+    const { caption, anime_id, anime_title } = req.body;
+    const userId = req.user.id;
+
+    // Get current user profile info
+    let userName = req.user.name || "Foydalanuvchi";
+    let userAvatar = req.user.avatar || "";
+    try {
+      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar FROM users WHERE id = $1 LIMIT 1`, [userId]);
+      if (uRows && uRows.length > 0) {
+        if (uRows[0].name) userName = uRows[0].name;
+        if (uRows[0].avatar) userAvatar = uRows[0].avatar;
+      }
+    } catch (_) {}
+
+    const reelId = `reel_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const fileExt = req.file.mimetype === "video/webm" ? "webm" : "mp4";
+    const r2Key = `reels/${reelId}.${fileExt}`;
+
+    // Upload to Cloudflare R2
+    await r2Client.send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: r2Key,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype || "video/mp4",
+      CacheControl: "public, max-age=31536000, immutable",
+    }));
+
+    const videoUrl = `/api/reels/stream/${r2Key}`;
+
+    const { rows: inserted } = await pgPool.query(
+      `INSERT INTO reels (
+        id, user_id, user_name, user_avatar, caption, video_url, r2_key,
+        anime_id, anime_title, likes_count, comments_count, views_count, shares_count, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 0, 0, 'active')
+      RETURNING *`,
+      [
+        reelId,
+        userId,
+        userName,
+        userAvatar,
+        (caption || "").trim(),
+        videoUrl,
+        r2Key,
+        anime_id || null,
+        anime_title || null,
+      ]
+    );
+
+    return res.json({ success: true, reel: inserted[0] });
+  } catch (err: any) {
+    console.error("Reel upload error:", err);
+    return res.status(500).json({ error: "Reel yuklashda xatolik yuz berdi: " + (err.message || "") });
+  }
+});
+
+// 4. GET /api/reels/stream/:key(*) - Ultra-fast R2 video stream with HTTP 206 Range support
+app.get("/api/reels/stream/:key(*)", async (req: any, res: any) => {
+  try {
+    const key = req.params.key;
+    if (!key) return res.status(400).send("Fayl kaliti ko'rsatilmadi");
+
+    const rangeHeader = req.headers.range;
+
+    const command = new GetObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Range: rangeHeader,
+    });
+
+    const s3Res = await r2Client.send(command);
+
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
+    if (s3Res.ContentType) {
+      res.setHeader("Content-Type", s3Res.ContentType);
+    } else {
+      res.setHeader("Content-Type", "video/mp4");
+    }
+
+    if (rangeHeader && s3Res.ContentRange) {
+      res.status(206);
+      res.setHeader("Content-Range", s3Res.ContentRange);
+      if (s3Res.ContentLength != null) {
+        res.setHeader("Content-Length", s3Res.ContentLength);
+      }
+    } else {
+      res.status(200);
+      if (s3Res.ContentLength != null) {
+        res.setHeader("Content-Length", s3Res.ContentLength);
+      }
+    }
+
+    if (s3Res.Body) {
+      (s3Res.Body as any).pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (err: any) {
+    if (err?.$metadata?.httpStatusCode === 416) {
+      return res.status(416).setHeader("Content-Range", `bytes */*`).send("Range Not Satisfiable");
+    }
+    console.error("Reels stream error:", err);
+    return res.status(err?.$metadata?.httpStatusCode || 500).send("Video oqimida xatolik: " + (err.message || ""));
+  }
+});
+
+// 5. POST /api/reels/:id/like - Toggle like
+app.post("/api/reels/:id/like", authenticateToken, async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Check if like exists
+    const { rows: existing } = await pgPool.query(
+      `SELECT id FROM reel_likes WHERE reel_id = $1 AND user_id = $2 LIMIT 1`,
+      [id, userId]
+    );
+
+    let isLiked = false;
+    if (existing.length > 0) {
+      // Unlike
+      await pgPool.query(`DELETE FROM reel_likes WHERE id = $1`, [existing[0].id]);
+      await pgPool.query(`UPDATE reels SET likes_count = GREATEST(0, likes_count - 1) WHERE id = $1`, [id]);
+      isLiked = false;
+    } else {
+      // Like
+      await pgPool.query(`INSERT INTO reel_likes (reel_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [id, userId]);
+      await pgPool.query(`UPDATE reels SET likes_count = likes_count + 1 WHERE id = $1`, [id]);
+      isLiked = true;
+    }
+
+    const { rows: rRows } = await pgPool.query(`SELECT likes_count FROM reels WHERE id = $1`, [id]);
+    const likesCount = rRows.length > 0 ? Number(rRows[0].likes_count) : 0;
+
+    return res.json({ success: true, liked: isLiked, likes_count: likesCount });
+  } catch (err: any) {
+    console.error("Reel like error:", err);
+    return res.status(500).json({ error: "Like bosishda xatolik" });
+  }
+});
+
+// 6. POST /api/reels/:id/view - Increment views
+app.post("/api/reels/:id/view", async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    await pgPool.query(`UPDATE reels SET views_count = views_count + 1 WHERE id = $1`, [id]);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: "View xatoligi" });
+  }
+});
+
+// 7. GET /api/reels/:id/comments - Get reel comments
+app.get("/api/reels/:id/comments", async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const { rows: comments } = await pgPool.query(
+      `SELECT * FROM reel_comments WHERE reel_id = $1 ORDER BY created_at ASC`,
+      [id]
+    );
+    return res.json({ comments });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Izohlarni olishda xatolik" });
+  }
+});
+
+// 8. POST /api/reels/:id/comments - Add comment
+app.post("/api/reels/:id/comments", authenticateToken, async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ error: "Izoh matni bo'sh bo'lishi mumkin emas" });
+    }
+
+    const userId = req.user.id;
+    let userName = req.user.name || "Foydalanuvchi";
+    let userAvatar = req.user.avatar || "";
+    try {
+      const { rows: uRows } = await pgPool.query(`SELECT id, name, avatar FROM users WHERE id = $1 LIMIT 1`, [userId]);
+      if (uRows && uRows.length > 0) {
+        if (uRows[0].name) userName = uRows[0].name;
+        if (uRows[0].avatar) userAvatar = uRows[0].avatar;
+      }
+    } catch (_) {}
+
+    const { rows: newComment } = await pgPool.query(
+      `INSERT INTO reel_comments (reel_id, user_id, user_name, user_avatar, comment)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [id, userId, userName, userAvatar, comment.trim()]
+    );
+
+    await pgPool.query(`UPDATE reels SET comments_count = comments_count + 1 WHERE id = $1`, [id]);
+
+    return res.json({ success: true, comment: newComment[0] });
+  } catch (err: any) {
+    console.error("Add comment error:", err);
+    return res.status(500).json({ error: "Izoh qoldirishda xatolik" });
+  }
+});
+
+// 9. DELETE /api/reels/comments/:commentId - Delete comment
+app.delete("/api/reels/comments/:commentId", authenticateToken, async (req: any, res: any) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user.id;
+    const isAdmin = req.user.role === "admin";
+
+    const { rows: cRows } = await pgPool.query(`SELECT * FROM reel_comments WHERE id = $1`, [commentId]);
+    if (cRows.length === 0) {
+      return res.status(404).json({ error: "Izoh topilmadi" });
+    }
+    const c = cRows[0];
+    if (String(c.user_id) !== String(userId) && !isAdmin) {
+      return res.status(403).json({ error: "Bu izohni o'chirishga ruxsatingiz yo'q" });
+    }
+
+    await pgPool.query(`DELETE FROM reel_comments WHERE id = $1`, [commentId]);
+    await pgPool.query(`UPDATE reels SET comments_count = GREATEST(0, comments_count - 1) WHERE id = $1`, [c.reel_id]);
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Izohni o'chirishda xatolik" });
+  }
+});
+
+// 10. POST /api/reels/:id/report - Report a reel (sent to admin panel)
+app.post("/api/reels/:id/report", async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Shikoyat sababi ko'rsatilmadi" });
+    }
+
+    const user = getOptionalUserForReels(req);
+    const reporterId = user ? user.id : 0;
+    const reporterName = user ? (user.name || "Foydalanuvchi") : "Anonim";
+
+    await pgPool.query(
+      `INSERT INTO reel_reports (reel_id, reporter_id, reporter_name, reason, status)
+       VALUES ($1, $2, $3, $4, 'pending')`,
+      [id, reporterId, reporterName, reason.trim()]
+    );
+
+    return res.json({ success: true, message: "Shikoyatingiz qabul qilindi. Tez orada adminlar ko'rib chiqadi." });
+  } catch (err: any) {
+    console.error("Report reel error:", err);
+    return res.status(500).json({ error: "Shikoyat yuborishda xatolik" });
+  }
+});
+
+// 11. DELETE /api/reels/:id - Delete reel (owner or admin)
+app.delete("/api/reels/:id", authenticateToken, async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const isAdmin = req.user.role === "admin";
+
+    const { rows: rRows } = await pgPool.query(`SELECT * FROM reels WHERE id = $1`, [id]);
+    if (rRows.length === 0) {
+      return res.status(404).json({ error: "Reel topilmadi" });
+    }
+    const reel = rRows[0];
+    if (String(reel.user_id) !== String(userId) && !isAdmin) {
+      return res.status(403).json({ error: "Bu reelni o'chirishga ruxsatingiz yo'q" });
+    }
+
+    // Delete from R2 if r2_key exists
+    if (reel.r2_key) {
+      try {
+        await r2Client.send(new DeleteObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: reel.r2_key,
+        }));
+      } catch (delErr) {
+        console.warn("R2 delete object error:", delErr);
+      }
+    }
+
+    // Delete from database
+    await pgPool.query(`DELETE FROM reel_likes WHERE reel_id = $1`, [id]);
+    await pgPool.query(`DELETE FROM reel_comments WHERE reel_id = $1`, [id]);
+    await pgPool.query(`DELETE FROM reel_reports WHERE reel_id = $1`, [id]);
+    await pgPool.query(`DELETE FROM reels WHERE id = $1`, [id]);
+
+    return res.json({ success: true, message: "Reel muvaffaqiyatli o'chirildi" });
+  } catch (err: any) {
+    console.error("Delete reel error:", err);
+    return res.status(500).json({ error: "Reelni o'chirishda xatolik" });
+  }
+});
+
+// 12. GET /api/user/:userId/reels - Fetch user uploaded reels (for profile tab)
+app.get("/api/user/:userId/reels", async (req: any, res: any) => {
+  try {
+    const { userId } = req.params;
+    const { rows: reels } = await pgPool.query(
+      `SELECT * FROM reels WHERE user_id = $1 AND status = 'active' ORDER BY created_at DESC`,
+      [userId]
+    );
+    return res.json({ reels });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Foydalanuvchi reellarini yuklashda xatolik" });
+  }
+});
+
+// 13. Admin Reel Reports endpoints
+app.get("/api/admin/reel-reports", authenticateToken, requireAdmin, async (req: any, res: any) => {
+  try {
+    const { rows: reports } = await pgPool.query(
+      `SELECT rr.*, r.caption, r.video_url, r.user_name as reel_author, r.anime_title
+       FROM reel_reports rr
+       LEFT JOIN reels r ON rr.reel_id = r.id
+       ORDER BY rr.created_at DESC`
+    );
+    return res.json({ reports });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Shikoyatlarni yuklashda xatolik" });
+  }
+});
+
+app.post("/api/admin/reel-reports/:reportId/dismiss", authenticateToken, requireAdmin, async (req: any, res: any) => {
+  try {
+    const { reportId } = req.params;
+    await pgPool.query(`UPDATE reel_reports SET status = 'dismissed' WHERE id = $1`, [reportId]);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Shikoyatni bekor qilishda xatolik" });
   }
 });
 

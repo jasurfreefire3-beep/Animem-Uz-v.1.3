@@ -324,3 +324,45 @@ export interface Song {
   created_at?: string;
 }
 
+export interface Reel {
+  id: string;
+  user_id: string | number;
+  user_name: string;
+  user_avatar?: string;
+  caption?: string;
+  video_url: string;
+  r2_key?: string;
+  thumbnail_url?: string;
+  anime_id?: string;
+  anime_title?: string;
+  likes_count: number;
+  comments_count: number;
+  views_count: number;
+  shares_count: number;
+  is_liked?: boolean;
+  status?: string;
+  created_at?: string;
+}
+
+export interface ReelComment {
+  id: string | number;
+  reel_id: string;
+  user_id: string | number;
+  user_name: string;
+  user_avatar?: string;
+  comment: string;
+  created_at: string;
+}
+
+export interface ReelReport {
+  id: string | number;
+  reel_id: string;
+  reporter_id?: string | number;
+  reporter_name?: string;
+  reason: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  created_at: string;
+  reel?: Reel;
+}
+
+

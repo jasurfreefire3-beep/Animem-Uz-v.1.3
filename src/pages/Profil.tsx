@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, Anime, toSlug } from '../types';
+import { User, Anime, toSlug, Reel } from '../types';
+import { ReelUploadModal } from '../components/ReelUploadModal';
 import { 
   Shield, Clock, Heart, MessageSquare, Edit3, Save, Camera, 
   Loader2, Globe, Send, Instagram, Youtube, Tv, Share2, 
@@ -83,6 +84,24 @@ export default function Profil() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [uploadingBackground, setUploadingBackground] = useState(false);
+
+  // User uploaded reels
+  const [userReels, setUserReels] = useState<Reel[]>([]);
+  const [loadingReels, setLoadingReels] = useState(false);
+  const [uploadReelOpen, setUploadReelOpen] = useState(false);
+
+  const fetchUserReels = async (userId: string | number) => {
+    if (!userId) return;
+    setLoadingReels(true);
+    try {
+      const res = await fetch(`/api/user/${userId}/reels`);
+      if (res.ok) {
+        const data = await res.json();
+        setUserReels(data.reels || []);
+      }
+    } catch (_) {}
+    setLoadingReels(false);
+  };
 
 
   // Format watch time accurately into hours and minutes in Uzbek
@@ -225,6 +244,7 @@ export default function Profil() {
         setEditDiscord(data.user.discord || '');
         setEditFacebook(data.user.facebook || '');
         setEditVk(data.user.vk || '');
+        fetchUserReels(data.user.id);
         setLoading(false);
 
         return; // Success
@@ -1513,6 +1533,126 @@ export default function Profil() {
           </div>
         )}
       </div>
+
+      {/* USER REELS SECTION */}
+      <div className={`rounded-2xl p-6 space-y-4 transition-all ${
+        hasCustomBg 
+          ? 'bg-[#0a0a14]/70 backdrop-blur-xl border border-white/20 shadow-lg' 
+          : 'bg-[#111] border border-[#222]'
+      }`}>
+        <div className={`flex items-center justify-between border-b pb-4 ${hasCustomBg ? 'border-white/15' : 'border-[#222]'}`}>
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-gradient-to-tr from-pink-500/20 to-indigo-500/20 text-pink-400 border border-pink-500/30">
+              <Film size={18} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                Yuklangan Reels ({userReels.length})
+              </h3>
+              <p className="text-[11px] text-white/40">Cloudflare R2 yuqori tezlikdagi qisqa videolar</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isOwner && (
+              <button
+                onClick={() => setUploadReelOpen(true)}
+                className="bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-pink-600/30 transition-all active:scale-95"
+              >
+                <Upload size={13} />
+                <span>Reel Yuklash</span>
+              </button>
+            )}
+            <Link
+              to="/reels"
+              className="text-xs text-pink-400 hover:text-pink-300 font-bold flex items-center gap-1 hover:underline ml-2"
+            >
+              Reels lentasi <ArrowRight size={13} />
+            </Link>
+          </div>
+        </div>
+
+        {loadingReels ? (
+          <div className="text-center py-10 text-white/40 space-y-2">
+            <Loader2 size={24} className="animate-spin mx-auto text-pink-500" />
+            <p className="text-xs">Reels yuklanmoqda...</p>
+          </div>
+        ) : userReels.length === 0 ? (
+          <div className="text-center py-12 text-white/30 space-y-3">
+            <Film className="w-12 h-12 mx-auto text-white/20" />
+            <p className="text-xs font-mono">Hozircha hech qanday Reel yuklanmagan.</p>
+            {isOwner && (
+              <button
+                onClick={() => setUploadReelOpen(true)}
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-pink-600/20 to-indigo-600/20 hover:from-pink-600 hover:to-indigo-600 text-pink-400 hover:text-white border border-pink-500/30 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+              >
+                <Upload size={14} /> Birinchi Reelni yuklash
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+            {userReels.map((reel) => (
+              <Link
+                key={reel.id}
+                to={`/reels/${reel.id}`}
+                className="group relative aspect-[9/15] rounded-2xl overflow-hidden bg-black border border-white/10 hover:border-pink-500/60 shadow-lg hover:shadow-pink-500/20 transition-all duration-300 flex flex-col justify-end p-3 cursor-pointer"
+              >
+                {/* Background Video preview or poster */}
+                <video
+                  src={reel.video_url}
+                  preload="metadata"
+                  muted
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90"
+                />
+
+                {/* Gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
+
+                {/* Play icon overlay on hover */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="p-3 rounded-full bg-pink-600/80 backdrop-blur-md text-white shadow-xl scale-75 group-hover:scale-100 transition-transform">
+                    <Play size={20} className="fill-current ml-0.5" />
+                  </div>
+                </div>
+
+                {/* Top View Badge */}
+                <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/15 text-[10px] text-zinc-300 font-semibold flex items-center gap-1">
+                  <Play size={9} className="fill-current" />
+                  <span>{reel.views_count || 0}</span>
+                </div>
+
+                {/* Bottom info */}
+                <div className="relative z-10 space-y-1">
+                  {reel.caption && (
+                    <p className="text-white text-xs font-medium line-clamp-2 leading-tight drop-shadow">
+                      {reel.caption}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 text-[10px] text-zinc-300 font-semibold pt-0.5">
+                    <span className="flex items-center gap-1 text-red-400">
+                      <Heart size={10} className="fill-current" /> {reel.likes_count || 0}
+                    </span>
+                    <span className="flex items-center gap-1 text-indigo-300">
+                      <MessageSquare size={10} /> {reel.comments_count || 0}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Reel Upload Modal */}
+      <ReelUploadModal
+        isOpen={uploadReelOpen}
+        onClose={() => setUploadReelOpen(false)}
+        currentUser={currentUser}
+        onSuccess={(newReel) => {
+          setUserReels((prev) => [newReel, ...prev]);
+        }}
+      />
 
       {/* ACCOUNT DETAILS & PRIVACY CARD */}
       <div className={`rounded-2xl p-6 space-y-4 transition-all ${

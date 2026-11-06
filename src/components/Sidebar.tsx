@@ -82,6 +82,7 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
     { name: t.navMyList, path: '/shaxsiy-royxat', icon: Bookmark },
     { name: t.navFavorites, path: '/sevimlilar', icon: Heart },
     { name: t.navHistory, path: '/tarix', icon: History },
+    { name: 'Reels 🎬', path: '/reels', icon: Film, badge: 'HOT' },
     { name: t.navMusic || 'Musiqa', path: '/music', icon: Music, badge: isNewBadgeVisible ? 'New' : undefined },
     { name: t.navChat, path: '/chat', icon: MessageSquare },
     { name: t.navSettings, path: '/sozlamalar', icon: Settings },

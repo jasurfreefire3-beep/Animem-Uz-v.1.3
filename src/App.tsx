@@ -41,6 +41,7 @@ const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const DMCA = lazy(() => import('./pages/DMCA'));
 const Aloqa = lazy(() => import('./pages/Aloqa'));
 const Music = lazy(() => import('./pages/Music'));
+const Reels = lazy(() => import('./pages/Reels'));
 import MusicPlayerBar from './components/MusicPlayerBar';
 import MusicExpandedPlayer from './components/MusicExpandedPlayer';
 
@@ -57,6 +58,7 @@ export default function App() {
   const location = useLocation();
   const rawPath = location.pathname.replace(/^\/(uz|ru|ing|en)(\/|$)/, '/');
   const isSupportBot = rawPath === '/support' || location.pathname === '/support';
+  const isReels = rawPath.startsWith('/reels');
   const isMusicSubdomain = typeof window !== 'undefined' && 
     (window.location.hostname === 'music.animem.uz' || window.location.hostname.startsWith('music.'));
 
@@ -103,7 +105,7 @@ export default function App() {
       <div className="fixed bottom-1/4 right-10 w-[600px] h-[600px] bg-[#7928ca]/12 rounded-full blur-[190px] pointer-events-none -z-10" />
       <div className="fixed top-2/3 left-10 w-[450px] h-[450px] bg-[#00c8ff]/10 rounded-full blur-[160px] pointer-events-none -z-10" />
       <AnimatePresence>
-        {showTelegramBanner && (
+        {showTelegramBanner && !isReels && (
           <motion.div
             initial={{ y: -150, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -249,8 +251,10 @@ export default function App() {
               <Route path="/drama/*" element={<Navigate to="/" replace />} />
               <Route path="/:lang/drama/*" element={<Navigate to="/" replace />} />
 
-              <Route path="/reels" element={<Navigate to="/" replace />} />
-              <Route path="/:lang/reels" element={<Navigate to="/" replace />} />
+              <Route path="/reels" element={<Reels />} />
+              <Route path="/reels/:id" element={<Reels />} />
+              <Route path="/:lang/reels" element={<Reels />} />
+              <Route path="/:lang/reels/:id" element={<Reels />} />
               <Route path="/upload" element={<Navigate to="/" replace />} />
               <Route path="/:lang/upload" element={<Navigate to="/" replace />} />
 
@@ -320,14 +324,14 @@ export default function App() {
       );
     })()}
 
-        <Footer />
+        {!isReels && <Footer />}
       </div>
 
       {/* 4. Overlay Chat widgets, Mobile Navigation, Ad Modal, Notification Prompt, Donat Modal & PWA Install Button */}
-      <MobileBottomNav />
-      <MusicPlayerBar />
-      <MusicExpandedPlayer />
-      <ChatWidget />
+      {!isReels && <MobileBottomNav />}
+      {!isReels && <MusicPlayerBar />}
+      {!isReels && <MusicExpandedPlayer />}
+      {!isReels && <ChatWidget />}
       <InstallAppButton />
       <NotificationPromptModal />
       <CookieBanner />

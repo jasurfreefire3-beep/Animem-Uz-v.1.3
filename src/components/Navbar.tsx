@@ -336,6 +336,20 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           </Link>
 
           <Link
+            to={getLocalizedPath('/reels')}
+            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
+              isItemActive('/reels')
+                ? 'bg-gradient-to-r from-pink-500 to-indigo-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.4)]'
+                : 'text-white/75 hover:text-pink-400 hover:bg-white/10'
+            }`}
+          >
+            <span>Reels</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-gradient-to-r from-pink-500 to-indigo-500 text-white animate-pulse">
+              HOT
+            </span>
+          </Link>
+
+          <Link
             to={getLocalizedPath('/music')}
             className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
               isItemActive('/music')

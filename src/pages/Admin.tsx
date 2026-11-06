@@ -17,11 +17,12 @@ import OnlineUsersTab from '../components/OnlineUsersTab';
 import ImageUploader from '../components/ImageUploader';
 import AdminMikaReports from '../components/AdminMikaReports';
 import AdminMusic from '../components/AdminMusic';
+import { AdminReels } from '../components/AdminReels';
 
 export default function Admin() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'music'>('manage_animes');
+  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'music' | 'reels_reports'>('manage_animes');
   
   // Anime Form States
   const [title, setTitle] = useState('');
@@ -925,6 +926,18 @@ export default function Admin() {
         >
           <Music size={16} className="text-[#00c8ff]" />
           <span>Musiqa 🎵</span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('reels_reports');
+            setMessage({ type: '', text: '' });
+          }}
+          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
+            activeTab === 'reels_reports' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
+          }`}
+        >
+          <Film size={16} className="text-pink-400" />
+          <span>Reels & Shikoyatlar 🎬</span>
         </button>
       </div>
 
@@ -2092,6 +2105,11 @@ export default function Admin() {
       {/* Tab: Musiqa Boshqaruvi */}
       {activeTab === 'music' && (
         <AdminMusic />
+      )}
+
+      {/* Tab: Reels Nazorati & Shikoyatlar */}
+      {activeTab === 'reels_reports' && (
+        <AdminReels />
       )}
     </div>
   );
