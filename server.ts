@@ -3768,8 +3768,11 @@ app.post("/api/media/upload-multiple", optionalAuth, memoryUpload.array("files",
 app.get([
   "/api/media/:id",
   "/media/:id",
+  "/i/:id",
+  "/api/images/:id",
   "/:filename([a-zA-Z0-9_\\-\\.]+\\.(?:jpg|jpeg|png|webp|gif|webm|mp4|svg|avif|ico))",
-  "/:id(img_[a-zA-Z0-9_\\-\\.]+)"
+  "/:id(img_[a-zA-Z0-9_\\-\\.]+)",
+  "/:id(gif_[a-zA-Z0-9_\\-\\.]+)"
 ], async (req: any, res: any, next: any) => {
   try {
     const id = req.params.id || req.params.filename;
@@ -3853,11 +3856,11 @@ app.get([
       }
     } catch (dbErr) {}
 
-    // 4. If request is NOT on image.animem.uz and NOT an internal media path/ID,
+    // 4. If request is NOT on image.animem.uz / imeg.animem.uz and NOT an internal media path/ID,
     // call next() so other express static / Vite / SPA routes can process it!
     const host = (req.hostname || req.headers.host || "").toLowerCase();
-    const isImageHost = host.includes("image.");
-    const isExplicitMedia = req.path.startsWith("/api/media/") || req.path.startsWith("/media/") || id.startsWith("img_") || id.startsWith("audio_") || id.startsWith("voice_");
+    const isImageHost = host.includes("image.") || host.includes("imeg.");
+    const isExplicitMedia = req.path.startsWith("/api/media/") || req.path.startsWith("/media/") || req.path.startsWith("/i/") || req.path.startsWith("/api/images/") || id.startsWith("img_") || id.startsWith("gif_") || id.startsWith("audio_") || id.startsWith("voice_");
     if (!isImageHost && !isExplicitMedia) {
       return next();
     }
@@ -3913,35 +3916,27 @@ app.options([
 
 // --- GIF Management Endpoints (MySQL & Fast Memory Cache) ---
 const STATIC_FALLBACK_GIFS = [
-  "https://api.animem.uz/i/47253226-8c0c-4bd7-8a13-63fc8ab21048",
-  "https://api.animem.uz/i/024daac2-c373-46d9-a1d3-17b772cf9d8d",
-  "https://api.animem.uz/i/7f001189-caff-4761-b773-1ef852ba3405",
-  "https://api.animem.uz/i/e14ebcc6-3198-4769-988e-b532d768c2c0",
-  "https://api.animem.uz/i/a6740e1b-8128-4a35-9b59-991702aa7953",
-  "https://api.animem.uz/i/20275072-6bcb-4bbf-9c31-b963c535ca52",
-  "https://api.animem.uz/i/7f56e16a-336f-40e7-a088-3e7d379b6e7e",
-  "https://api.animem.uz/i/e013bbda-731b-4243-b1a5-82b9184e6ba8",
-  "https://api.animem.uz/i/0ed4d485-ed9a-42c4-96cf-0ea9e2520ff8",
-  "https://api.animem.uz/i/4dcca4bb-4a81-40ee-b12d-1584b122bc20",
-  "https://api.animem.uz/i/ee473d3e-95c5-4654-ab79-0f7f80bf72ac",
-  "https://api.animem.uz/i/94bf66ce-7403-4a2f-8db6-267f15cd3d73",
-  "https://api.animem.uz/i/d5740534-37b6-42f2-92d1-0d6012f7b424",
-  "https://api.animem.uz/i/d6702c5f-a45e-4259-b3ac-6ac028671136",
-  "https://api.animem.uz/i/863cae92-7e12-46d6-96c5-cf6da96afa43",
-  "https://api.animem.uz/i/11e32365-a5d1-44b8-9eaf-809040de5fc3",
-  "https://api.animem.uz/i/7c9b7e12-2d75-418a-b867-2a83169b9143",
-  "https://api.animem.uz/i/b0000dc1-622a-4136-b20d-c7464b2dfee3",
-  "https://api.animem.uz/i/f29d2f0f-4eed-43e3-8a18-c68acf9703f2",
-  "https://api.animem.uz/i/ebb32df7-d609-46fa-a739-57b686bea1a4",
-  "https://api.animem.uz/i/6ad422b0-29ff-4c44-b3bd-30e6015701ae",
-  "https://api.animem.uz/i/d5077661-9cde-4524-ae21-be259f1e8b8a",
-  "https://api.animem.uz/i/423b7231-db98-41e6-ae1e-af0ded6ca0ef",
-  "https://api.animem.uz/i/cfae88fb-ade5-495c-a441-5b800075382b",
-  "https://api.animem.uz/i/6b895206-f186-4db0-9a82-89ad97769806",
-  "https://api.animem.uz/i/088aba4e-b0ef-443b-b7a6-bf6b8609e2b4",
-  "https://api.animem.uz/i/208c0d15-d9cb-4507-ac51-814423a11d59",
-  "https://api.animem.uz/i/632296a9-9ef1-453a-ac08-9db0aebdfc8c"
-].map((u, i) => ({ id: i + 1, title: `Anime GIF #${i + 1}`, url: u, media_id: null }));
+  { id: 1, title: 'Luffy Gear 5 Laugh', url: 'https://media.giphy.com/media/WmkqburJqXziM/giphy.gif', preview: 'https://media.giphy.com/media/WmkqburJqXziM/200.gif' },
+  { id: 2, title: 'Gojo Satoru Domain Expansion', url: 'https://media.giphy.com/media/UgV8Y7bDxsZDCP079U/giphy.gif', preview: 'https://media.giphy.com/media/UgV8Y7bDxsZDCP079U/200.gif' },
+  { id: 3, title: 'Naruto Rasengan Epic', url: 'https://media.giphy.com/media/OU6tgBi0YJ4HK/giphy.gif', preview: 'https://media.giphy.com/media/OU6tgBi0YJ4HK/200.gif' },
+  { id: 4, title: 'Anya Forger Heh Smile', url: 'https://media.giphy.com/media/FWAcpJsFT9mVRv0e7a/giphy.gif', preview: 'https://media.giphy.com/media/FWAcpJsFT9mVRv0e7a/200.gif' },
+  { id: 5, title: 'Tanjiro Kamado Hinokami', url: 'https://media.giphy.com/media/dyjrpqaUVqCELGuQVr/giphy.gif', preview: 'https://media.giphy.com/media/dyjrpqaUVqCELGuQVr/200.gif' },
+  { id: 6, title: 'Zoro Three Sword Style', url: 'https://media.giphy.com/media/9az09tlYyYNfq/giphy.gif', preview: 'https://media.giphy.com/media/9az09tlYyYNfq/200.gif' },
+  { id: 7, title: 'Killua Godspeed HxH', url: 'https://media.giphy.com/media/qb1eHxhUHLdsc/giphy.gif', preview: 'https://media.giphy.com/media/qb1eHxhUHLdsc/200.gif' },
+  { id: 8, title: 'Levi Ackerman Attack on Titan', url: 'https://media.giphy.com/media/11HeubLHnQJSA8/giphy.gif', preview: 'https://media.giphy.com/media/11HeubLHnQJSA8/200.gif' },
+  { id: 9, title: 'Sukuna Malevolent Shrine', url: 'https://media.giphy.com/media/bDWdJRY2IZCX6/giphy.gif', preview: 'https://media.giphy.com/media/bDWdJRY2IZCX6/200.gif' },
+  { id: 10, title: 'Goku Ultra Instinct DBZ', url: 'https://media.giphy.com/media/12wsn8hn693bWw/giphy.gif', preview: 'https://media.giphy.com/media/12wsn8hn693bWw/200.gif' },
+  { id: 11, title: 'Sailor Moon Wink Magic', url: 'https://media.giphy.com/media/PoK1bzB3qyNFe/giphy.gif', preview: 'https://media.giphy.com/media/PoK1bzB3qyNFe/200.gif' },
+  { id: 12, title: 'Nezuko Kamado Cute Run', url: 'https://media.giphy.com/media/kX7OWl40hcz6RSZa1n/giphy.gif', preview: 'https://media.giphy.com/media/kX7OWl40hcz6RSZa1n/200.gif' },
+  { id: 13, title: 'Kakashi Chidori Lightning', url: 'https://media.giphy.com/media/A8UGp97js577q/giphy.gif', preview: 'https://media.giphy.com/media/A8UGp97js577q/200.gif' },
+  { id: 14, title: 'Itachi Uchiha Crow Genjutsu', url: 'https://media.giphy.com/media/CchzkJJ6UrQmQ/giphy.gif', preview: 'https://media.giphy.com/media/CchzkJJ6UrQmQ/200.gif' },
+  { id: 15, title: 'Chika Dance Kaguya-sama', url: 'https://media.giphy.com/media/108he41yPdWwOQ/giphy.gif', preview: 'https://media.giphy.com/media/108he41yPdWwOQ/200.gif' },
+  { id: 16, title: 'One Punch Man Saitama OK', url: 'https://media.giphy.com/media/arbHBDAq95uDcFi9Z9/giphy.gif', preview: 'https://media.giphy.com/media/arbHBDAq95uDcFi9Z9/200.gif' },
+  { id: 17, title: 'Solo Leveling Sung Jinwoo Arise', url: 'https://media.giphy.com/media/fBGy9GPvCuNNhS0nxG/giphy.gif', preview: 'https://media.giphy.com/media/fBGy9GPvCuNNhS0nxG/200.gif' },
+  { id: 18, title: 'Eren Yeager Founding Titan', url: 'https://media.giphy.com/media/3o7btQ8jDTPGDpgc6I/giphy.gif', preview: 'https://media.giphy.com/media/3o7btQ8jDTPGDpgc6I/200.gif' },
+  { id: 19, title: 'Megumi Fushiguro Shadows', url: 'https://media.giphy.com/media/4ilFRqgbzbx4c/giphy.gif', preview: 'https://media.giphy.com/media/4ilFRqgbzbx4c/200.gif' },
+  { id: 20, title: 'Bleach Ichigo Bankai', url: 'https://media.giphy.com/media/M13G8I98Kn846GESm3/giphy.gif', preview: 'https://media.giphy.com/media/M13G8I98Kn846GESm3/200.gif' }
+];
 
 // 1. Get all GIFs
 app.get("/api/gifs", async (req: any, res: any) => {

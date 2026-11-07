@@ -14,12 +14,20 @@
       "destination": "https://ss-test.wasmer.app/media/:path*"
     },
     {
+      "source": "/i/:path*",
+      "destination": "https://ss-test.wasmer.app/i/:path*"
+    },
+    {
       "source": "/stream/:path*",
       "destination": "https://ss-test.wasmer.app/stream/:path*"
     },
     {
       "source": "/sitemap.xml",
       "destination": "https://ss-test.wasmer.app/sitemap.xml"
+    },
+    {
+      "source": "/:filename(.*\\.(?:gif|webp|png|jpe?g|svg|ico|webm|mp4))",
+      "destination": "https://ss-test.wasmer.app/:filename"
     },
     {
       "source": "/(.*)",

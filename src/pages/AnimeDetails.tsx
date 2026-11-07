@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Anime, Comment, translateGenre, toSlug } from '../types';
-import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward, Maximize2, Minimize2, Check } from 'lucide-react';
+import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward, Maximize2, Minimize2, Check, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import VideoPlayer from '../components/VideoPlayer';
 import WatchTogetherRoom from '../components/WatchTogetherRoom';
@@ -82,6 +82,7 @@ export default function AnimeDetails() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
   const [copied, setCopied] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'episodes' | 'synopsis' | 'comments' | 'similar'>('episodes');
   const [userRating, setUserRating] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
@@ -120,6 +121,10 @@ export default function AnimeDetails() {
   }, [activeWatchRoomId, anime]);
 
   const handleStartWatchTogether = () => {
+    if (!user) {
+      setShowLoginPrompt(true);
+      return;
+    }
     if (activeWatchRoomId) {
       document.getElementById('watch-together-section')?.scrollIntoView({ behavior: 'smooth' });
       return;
@@ -766,6 +771,7 @@ export default function AnimeDetails() {
   const currentEpObj = combinedEpisodes.find(e => e.number === activeEpisode);
   const isCurrentFiller = Boolean(currentEpObj?.is_filler);
   const nextEpisodeObj = combinedEpisodes.find(e => e.number === activeEpisode + 1);
+  const prevEpisodeObj = combinedEpisodes.find(e => e.number === activeEpisode - 1);
 
   const handleShareEpisode = () => {
     const targetSlug = slug || toSlug(anime?.title || '');
@@ -779,6 +785,10 @@ export default function AnimeDetails() {
   };
 
   const handleEpisodeClick = (ep: any) => {
+    if (!user) {
+      setShowLoginPrompt(true);
+      return;
+    }
     setActiveEpisode(ep.number);
     setWatchedEpisodes(prev => ({ ...prev, [ep.number]: true }));
     if (anime) {
@@ -891,7 +901,47 @@ export default function AnimeDetails() {
        </div>
 
        <div className="-mx-4 sm:mx-0 mb-3 md:mb-4">
-         {String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
+         {!user ? (
+           <div className="w-full aspect-video min-h-[260px] sm:min-h-[360px] md:min-h-[460px] bg-[#0c0d14] border border-white/10 sm:rounded-2xl relative overflow-hidden flex flex-col items-center justify-center p-6 text-center select-none shadow-2xl">
+             {/* Blurred poster background */}
+             <img 
+               src={anime.banner_url || anime.image_url} 
+               alt={anime.title} 
+               className="absolute inset-0 w-full h-full object-cover opacity-25 blur-xl scale-110 pointer-events-none" 
+             />
+             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/85 to-black/60 pointer-events-none" />
+
+             {/* Glowing Lock Badge */}
+             <div className="relative z-10 w-14 h-14 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-tr from-[#ff006a]/20 to-purple-600/20 border border-[#ff006a]/40 flex items-center justify-center mb-3 sm:mb-4 shadow-[0_0_30px_rgba(255,0,106,0.35)]">
+               <Lock className="w-7 h-7 sm:w-9 sm:h-9 text-[#ff006a] animate-pulse" />
+             </div>
+
+             {/* Title & Description */}
+             <div className="relative z-10 max-w-md mx-auto space-y-1.5 sm:space-y-2 mb-4 sm:mb-6 px-2">
+               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff006a]/15 border border-[#ff006a]/30 text-[#ff006a] text-[10px] sm:text-[11px] font-black uppercase tracking-wider">
+                 <span>Ro'yxatdan O'tish Majburiy</span>
+               </div>
+               <h3 className="text-base sm:text-2xl font-black text-white leading-tight">
+                 Anime tomosha qilish uchun tizimga kiring
+               </h3>
+               <p className="text-xs sm:text-sm text-white/60 leading-relaxed line-clamp-2 sm:line-clamp-none">
+                 {anime.title} va barcha seriyalarni bepul, Full HD sifatda tomosha qilish uchun tizimga kiring yoki ro'yxatdan o'ting!
+               </p>
+             </div>
+
+             {/* Action Buttons */}
+             <div className="relative z-10 flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 w-full max-w-xs px-2">
+               <button
+                 type="button"
+                 onClick={() => setShowLoginPrompt(true)}
+                 className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:from-[#ff006a] hover:to-[#6b21a8] text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(255,0,106,0.5)] transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+               >
+                 <Lock size={15} />
+                 <span>Kirish / Ro'yxatdan o'tish</span>
+               </button>
+             </div>
+           </div>
+         ) : String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
             <div className="w-full aspect-video min-h-[260px] sm:min-h-[360px] md:min-h-[460px] bg-black/60 border border-white/10 sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-8 text-center backdrop-blur-md">
               <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#0088cc]/20 rounded-full flex items-center justify-center mb-4 sm:mb-6 shrink-0 ring-4 ring-[#0088cc]/20">
                 <svg viewBox="0 0 24 24" className="w-7 h-7 sm:w-10 sm:h-10 fill-[#0088cc]">
@@ -1021,12 +1071,10 @@ export default function AnimeDetails() {
              className="group relative w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 bg-gradient-to-r from-[#0088cc]/20 via-[#0088cc]/10 to-[#0088cc]/25 hover:from-[#0088cc]/35 hover:via-[#0088cc]/20 hover:to-[#0088cc]/40 border border-[#0088cc]/50 hover:border-[#0088cc] rounded-xl sm:rounded-2xl transition-all duration-300 shadow-[0_0_20px_rgba(0,136,204,0.18)] hover:shadow-[0_0_30px_rgba(0,136,204,0.38)] overflow-hidden"
            >
              <div className="flex items-center gap-3 sm:gap-4 relative z-10">
-               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#0088cc]/20 flex items-center justify-center p-1.5 ring-2 ring-[#0088cc]/40 group-hover:scale-110 transition-transform shrink-0">
-                 <img 
-                   src="https://api.animem.uz/i/2f5df3e0-bd69-4fd4-b558-429a47091414" 
-                   alt="Telegram" 
-                   className="w-full h-full object-contain" 
-                 />
+               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#0088cc]/20 flex items-center justify-center p-2 ring-2 ring-[#0088cc]/40 group-hover:scale-110 transition-transform shrink-0">
+                 <svg viewBox="0 0 24 24" className="w-full h-full fill-[#0088cc]">
+                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
+                 </svg>
                </div>
                <div className="text-left">
                  <div className="text-sm sm:text-base font-black text-white group-hover:text-cyan-300 transition-colors flex items-center gap-2">
@@ -1132,11 +1180,524 @@ export default function AnimeDetails() {
         />
       )}
 
-      {/* Immersive Hero Header */}
+      {/* ========================================================================= */}
+      {/* MOBILE-ONLY EDGE-TO-EDGE STREAMING VIEW (Netflix/YouTube Mobile Style)     */}
+      {/* ========================================================================= */}
+      <div className="block md:hidden w-full pb-20 select-none bg-[#07070a]">
+        {/* 1. Mobile Top Navigation Bar */}
+        <div className="sticky top-0 z-40 bg-[#07070a]/95 backdrop-blur-xl border-b border-white/10 px-3 py-2.5 flex items-center justify-between">
+          <button 
+            type="button" 
+            onClick={handleBack} 
+            className="p-1.5 -ml-1 text-white/80 hover:text-white active:scale-90 transition-transform"
+            title="Orqaga"
+          >
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+          
+          <div className="flex-1 mx-2 min-w-0">
+            <h1 className="text-xs font-black text-white truncate leading-tight">
+              {anime.title}
+            </h1>
+            <div className="text-[10px] text-white/50 truncate flex items-center gap-1.5 mt-0.5">
+              <span className="text-[#ff006a] font-bold">Ep {activeEpisode}</span>
+              <span>•</span>
+              <span className="flex items-center gap-0.5 text-yellow-400 font-bold">
+                <Star size={10} className="fill-current" /> {anime.rating ? Number(anime.rating).toFixed(1) : '9.2'}
+              </span>
+              <span>•</span>
+              <span>{anime.yil || '2026'}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleShareEpisode}
+              className="p-2 rounded-lg bg-white/5 border border-white/10 text-white/80 active:scale-90 transition-transform"
+              title="Ulashish"
+            >
+              {episodeCopied ? <Check size={15} className="text-emerald-400" /> : <Share2 size={15} className="text-[#ff006a]" />}
+            </button>
+          </div>
+        </div>
+
+        {/* 2. Video Player: Edge-to-Edge (100% width, 0px margin, 0px border) */}
+        <div className="w-full aspect-video bg-black relative overflow-hidden">
+          {!user ? (
+            <div className="w-full h-full bg-[#0c0d14] relative overflow-hidden flex flex-col items-center justify-center p-4 text-center select-none shadow-2xl">
+              <img 
+                src={anime.banner_url || anime.image_url} 
+                alt={anime.title} 
+                className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl scale-110 pointer-events-none" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/85 to-black/60 pointer-events-none" />
+
+              <div className="relative z-10 w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#ff006a]/20 to-purple-600/20 border border-[#ff006a]/40 flex items-center justify-center mb-2.5 shadow-[0_0_20px_rgba(255,0,106,0.35)]">
+                <Lock className="w-6 h-6 text-[#ff006a] animate-pulse" />
+              </div>
+
+              <div className="relative z-10 max-w-xs mx-auto space-y-1 mb-3 px-2">
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#ff006a]/15 border border-[#ff006a]/30 text-[#ff006a] text-[10px] font-black uppercase tracking-wider">
+                  <span>Ro'yxatdan O'tish Majburiy</span>
+                </div>
+                <h3 className="text-sm font-black text-white leading-tight">
+                  Anime tomosha qilish uchun kiring
+                </h3>
+                <p className="text-[11px] text-white/60 line-clamp-2">
+                  Barcha qismlarni Full HD sifatda tomosha qilish uchun tizimga kiring!
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowLoginPrompt(true)}
+                className="relative z-10 w-full max-w-[220px] py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#ff006a] to-[#7928ca] text-white font-black text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(255,0,106,0.5)] active:scale-95 transition-transform flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Lock size={14} />
+                <span>Kirish / Ro'yxatdan o'tish</span>
+              </button>
+            </div>
+          ) : String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
+            <div className="w-full h-full bg-black/80 flex flex-col items-center justify-center p-4 text-center">
+              <svg viewBox="0 0 24 24" className="w-10 h-10 fill-[#0088cc] mb-2">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
+              </svg>
+              <h3 className="text-sm font-bold text-white mb-2">Telegram orqali tomosha qiling</h3>
+              <a
+                href={currentVideoUrl || anime.video_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-[#0088cc] text-white text-xs font-bold rounded-lg shadow-lg flex items-center gap-1.5"
+              >
+                <PlayCircle size={15} /> Botga o'tish
+              </a>
+            </div>
+          ) : (
+            <VideoPlayer 
+              url={currentVideoUrl || anime.video_url || '/assets/sample/video.mp4'} 
+              poster={anime.banner_url || anime.image_url} 
+              animeTitle={anime.title} 
+            />
+          )}
+        </div>
+
+        {/* 3. Title & Episode Bar + Action Pills */}
+        <div className="px-3.5 pt-3 pb-2.5 bg-[#0b0c13] border-b border-white/5">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-[#ff006a] to-purple-600 text-white shadow-sm">
+              {anime.holati === 'Yakunlangan' ? 'YAKUNLANGAN' : 'EFIRDA'}
+            </span>
+            <span className="text-[11px] font-extrabold text-[#ff006a] bg-[#ff006a]/10 px-2 py-0.5 rounded border border-[#ff006a]/30">
+              {activeEpisode}-QISM
+            </span>
+            {isCurrentFiller && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-600 text-white">
+                FILLER
+              </span>
+            )}
+            <span className="ml-auto text-[11px] text-white/40 flex items-center gap-1">
+              <Eye size={12} className="text-[#ff006a]" /> {anime.korishlar || 0}
+            </span>
+          </div>
+
+          <h2 className="text-sm font-black text-white leading-tight mb-2">
+            {anime.title}
+          </h2>
+
+          {/* Action Pills Row */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+            <button
+              type="button"
+              onClick={toggleFavorite}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shrink-0 active:scale-95 cursor-pointer ${
+                isFavorited ? 'bg-[#ff006a]/20 border-[#ff006a] text-white' : 'bg-white/5 border-white/10 text-white/80'
+              }`}
+            >
+              <Heart size={13} className={isFavorited ? 'fill-[#ff006a] text-[#ff006a]' : ''} />
+              <span>{isFavorited ? 'Saqlangan' : 'Saqlash'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleShareEpisode}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border bg-white/5 border-white/10 text-white/80 shrink-0 active:scale-95 cursor-pointer"
+            >
+              {episodeCopied ? <Check size={13} className="text-emerald-400" /> : <Share2 size={13} className="text-[#ff006a]" />}
+              <span>{episodeCopied ? 'Nusxalandi' : 'Ulashish'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleStartWatchTogether}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border bg-white/5 border-white/10 text-white/80 shrink-0 active:scale-95 cursor-pointer"
+            >
+              <Users size={13} className="text-[#ff006a]" />
+              <span>Birga ko'rish</span>
+            </button>
+
+            {Boolean(anime.telegram_url) && (
+              <a
+                href={anime.telegram_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border bg-[#0088cc]/20 border-[#0088cc]/40 text-cyan-300 shrink-0 active:scale-95"
+              >
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-[#0088cc]">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
+                </svg>
+                <span>Telegram</span>
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* 4. Full-Width Sticky Tabs (Ekranni boshidan oxirigacha) */}
+        <div className="w-full bg-[#090a10] border-y border-white/10 sticky top-[48px] z-30 flex items-center select-none shadow-lg">
+          {[
+            { id: 'episodes', label: 'Qismlar', count: combinedEpisodes.length, icon: ListOrdered },
+            { id: 'synopsis', label: 'Tavsif', icon: Eye },
+            { id: 'comments', label: 'Izohlar', count: comments.length, icon: MessageSquare },
+            { id: 'similar', label: "O'xshash", icon: Star }
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = mobileTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setMobileTab(tab.id as any)}
+                className={`flex-1 py-3 text-center transition-all relative flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                  isActive ? 'text-[#ff006a] font-black' : 'text-white/50 hover:text-white font-medium'
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  <Icon size={13} className={isActive ? 'text-[#ff006a]' : ''} />
+                  <span className="text-xs">{tab.label}</span>
+                  {tab.count !== undefined && (
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${isActive ? 'bg-[#ff006a]/20 text-[#ff006a]' : 'bg-white/10 text-white/50'}`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </div>
+                {isActive && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff006a] shadow-[0_0_8px_#ff006a]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 5. Mobile Tab Content (Edge-to-Edge, No cramped frames) */}
+        <div className="w-full">
+          {/* TAB 1: QISMLAR */}
+          {mobileTab === 'episodes' && (
+            <div className="w-full px-3 py-3.5 space-y-3">
+              {/* Filler Alert Banner */}
+              {isCurrentFiller && (
+                <div className="p-3 rounded-xl bg-gradient-to-r from-red-950/80 to-[#1b080f] border border-red-500/40 text-white">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-600">FILLER</span>
+                    <span className="text-xs font-bold">{activeEpisode}-qism filler epizod</span>
+                    {nextEpisodeObj && (
+                      <button
+                        type="button"
+                        onClick={() => handleEpisodeClick(nextEpisodeObj)}
+                        className="ml-auto text-[11px] font-bold text-red-300 underline cursor-pointer"
+                      >
+                        O'tkazib yuborish
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-white/70 leading-snug">
+                    Bu qism original manga syujetiga kirmaydi.
+                  </p>
+                </div>
+              )}
+
+              {/* Prev / Next Navigation Toolbar */}
+              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-[#12131c] border border-white/5">
+                <button
+                  type="button"
+                  disabled={!prevEpisodeObj}
+                  onClick={() => prevEpisodeObj && handleEpisodeClick(prevEpisodeObj)}
+                  className="flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none bg-white/5 border border-white/10 text-white active:scale-95 cursor-pointer"
+                >
+                  <ArrowLeft size={13} />
+                  <span>{prevEpisodeObj ? `${prevEpisodeObj.number}-qism` : 'Oldingi qism'}</span>
+                </button>
+
+                <div className="px-2 text-center">
+                  <span className="text-xs font-black text-[#ff006a]">{activeEpisode}</span>
+                  <span className="text-[10px] text-white/40"> / {combinedEpisodes.length}</span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!nextEpisodeObj}
+                  onClick={() => nextEpisodeObj && handleEpisodeClick(nextEpisodeObj)}
+                  className="flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none bg-[#ff006a]/20 border border-[#ff006a]/40 text-white active:scale-95 shadow-[0_0_10px_rgba(255,0,106,0.3)] cursor-pointer"
+                >
+                  <span>{nextEpisodeObj ? `${nextEpisodeObj.number}-qism` : 'Keyingi qism'}</span>
+                  <FastForward size={13} />
+                </button>
+              </div>
+
+              {/* Episodes Grid */}
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 pt-1">
+                {combinedEpisodes.map(ep => {
+                  const isActive = activeEpisode === ep.number;
+                  const isWatched = watchedEpisodes[ep.number];
+                  return (
+                    <button
+                      key={ep.number}
+                      type="button"
+                      onClick={() => handleEpisodeClick(ep)}
+                      className={`relative h-13 rounded-xl font-extrabold text-sm flex items-center justify-center border transition-all active:scale-90 cursor-pointer ${
+                        isActive
+                          ? 'bg-[#ff006a] border-[#ff006a] text-white shadow-[0_0_18px_rgba(255,0,106,0.65)] ring-2 ring-white/30'
+                          : ep.video_url
+                            ? ep.is_filler
+                              ? 'bg-[#1e0e15] border-red-500/40 text-red-200'
+                              : 'bg-[#13141f] border-white/10 text-white/90 hover:border-white/25'
+                            : 'bg-black/30 border-white/5 text-white/20'
+                      }`}
+                    >
+                      {ep.is_filler && (
+                        <span className="absolute top-1 left-1 px-1 text-[8px] font-black rounded bg-red-600 text-white leading-none">
+                          F
+                        </span>
+                      )}
+                      {isWatched && (
+                        <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_6px_#10b981]" />
+                      )}
+                      <span>{ep.number}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Adsterra banner */}
+              <div className="pt-2">
+                <AdsterraNativeBanner />
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: TAVSIF */}
+          {mobileTab === 'synopsis' && (
+            <div className="w-full px-4 py-4 space-y-4">
+              <div>
+                <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Eye size={13} className="text-[#ff006a]" /> Anime Haqida
+                </h3>
+                <p className="text-white/80 text-sm leading-relaxed">
+                  {anime.description || "Ushbu anime uchun tavsif kiritilmagan."}
+                </p>
+              </div>
+
+              {/* Genres */}
+              <div>
+                <h4 className="text-[11px] font-bold text-white/40 uppercase tracking-wider mb-2">Janrlar</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {genres.map(g => (
+                    <span key={g} className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-white/80 text-xs font-bold">
+                      {translateGenre(g)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Specs Table */}
+              <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-[#11121a] border border-white/5 text-xs">
+                <div>
+                  <span className="text-white/40 block text-[10px]">Studiyasi</span>
+                  <span className="text-white font-bold">{anime.studiyasi || 'Noma\'lum'}</span>
+                </div>
+                <div>
+                  <span className="text-white/40 block text-[10px]">Chiqarilgan yili</span>
+                  <span className="text-white font-bold">{anime.yil || '2026'}</span>
+                </div>
+                <div>
+                  <span className="text-white/40 block text-[10px]">Holati</span>
+                  <span className="text-white font-bold">{anime.holati || 'Efirda'}</span>
+                </div>
+                <div>
+                  <span className="text-white/40 block text-[10px]">Qismlar soni</span>
+                  <span className="text-white font-bold">{combinedEpisodes.length} ta</span>
+                </div>
+              </div>
+
+              {/* Rating Component */}
+              <div className="p-3.5 rounded-xl bg-[#11121a] border border-white/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white">Baho bering</span>
+                  <span className="text-xs text-yellow-400 font-bold flex items-center gap-1">
+                    <Star size={13} className="fill-current" />
+                    {ratingSummary?.average !== undefined ? ratingSummary.average : (anime.rating || '9.2')}/10
+                  </span>
+                </div>
+                <div className="grid grid-cols-10 gap-1" onMouseLeave={() => setHoveredStar(null)}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(starVal => {
+                    const isHighlighted = (hoveredStar !== null ? hoveredStar : userRating) >= starVal;
+                    return (
+                      <button
+                        key={starVal}
+                        type="button"
+                        onClick={() => handleRate(starVal)}
+                        onMouseEnter={() => setHoveredStar(starVal)}
+                        className="aspect-square flex items-center justify-center p-1 cursor-pointer"
+                      >
+                        <Star className={`w-full h-full ${isHighlighted ? 'text-yellow-400 fill-current' : 'text-white/20'}`} />
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-white/50 text-center">
+                  {ratingStatus ? ratingStatus : userRating > 0 ? `Siz ${userRating} ball berdingiz!` : "Baholash uchun yulduzchalarni bosing"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: IZOHLAR */}
+          {mobileTab === 'comments' && (
+            <div className="w-full px-3 py-3 space-y-4">
+              {/* Comment Input */}
+              {user ? (
+                <div className="bg-[#12131c] p-3 rounded-xl border border-white/10 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <UserAvatar size="xs" src={user.avatar_url} frameUrl={user.avatar_frame_url} name={user.name || user.username} />
+                    <span className="text-xs font-bold text-white/80">{user.name || user.username}</span>
+                  </div>
+                  <form onSubmit={handleCommentSubmit} className="space-y-2">
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Izoh yozing..."
+                      className="w-full bg-black/60 border border-white/10 rounded-lg p-2.5 text-white text-xs placeholder:text-white/30 focus:outline-none focus:border-[#ff006a] resize-none h-18"
+                    />
+                    <div className="flex items-center justify-between">
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setShowCommentGifPicker(!showCommentGifPicker)}
+                          className="px-2 py-1 rounded bg-[#ff006a]/15 text-[#ff006a] border border-[#ff006a]/30 text-[11px] font-black cursor-pointer"
+                        >
+                          GIF
+                        </button>
+                        {showCommentGifPicker && (
+                          <div className="absolute top-full left-0 mt-2 z-50">
+                            <GifPicker
+                              onSelectGif={(gifUrl) => {
+                                setNewComment(prev => prev ? `${prev} [gif]${gifUrl}[/gif]` : `[gif]${gifUrl}[/gif]`);
+                                setShowCommentGifPicker(false);
+                              }}
+                              onClose={() => setShowCommentGifPicker(false)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 rounded-lg bg-[#ff006a] hover:bg-[#d40058] text-white text-xs font-black uppercase tracking-wider shadow-md shadow-[#ff006a]/30 flex items-center gap-1 active:scale-95 cursor-pointer"
+                      >
+                        <Send size={11} /> Yuborish
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-[#12131c] border border-white/10 text-center space-y-2">
+                  <p className="text-xs text-white/70">Izoh qoldirish uchun tizimga kiring</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPrompt(true)}
+                    className="px-4 py-2 rounded-lg bg-[#ff006a] text-white text-xs font-bold cursor-pointer"
+                  >
+                    Kirish
+                  </button>
+                </div>
+              )}
+
+              {/* Comments Stream */}
+              <div className="space-y-3">
+                {comments.map((comment) => {
+                  const isMyComment = user && (user.id === comment.user_id);
+                  const commentAuthor = comment.user_name || comment.name || comment.user?.name || (isMyComment ? (user?.name || 'Men') : 'Foydalanuvchi');
+                  const avatarSrc = comment.user_avatar || comment.avatar_url || comment.user?.avatar_url || (isMyComment ? user?.avatar_url : null);
+                  const frameSrc = comment.user_avatar_frame || comment.avatar_frame_url || comment.user?.avatar_frame_url || (isMyComment ? user?.avatar_frame_url : null);
+                  const likedUsers = Array.isArray(comment.liked_users) ? comment.liked_users : [];
+                  const isLiked = user ? (likedUsers as any[]).includes(user.id) : false;
+
+                  return (
+                    <div key={comment.id} className="p-3 rounded-xl bg-[#11121a] border border-white/5 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <UserAvatar size="xs" src={avatarSrc} frameUrl={frameSrc} name={commentAuthor} />
+                        <span className="text-xs font-bold text-white/90">{commentAuthor}</span>
+                        <span className="text-[10px] text-white/40 ml-auto">{new Date(comment.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <div className="text-xs text-white/80 leading-relaxed">
+                        <FormattedContent content={comment.content} />
+                      </div>
+                      <div className="flex items-center gap-3 pt-1 text-xs text-white/50">
+                        <button
+                          type="button"
+                          onClick={() => handleLikeComment(comment.id)}
+                          className={`flex items-center gap-1 cursor-pointer ${isLiked ? 'text-emerald-400 font-bold' : ''}`}
+                        >
+                          <ThumbsUp size={12} className={isLiked ? 'fill-emerald-400' : ''} />
+                          <span>{comment.likes || 0}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {comments.length === 0 && (
+                  <p className="text-center text-xs text-white/40 py-6">Hozircha izohlar mavjud emas.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: O'XSHASH */}
+          {mobileTab === 'similar' && (
+            <div className="w-full px-3 py-3">
+              <div className="grid grid-cols-2 gap-2.5">
+                {similarAnimes.map(sim => (
+                  <Link
+                    key={sim.id}
+                    to={`/anime/${toSlug(sim.title)}`}
+                    className="group block p-2 rounded-xl bg-[#11121a] border border-white/5 hover:border-[#ff006a]/50 transition-all active:scale-95"
+                  >
+                    <div className="aspect-[3/4] rounded-lg overflow-hidden bg-black/40 mb-2 relative">
+                      <img src={sim.image_url} alt={sim.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold text-yellow-400 flex items-center gap-0.5">
+                        <Star size={9} className="fill-current" /> {sim.rating || '9.0'}
+                      </div>
+                    </div>
+                    <h4 className="text-xs font-bold text-white line-clamp-1 group-hover:text-[#ff006a]">
+                      {sim.title}
+                    </h4>
+                    <span className="text-[10px] text-white/40 mt-0.5 block">{sim.yil || '2026'}</span>
+                  </Link>
+                ))}
+              </div>
+              {similarAnimes.length === 0 && (
+                <p className="text-center text-xs text-white/40 py-6">O'xshash animelar topilmadi.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DESKTOP-ONLY IMMERSIVE HERO & SIDEBAR EXPERIENCE                           */}
+      {/* ========================================================================= */}
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative w-full min-h-[420px] sm:min-h-[460px] md:min-h-[500px] h-auto bg-[#09090b] flex flex-col justify-end pt-16 sm:pt-20 md:pt-24 pb-6 md:pb-10 overflow-hidden"
+        className="hidden md:flex relative w-full min-h-[420px] sm:min-h-[460px] md:min-h-[500px] h-auto bg-[#09090b] flex-col justify-end pt-16 sm:pt-20 md:pt-24 pb-6 md:pb-10 overflow-hidden"
       >
         {/* Background Image Banner */}
         <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -1305,12 +1866,14 @@ export default function AnimeDetails() {
         </div>
       </motion.div>
 
-      {/* If Theater Mode is enabled, render the player full width across the page */}
-      {theaterMode && (
-        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10">
-          {renderPlayerSection()}
-        </div>
-      )}
+      {/* Desktop Main Content Layout */}
+      <div className="hidden md:block">
+        {/* If Theater Mode is enabled, render the player full width across the page */}
+        {theaterMode && (
+          <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10">
+            {renderPlayerSection()}
+          </div>
+        )}
 
       <div className="flex flex-col lg:flex-row gap-6 mt-6 md:mt-8 max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8">
          {/* Main Left Content */}
@@ -1867,6 +2430,7 @@ export default function AnimeDetails() {
               )}
            </div>
          </div>
+      </div>
       </div>
 
       <AnimatePresence>

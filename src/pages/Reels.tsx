@@ -35,26 +35,26 @@ function shuffleArray<T>(array: T[]): T[] {
   return arr;
 }
 
-// TikTok-style vertical slide transition variants
+// TikTok-style vertical slide transition variants (tuned for ultra-smooth 60fps mobile playback)
 const slideVariants = {
   enter: (direction: number) => ({
     y: direction > 0 ? "100%" : "-100%",
-    opacity: 0.85,
+    opacity: 0.9,
   }),
   center: {
     y: 0,
     opacity: 1,
     transition: {
-      y: { type: "spring", stiffness: 350, damping: 32 },
-      opacity: { duration: 0.18 },
+      y: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
+      opacity: { duration: 0.16 },
     },
   },
   exit: (direction: number) => ({
     y: direction > 0 ? "-100%" : "100%",
-    opacity: 0.85,
+    opacity: 0.9,
     transition: {
-      y: { type: "spring", stiffness: 350, damping: 32 },
-      opacity: { duration: 0.18 },
+      y: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
+      opacity: { duration: 0.16 },
     },
   }),
 };
@@ -93,6 +93,10 @@ export default function Reels() {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
   const touchStartYRef = useRef<number>(0);
+  const touchStartXRef = useRef<number>(0);
+  const touchStartTimeRef = useRef<number>(0);
+  const isSwipingRef = useRef<boolean>(false);
+  const isTransitioningRef = useRef<boolean>(false);
 
   useEffect(() => {
     try {
@@ -255,16 +259,53 @@ export default function Reels() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [goToNext, goToPrev, commentsOpen, reportOpen, uploadOpen]);
 
-  // Touch Swipe handlers
+  // Ultra-Lightweight & Stable Mobile Touch Swipe handlers
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (commentsOpen || reportOpen || uploadOpen) return;
     touchStartYRef.current = e.touches[0].clientY;
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartTimeRef.current = Date.now();
+    isSwipingRef.current = true;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isSwipingRef.current || isTransitioningRef.current) return;
+    const currentY = e.touches[0].clientY;
+    const currentX = e.touches[0].clientX;
+    const deltaY = touchStartYRef.current - currentY;
+    const deltaX = touchStartXRef.current - currentX;
+
+    // If gesture is clearly vertical, suppress page scrolling
+    if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isSwipingRef.current || isTransitioningRef.current) return;
+    isSwipingRef.current = false;
+    if (commentsOpen || reportOpen || uploadOpen) return;
+
     const touchEndY = e.changedTouches[0].clientY;
-    const diff = touchStartYRef.current - touchEndY;
-    if (Math.abs(diff) > 40) {
-      if (diff > 0) {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diffY = touchStartYRef.current - touchEndY;
+    const diffX = touchStartXRef.current - touchEndX;
+    const deltaTime = Date.now() - touchStartTimeRef.current;
+
+    // Detect either a quick flick (fast swipe < 280ms) or a deliberate drag (> 35px)
+    const isQuickFlick = deltaTime < 280 && Math.abs(diffY) > 24;
+    const isLongSwipe = Math.abs(diffY) > 38;
+
+    // Must be predominantly vertical (|diffY| > |diffX| * 1.1) to avoid horizontal misfires
+    if ((isQuickFlick || isLongSwipe) && Math.abs(diffY) > Math.abs(diffX) * 1.1) {
+      isTransitioningRef.current = true;
+      setTimeout(() => {
+        isTransitioningRef.current = false;
+      }, 300);
+
+      if (diffY > 0) {
         goToNext();
       } else {
         goToPrev();
@@ -430,7 +471,9 @@ export default function Reels() {
     <div
       ref={containerRef}
       className="fixed inset-0 z-40 bg-black flex items-center justify-center overflow-hidden select-none"
+      style={{ touchAction: "none" }}
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {/* 4 Invisible Preloader Videos (0ms buffer-free swipe transition) */}

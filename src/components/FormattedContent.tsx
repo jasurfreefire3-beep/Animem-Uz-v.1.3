@@ -95,9 +95,9 @@ export function parseContentSegments(rawContent: string): Segment[] {
     segments.push({ type: 'text', value: remaining });
   }
 
-  // 2. Scan text segments for bare media links (catbox, /api/media, .jpg, .png, .gif, .webp)
+  // 2. Scan text segments for bare media links (catbox, /api/media, imeg.animem.uz, .jpg, .png, .gif, .webp)
   const mediaSplitSegments: Array<{ type: 'text' | 'gif' | 'image'; value: string }> = [];
-  const bareRegex = /(https?:\/\/api\.animem\.uz\/i\/[a-zA-Z0-9_-]+|https?:\/\/files\.catbox\.moe\/[a-zA-Z0-9_.-]+|\/api\/media\/(?:img_|gif_)[a-zA-Z0-9_.-]+|https?:\/\/[^\s]+\.(?:gif|webp|png|jpe?g)(?:\?[^\s]*)?)/gi;
+  const bareRegex = /(https?:\/\/(?:api|imeg|image)\.animem\.uz\/(?:i|media|api\/media)\/[a-zA-Z0-9_.-]+|https?:\/\/files\.catbox\.moe\/[a-zA-Z0-9_.-]+|\/(?:api\/)?media\/(?:img_|gif_)[a-zA-Z0-9_.-]+|https?:\/\/[^\s]+\.(?:gif|webp|png|jpe?g)(?:\?[^\s]*)?)/gi;
 
   for (const seg of segments) {
     if (seg.type === 'gif' || seg.type === 'image') {

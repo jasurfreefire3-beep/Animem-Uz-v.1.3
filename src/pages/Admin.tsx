@@ -1370,22 +1370,18 @@ export default function Admin() {
               <div className="md:col-span-2 space-y-1.5 p-3.5 bg-[#050508] border border-[#0088cc]/30 rounded-sm">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wide">
-                    <img 
-                      src="https://api.animem.uz/i/2f5df3e0-bd69-4fd4-b558-429a47091414" 
-                      alt="Telegram" 
-                      className="w-4 h-4 object-contain rounded-full" 
-                    />
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#0088cc]">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
+                    </svg>
                     <span>Telegram Havola (Telegram Link)</span>
                   </label>
                   <span className="text-[10px] text-[#0088cc] font-medium">Player va qismlar orasida 'Telegramda ko'rish' tugmasi chiqadi</span>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <img 
-                      src="https://api.animem.uz/i/2f5df3e0-bd69-4fd4-b558-429a47091414" 
-                      alt="Telegram" 
-                      className="w-4 h-4 object-contain opacity-70" 
-                    />
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#0088cc] opacity-70">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
+                    </svg>
                   </div>
                   <input
                     type="url"
