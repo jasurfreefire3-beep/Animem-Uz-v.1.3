@@ -3,7 +3,7 @@ import { useMusic } from '../context/MusicContext';
 import { 
   Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, Repeat1, 
   Volume2, VolumeX, Volume1, Heart, Maximize2, ListMusic, 
-  Mic2, Disc3, Music as MusicIcon, ChevronUp, Minus, X
+  Mic2, Disc3, Music as MusicIcon, ChevronUp, Minus, X, Share2, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -50,7 +50,19 @@ export default function MusicPlayerBar() {
 
   const [isHoveringProgress, setIsHoveringProgress] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
   const progressBarRef = useRef<HTMLDivElement>(null);
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentSong) return;
+    const url = `${window.location.origin}/music/${currentSong.id}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
 
   if (!currentSong) {
     return null;
@@ -196,6 +208,15 @@ export default function MusicPlayerBar() {
                 title={isLiked ? "Sevimlilardan o'chirish" : "Sevimlilarga qo'shish"}
               >
                 <Heart size={15} className={isLiked ? 'fill-current scale-110' : ''} />
+              </button>
+
+              {/* Share Button */}
+              <button
+                onClick={handleShare}
+                className="hidden min-[480px]:inline-flex p-1.5 rounded-full hover:bg-white/10 transition-colors cursor-pointer shrink-0 text-white/40 hover:text-[#00c8ff]"
+                title="Ulashish (Havolani nusxalash)"
+              >
+                {isCopied ? <Check size={15} className="text-emerald-400" /> : <Share2 size={15} />}
               </button>
             </div>
 

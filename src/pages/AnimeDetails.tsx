@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Anime, Comment, translateGenre, toSlug } from '../types';
-import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward, Maximize2, Minimize2 } from 'lucide-react';
+import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward, Maximize2, Minimize2, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import VideoPlayer from '../components/VideoPlayer';
 import WatchTogetherRoom from '../components/WatchTogetherRoom';
@@ -22,7 +22,10 @@ import AdsterraNativeBanner from '../components/AdsterraNativeBanner';
 
 export default function AnimeDetails() {
   const params = useParams();
-  const { slug } = params;
+  const { slug, episode } = params as { slug?: string; episode?: string };
+  const [searchParams, setSearchParams] = useSearchParams();
+  const targetEpParam = episode || searchParams.get('ep') || searchParams.get('epizod');
+  const initialEp = targetEpParam ? Math.max(1, parseInt(targetEpParam, 10) || 1) : 1;
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -43,7 +46,8 @@ export default function AnimeDetails() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [episodesList, setEpisodesList] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [activeEpisode, setActiveEpisode] = useState(1);
+  const [activeEpisode, setActiveEpisode] = useState(initialEp);
+  const [episodeCopied, setEpisodeCopied] = useState(false);
   const [watchedEpisodes, setWatchedEpisodes] = useState<Record<number, boolean>>({});
   const [lastWatchedEp, setLastWatchedEp] = useState<number | null>(null);
   const [currentVideoUrl, setCurrentVideoUrl] = useState('');
@@ -249,9 +253,13 @@ export default function AnimeDetails() {
         if (epRes.status === 'fulfilled' && Array.isArray(epRes.value)) {
           const sorted = epRes.value.sort((a: any, b: any) => Number(a.episode_number) - Number(b.episode_number));
           setEpisodesList(sorted);
-          const ep1 = sorted.find((e: any) => Number(e.episode_number) === 1);
-          if (ep1 && ep1.video_url) {
-            setCurrentVideoUrl(ep1.video_url);
+          const targetEpNum = targetEpParam ? Math.max(1, parseInt(targetEpParam, 10) || 1) : 1;
+          const matchedEp = sorted.find((e: any) => Number(e.episode_number) === targetEpNum) || sorted.find((e: any) => Number(e.episode_number) === 1) || sorted[0];
+          if (matchedEp) {
+            setActiveEpisode(Number(matchedEp.episode_number));
+            if (matchedEp.video_url) {
+              setCurrentVideoUrl(matchedEp.video_url);
+            }
           }
         }
 
@@ -271,6 +279,18 @@ export default function AnimeDetails() {
     fetchAllDetails();
     window.scrollTo(0, 0);
   }, [slug, user]);
+
+  // Sync active episode from URL if route param or query changes
+  useEffect(() => {
+    const epNum = episode ? parseInt(episode, 10) : (searchParams.get('ep') ? parseInt(searchParams.get('ep')!, 10) : null);
+    if (epNum && !isNaN(epNum) && epNum !== activeEpisode && episodesList.length > 0) {
+      setActiveEpisode(epNum);
+      const epObj = episodesList.find(e => Number(e.episode_number) === epNum);
+      if (epObj?.video_url) {
+        setCurrentVideoUrl(epObj.video_url);
+      }
+    }
+  }, [episode, searchParams, episodesList]);
 
   // Real-time tracking of active anime and episode in Presence Tracker
   useEffect(() => {
@@ -747,6 +767,17 @@ export default function AnimeDetails() {
   const isCurrentFiller = Boolean(currentEpObj?.is_filler);
   const nextEpisodeObj = combinedEpisodes.find(e => e.number === activeEpisode + 1);
 
+  const handleShareEpisode = () => {
+    const targetSlug = slug || toSlug(anime?.title || '');
+    const localizedPrefix = location.pathname.match(/^\/(uz|ru|ing|en)/)?.[0] || '';
+    const url = `${window.location.origin}${localizedPrefix}/anime/${targetSlug}/epizod/${activeEpisode}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+    }
+    setEpisodeCopied(true);
+    setTimeout(() => setEpisodeCopied(false), 2000);
+  };
+
   const handleEpisodeClick = (ep: any) => {
     setActiveEpisode(ep.number);
     setWatchedEpisodes(prev => ({ ...prev, [ep.number]: true }));
@@ -758,6 +789,13 @@ export default function AnimeDetails() {
     } else {
       setCurrentVideoUrl(anime?.video_url || '');
     }
+
+    // Direct episode URL update in browser address bar
+    const targetSlug = slug || toSlug(anime?.title || '');
+    const localizedPrefix = location.pathname.match(/^\/(uz|ru|ing|en)/)?.[0] || '';
+    const newPath = `${localizedPrefix}/anime/${targetSlug}/epizod/${ep.number}`;
+    window.history.replaceState(null, '', newPath);
+
     const playerEl = document.getElementById('player-section');
     if (playerEl) {
       playerEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -810,8 +848,18 @@ export default function AnimeDetails() {
            </div>
          </div>
 
-         {/* Desktop Player Action Controls: Theater Mode & Lights Off */}
+         {/* Desktop & Mobile Player Action Controls: Share, Theater Mode & Lights Off */}
          <div className="flex items-center gap-2">
+           <button
+             type="button"
+             onClick={handleShareEpisode}
+             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer bg-white/5 border-white/10 text-white/80 hover:bg-white/10 hover:text-white"
+             title="Qism havolasini nusxalash"
+           >
+             {episodeCopied ? <Check size={13} className="text-emerald-400" /> : <Share2 size={13} className="text-[#ff006a]" />}
+             <span>{episodeCopied ? "Nusxalandi!" : "Ulashish"}</span>
+           </button>
+
            <button
              type="button"
              onClick={toggleTheaterMode}

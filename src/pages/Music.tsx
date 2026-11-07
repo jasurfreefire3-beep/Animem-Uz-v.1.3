@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useMusic } from '../context/MusicContext';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { 
   Play, Pause, Heart, Search, Disc3, 
   Headphones, Flame, Clock, Radio, Plus, Check,
@@ -39,6 +39,9 @@ export default function Music() {
 
   const { user } = useAuth();
   const { t } = useLanguage();
+  const params = useParams();
+  const [searchParams] = useSearchParams();
+  const requestedSongId = params.songId || searchParams.get('song') || searchParams.get('id');
 
   const [songs, setSongs] = useState<Song[]>(() => (playlist.length > 0 ? playlist : (initialSongsData as Song[])));
   const [loading, setLoading] = useState(false);
@@ -46,6 +49,18 @@ export default function Music() {
   const [selectedCategory, setSelectedCategory] = useState<string>('Barchasi');
   const [sortBy, setSortBy] = useState<'popular' | 'newest' | 'title'>('popular');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [copiedSongId, setCopiedSongId] = useState<number | null>(null);
+
+  const handleShareSong = (e: React.MouseEvent, song: Song) => {
+    e.stopPropagation();
+    const localizedPrefix = location.pathname.match(/^\/(uz|ru|ing|en)/)?.[0] || '';
+    const url = `${window.location.origin}${localizedPrefix}/music?song=${song.id}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+    }
+    setCopiedSongId(song.id);
+    setTimeout(() => setCopiedSongId(null), 2000);
+  };
 
   const categories = [
     { id: 'Barchasi', label: 'Barchasi', kanji: 'すべて' },
@@ -128,12 +143,24 @@ export default function Music() {
     return currentSong?.id === song.id && isPlaying;
   };
 
+  // Auto-play requested song from direct URL (/music/:songId or /music?song=:id)
+  useEffect(() => {
+    if (requestedSongId && songs.length > 0) {
+      const match = songs.find(s => String(s.id) === String(requestedSongId) || String(s.title).toLowerCase().includes(String(requestedSongId).toLowerCase()));
+      if (match && currentSong?.id !== match.id) {
+        playSong(match, songs);
+      }
+    }
+  }, [requestedSongId, songs]);
+
   const handleTrackClick = (song: Song) => {
     if (currentSong?.id === song.id) {
       togglePlay();
     } else {
       playSong(song, filteredSongs);
     }
+    const localizedPrefix = location.pathname.match(/^\/(uz|ru|ing|en)/)?.[0] || '';
+    window.history.replaceState(null, '', `${localizedPrefix}/music?song=${song.id}`);
   };
 
   const handleStartRandom = () => {
@@ -256,6 +283,15 @@ export default function Music() {
                 >
                   <ListMusic size={18} />
                   <span className="hidden sm:inline">Navbatga</span>
+                </button>
+
+                <button
+                  onClick={(e) => handleShareSong(e, featuredTrack)}
+                  className="p-3.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all cursor-pointer flex items-center gap-2 text-xs font-bold"
+                  title="Qo'shiq havolasini nusxalash"
+                >
+                  {copiedSongId === featuredTrack.id ? <Check size={18} className="text-emerald-400" /> : <Share2 size={18} />}
+                  <span className="hidden sm:inline">{copiedSongId === featuredTrack.id ? "Nusxalandi!" : "Ulashish"}</span>
                 </button>
 
                 <button
@@ -385,6 +421,14 @@ export default function Music() {
                   <span className="text-xs font-mono text-white/40">
                     {formatTime(song.duration || 0)}
                   </span>
+                  <button
+                    onClick={(e) => handleShareSong(e, song)}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-white/40 hover:text-white transition-colors"
+                    title="Qo'shiq havolasini nusxalash"
+                  >
+                    {copiedSongId === song.id ? <Check size={15} className="text-emerald-400" /> : <Share2 size={15} />}
+                  </button>
+
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -532,6 +576,15 @@ export default function Music() {
                       {song.category || 'OST'}
                     </div>
 
+                    {/* Share button on card */}
+                    <button
+                      onClick={(e) => handleShareSong(e, song)}
+                      className="absolute top-2 right-9 z-10 p-1.5 rounded-full bg-black/60 backdrop-blur-md hover:bg-black/90 text-white/60 hover:text-white transition-colors"
+                      title="Qo'shiq havolasini nusxalash"
+                    >
+                      {copiedSongId === song.id ? <Check size={14} className="text-emerald-400" /> : <Share2 size={14} />}
+                    </button>
+
                     {/* Like button on card */}
                     <button
                       onClick={(e) => {
@@ -655,6 +708,14 @@ export default function Music() {
                     <span className="text-xs text-white/50 font-mono">
                       {formatTime(song.duration || 0)}
                     </span>
+                    <button
+                      onClick={(e) => handleShareSong(e, song)}
+                      className="p-1.5 rounded-full hover:bg-white/10 text-white/30 hover:text-white transition-colors"
+                      title="Qo'shiq havolasini nusxalash"
+                    >
+                      {copiedSongId === song.id ? <Check size={16} className="text-emerald-400" /> : <Share2 size={16} />}
+                    </button>
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

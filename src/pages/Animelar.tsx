@@ -74,7 +74,7 @@ export default function Animelar() {
     const fetchAnimes = async () => {
       try {
         const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-        const res = await fetch(`${API_BASE}/api/animes`);
+        const res = await fetch(`${API_BASE}/api/animes?t=${Date.now()}`);
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("application/json")) {
           const data = await res.json();

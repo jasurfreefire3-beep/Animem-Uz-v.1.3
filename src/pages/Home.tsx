@@ -56,7 +56,7 @@ export default function Home() {
       const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
       try {
-        fetch(`${API_BASE}/api/animes`)
+        fetch(`${API_BASE}/api/animes?t=${Date.now()}`)
           .then(res => res.ok ? res.json() : null)
           .then(data => {
             if (isMounted && Array.isArray(data)) {

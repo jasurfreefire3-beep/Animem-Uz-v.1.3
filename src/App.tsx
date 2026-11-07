@@ -227,6 +227,8 @@ export default function App() {
 
               <Route path="/music" element={<Music />} />
               <Route path="/:lang/music" element={<Music />} />
+              <Route path="/music/:songId" element={<Music />} />
+              <Route path="/:lang/music/:songId" element={<Music />} />
               <Route path="/musiqa" element={<Navigate to="/music" replace />} />
               <Route path="/:lang/musiqa" element={<Navigate to="/music" replace />} />
 
@@ -238,6 +240,8 @@ export default function App() {
 
               <Route path="/anime/:slug" element={<AnimeDetails />} />
               <Route path="/:lang/anime/:slug" element={<AnimeDetails />} />
+              <Route path="/anime/:slug/epizod/:episode" element={<AnimeDetails />} />
+              <Route path="/:lang/anime/:slug/epizod/:episode" element={<AnimeDetails />} />
 
               <Route path="/admin" element={
                 <AdminPasscodeGate>

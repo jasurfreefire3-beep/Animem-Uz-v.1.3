@@ -5781,9 +5781,9 @@ app.get(["/api/tgstream/:channelId/:messageId", "/api/tghls/*"], (req, res) => {
 });
 
 app.get("/api/animes", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=300");
-  const cached = getCache<any[]>("api_all_animes", 180000);
-  if (cached) {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  const cached = getCache<any[]>("api_all_animes", 5000);
+  if (cached && !req.query.t && !req.query._) {
     return res.json(cached);
   }
   try {
@@ -5804,10 +5804,10 @@ app.get("/api/animes", async (req, res) => {
 
 // Get single anime
 app.get("/api/animes/:id", async (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=600");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   const id = req.params.id;
   const cacheKey = `api_anime_${id}`;
-  const cached = getCache<any>(cacheKey, 120000);
+  const cached = getCache<any>(cacheKey, 5000);
   if (cached) {
     dbQuery("UPDATE animes SET korishlar = korishlar + 1 WHERE id = ?", [cached.id || id]).catch(() => {});
     return res.json(cached);
@@ -5950,21 +5950,21 @@ app.post("/api/animes/:id/view", async (req, res) => {
 
 // Get episodes of an anime
 app.get("/api/animes/:id/episodes", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   const id = req.params.id;
   try {
     const [rows]: any = await dbQuery(
       "SELECT * FROM episodes WHERE anime_id = ? ORDER BY episode_number ASC",
       [id]
     );
-    if (Array.isArray(rows) && rows.length > 0) {
+    if (Array.isArray(rows)) {
       return res.json(rows);
     }
-  } catch (err) {
-    console.warn("Episodes fetch falling back to local store:", (err as any)?.message);
+    return res.json([]);
+  } catch (err: any) {
+    console.error("Episodes fetch error:", err?.message || err);
+    return res.json([]);
   }
-  const store = loadLocalStore();
-  const eps = (store.episodes || []).filter((e: any) => String(e.anime_id) === String(id));
-  res.json(eps);
 });
 
 function toAnimeSlug(text: string): string {
@@ -7039,18 +7039,24 @@ app.delete("/api/animes/:id", authenticateToken, requireAdmin, async (req: any, 
     const id = req.params.id;
 
     try {
+      await dbQuery("DELETE FROM episodes WHERE anime_id = ?", [id]);
+      await dbQuery("DELETE FROM comments WHERE anime_id = ?", [id]);
       await dbQuery("DELETE FROM animes WHERE id = ?", [id]);
-    } catch (e) {}
+    } catch (e: any) {
+      console.warn("DB delete anime error:", e?.message || e);
+    }
 
     const store = loadLocalStore();
     store.animes = (store.animes || []).filter((a: any) => String(a.id) !== String(id));
+    store.episodes = (store.episodes || []).filter((e: any) => String(e.anime_id) !== String(id));
     saveLocalStore(store);
 
     invalidateServerCache("api_all_animes");
-    invalidateServerCache("api_anime_");
+    invalidateServerCache(`api_anime_${id}`);
+    invalidateServerCache("sitemap");
     notifyContentUpdate("anime");
 
-    res.json({ message: "Anime o'chirildi" });
+    res.json({ message: "Anime va barcha qismlari muvaffaqiyatli o'chirildi" });
   } catch (err) {
     console.error("Delete anime error:", err);
     res.status(500).json({ error: "Failed to delete anime" });
