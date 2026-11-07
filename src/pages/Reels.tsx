@@ -563,7 +563,7 @@ export default function Reels() {
             <motion.div
               key={currentReel.id}
               custom={direction}
-              variants={slideVariants}
+              variants={slideVariants as any}
               initial="enter"
               animate="center"
               exit="exit"

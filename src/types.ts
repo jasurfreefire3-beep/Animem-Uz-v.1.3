@@ -252,29 +252,36 @@ export interface ReelComment {
   id: number | string;
   reel_id: number | string;
   user_id?: number | string;
-  username: string;
+  username?: string;
+  user_name?: string;
   user_avatar?: string;
-  content: string;
+  content?: string;
+  comment?: string;
   created_at: string;
 }
 
 export interface Reel {
   id: number | string;
   user_id?: number | string;
-  title: string;
+  user_name?: string;
+  author_name?: string;
+  user_avatar?: string;
+  author_avatar?: string;
+  caption?: string;
+  title?: string;
   video_url: string;
+  r2_key?: string;
   thumbnail_url?: string;
   anime_title?: string;
   anime_id?: number | string;
-  author_name: string;
-  author_avatar?: string;
   likes_count: number;
   views_count: number;
   shares_count: number;
   comments_count?: number;
   tags?: string;
   is_liked?: boolean;
-  created_at: string;
+  status?: string;
+  created_at?: string;
 }
 
 export interface ShopItem {
@@ -324,35 +331,7 @@ export interface Song {
   created_at?: string;
 }
 
-export interface Reel {
-  id: string;
-  user_id: string | number;
-  user_name: string;
-  user_avatar?: string;
-  caption?: string;
-  video_url: string;
-  r2_key?: string;
-  thumbnail_url?: string;
-  anime_id?: string;
-  anime_title?: string;
-  likes_count: number;
-  comments_count: number;
-  views_count: number;
-  shares_count: number;
-  is_liked?: boolean;
-  status?: string;
-  created_at?: string;
-}
 
-export interface ReelComment {
-  id: string | number;
-  reel_id: string;
-  user_id: string | number;
-  user_name: string;
-  user_avatar?: string;
-  comment: string;
-  created_at: string;
-}
 
 export interface ReelReport {
   id: string | number;
