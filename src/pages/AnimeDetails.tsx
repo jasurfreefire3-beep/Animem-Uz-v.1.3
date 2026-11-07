@@ -98,7 +98,6 @@ export default function AnimeDetails() {
     () => localStorage.getItem('animem_18plus_ok') === '1'
   );
   const [notFound, setNotFound] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
   const roomFromUrl = searchParams.get('room');
   const [activeWatchRoomId, setActiveWatchRoomId] = useState<string | null>(roomFromUrl);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
