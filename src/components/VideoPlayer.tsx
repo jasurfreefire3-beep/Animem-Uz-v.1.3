@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { FastForward, Volume2, VolumeX } from 'lucide-react';
+import introVideoAsset from '../utils/animem_uz_intro_v3_music.mp4';
 import './VideoPlayer.css';
 
 interface VideoPlayerProps {
@@ -80,6 +82,30 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const playerRef = useRef<{ api?: (command: string, value?: unknown) => unknown } | null>(null);
   const [hasError, setHasError] = useState(false);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [isPlayingIntro, setIsPlayingIntro] = useState(true);
+  const [isIntroMuted, setIsIntroMuted] = useState(false);
+  const introVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Every time a new anime or episode url is loaded, play intro first
+  useEffect(() => {
+    setIsPlayingIntro(true);
+  }, [url]);
+
+  // Autoplay intro with audio, fallback to muted if browser autoplay blocks unmuted audio
+  useEffect(() => {
+    if (isPlayingIntro && introVideoRef.current) {
+      const p = introVideoRef.current.play();
+      if (p !== undefined) {
+        p.catch(() => {
+          if (introVideoRef.current) {
+            introVideoRef.current.muted = true;
+            setIsIntroMuted(true);
+            introVideoRef.current.play().catch(() => {});
+          }
+        });
+      }
+    }
+  }, [isPlayingIntro]);
 
   const resolveSource = (raw: string): string => {
     if (!raw || typeof raw !== 'string') return '/assets/sample/video.mp4';
@@ -118,7 +144,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   }, [embedUrl, isEmbed]);
 
   useEffect(() => {
-    if (isEmbed) return;
+    if (isEmbed || isPlayingIntro) return;
 
     let isCurrent = true;
     setHasError(false);
@@ -135,7 +161,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
           file: source,
           poster: poster || '',
           title: animeTitle || 'Animem.uz',
-          autoplay: 0,
+          autoplay: 1,
           loop: 0,
           volume: 80,
           theme: '#ff006a',
@@ -152,7 +178,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
       }
       playerRef.current = null;
     };
-  }, [animeTitle, isEmbed, playerId, poster, source]);
+  }, [animeTitle, isEmbed, isPlayingIntro, playerId, poster, source]);
 
   // Support interactive seeking (e.g. comment timestamps & Watch Together sync)
   useEffect(() => {
@@ -214,8 +240,52 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   }, [isEmbed]);
 
   return (
-    <div className="animem-player-shell group">
-      <div className="animem-player-stage">
+    <div className="animem-player-shell group relative">
+      <div className="animem-player-stage relative overflow-hidden">
+        {/* Intro Video Player Overlay */}
+        {isPlayingIntro && (
+          <div className="absolute inset-0 z-30 bg-black flex items-center justify-center overflow-hidden">
+            <video
+              ref={introVideoRef}
+              src={introVideoAsset || '/animem_uz_intro_v3_music.mp4'}
+              autoPlay
+              playsInline
+              onEnded={() => setIsPlayingIntro(false)}
+              className="w-full h-full object-contain"
+            />
+
+            {/* Top Right Skip Intro & Sound Button */}
+            <div className="absolute top-3 right-3 z-40 flex items-center gap-2">
+              {isIntroMuted && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (introVideoRef.current) {
+                      introVideoRef.current.muted = false;
+                      setIsIntroMuted(false);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 rounded-full bg-black/80 hover:bg-black text-white/90 border border-white/20 text-xs font-bold backdrop-blur-md flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 transition-transform"
+                  title="Ovozni yoqish"
+                >
+                  <VolumeX size={13} className="text-red-400" />
+                  <span>Ovozni yoqish</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsPlayingIntro(false)}
+                className="px-3.5 py-1.5 rounded-full bg-black/85 hover:bg-[#ff006a] text-white border border-white/25 hover:border-[#ff006a] text-xs font-black backdrop-blur-md flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.8)] active:scale-95 transition-all group"
+                title="Introni o'tkazib yuborish"
+              >
+                <span>Introni o'tkazish</span>
+                <FastForward size={13} className="text-[#ff006a] group-hover:text-white group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {isEmbed ? (
           <>
             {isIframeLoading && (

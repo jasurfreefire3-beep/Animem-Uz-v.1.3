@@ -17,6 +17,8 @@ public/animebot/kawaii.db
 /data/
 !src/data/
 *.mp4
+!public/animem_uz_intro_v3_music.mp4
+!src/utils/animem_uz_intro_v3_music.mp4
 *.webm
 uploads/
 check_media.cjs
