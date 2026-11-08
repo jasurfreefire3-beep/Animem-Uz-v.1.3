@@ -784,10 +784,6 @@ export default function AnimeDetails() {
   };
 
   const handleEpisodeClick = (ep: any) => {
-    if (!user) {
-      setShowLoginPrompt(true);
-      return;
-    }
     setActiveEpisode(ep.number);
     setWatchedEpisodes(prev => ({ ...prev, [ep.number]: true }));
     if (anime) {
@@ -900,47 +896,7 @@ export default function AnimeDetails() {
        </div>
 
        <div className="-mx-4 sm:mx-0 mb-3 md:mb-4">
-         {!user ? (
-           <div className="w-full aspect-video min-h-[260px] sm:min-h-[360px] md:min-h-[460px] bg-[#0c0d14] border border-white/10 sm:rounded-2xl relative overflow-hidden flex flex-col items-center justify-center p-6 text-center select-none shadow-2xl">
-             {/* Blurred poster background */}
-             <img 
-               src={anime.banner_url || anime.image_url} 
-               alt={anime.title} 
-               className="absolute inset-0 w-full h-full object-cover opacity-25 blur-xl scale-110 pointer-events-none" 
-             />
-             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/85 to-black/60 pointer-events-none" />
-
-             {/* Glowing Lock Badge */}
-             <div className="relative z-10 w-14 h-14 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-tr from-[#ff006a]/20 to-purple-600/20 border border-[#ff006a]/40 flex items-center justify-center mb-3 sm:mb-4 shadow-[0_0_30px_rgba(255,0,106,0.35)]">
-               <Lock className="w-7 h-7 sm:w-9 sm:h-9 text-[#ff006a] animate-pulse" />
-             </div>
-
-             {/* Title & Description */}
-             <div className="relative z-10 max-w-md mx-auto space-y-1.5 sm:space-y-2 mb-4 sm:mb-6 px-2">
-               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff006a]/15 border border-[#ff006a]/30 text-[#ff006a] text-[10px] sm:text-[11px] font-black uppercase tracking-wider">
-                 <span>Ro'yxatdan O'tish Majburiy</span>
-               </div>
-               <h3 className="text-base sm:text-2xl font-black text-white leading-tight">
-                 Anime tomosha qilish uchun tizimga kiring
-               </h3>
-               <p className="text-xs sm:text-sm text-white/60 leading-relaxed line-clamp-2 sm:line-clamp-none">
-                 {anime.title} va barcha seriyalarni bepul, Full HD sifatda tomosha qilish uchun tizimga kiring yoki ro'yxatdan o'ting!
-               </p>
-             </div>
-
-             {/* Action Buttons */}
-             <div className="relative z-10 flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 w-full max-w-xs px-2">
-               <button
-                 type="button"
-                 onClick={() => setShowLoginPrompt(true)}
-                 className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-[#ff006a] to-[#7928ca] hover:from-[#ff006a] hover:to-[#6b21a8] text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(255,0,106,0.5)] transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
-               >
-                 <Lock size={15} />
-                 <span>Kirish / Ro'yxatdan o'tish</span>
-               </button>
-             </div>
-           </div>
-         ) : String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
+         {String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
             <div className="w-full aspect-video min-h-[260px] sm:min-h-[360px] md:min-h-[460px] bg-black/60 border border-white/10 sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-8 text-center backdrop-blur-md">
               <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#0088cc]/20 rounded-full flex items-center justify-center mb-4 sm:mb-6 shrink-0 ring-4 ring-[#0088cc]/20">
                 <svg viewBox="0 0 24 24" className="w-7 h-7 sm:w-10 sm:h-10 fill-[#0088cc]">
@@ -1223,41 +1179,7 @@ export default function AnimeDetails() {
 
         {/* 2. Video Player: Edge-to-Edge (100% width, 0px margin, 0px border) */}
         <div className="w-full aspect-video bg-black relative overflow-hidden">
-          {!user ? (
-            <div className="w-full h-full bg-[#0c0d14] relative overflow-hidden flex flex-col items-center justify-center p-4 text-center select-none shadow-2xl">
-              <img 
-                src={anime.banner_url || anime.image_url} 
-                alt={anime.title} 
-                className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl scale-110 pointer-events-none" 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/85 to-black/60 pointer-events-none" />
-
-              <div className="relative z-10 w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#ff006a]/20 to-purple-600/20 border border-[#ff006a]/40 flex items-center justify-center mb-2.5 shadow-[0_0_20px_rgba(255,0,106,0.35)]">
-                <Lock className="w-6 h-6 text-[#ff006a] animate-pulse" />
-              </div>
-
-              <div className="relative z-10 max-w-xs mx-auto space-y-1 mb-3 px-2">
-                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#ff006a]/15 border border-[#ff006a]/30 text-[#ff006a] text-[10px] font-black uppercase tracking-wider">
-                  <span>Ro'yxatdan O'tish Majburiy</span>
-                </div>
-                <h3 className="text-sm font-black text-white leading-tight">
-                  Anime tomosha qilish uchun kiring
-                </h3>
-                <p className="text-[11px] text-white/60 line-clamp-2">
-                  Barcha qismlarni Full HD sifatda tomosha qilish uchun tizimga kiring!
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowLoginPrompt(true)}
-                className="relative z-10 w-full max-w-[220px] py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#ff006a] to-[#7928ca] text-white font-black text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(255,0,106,0.5)] active:scale-95 transition-transform flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Lock size={14} />
-                <span>Kirish / Ro'yxatdan o'tish</span>
-              </button>
-            </div>
-          ) : String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
+          {String(currentVideoUrl || anime.video_url || '').includes('t.me') ? (
             <div className="w-full h-full bg-black/80 flex flex-col items-center justify-center p-4 text-center">
               <svg viewBox="0 0 24 24" className="w-10 h-10 fill-[#0088cc] mb-2">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.24-5.54 3.65-.52.36-.97.53-1.34.52-.41-.01-1.21-.23-1.8-.42-.73-.24-1.32-.37-1.27-.78.02-.21.31-.43.87-.67 3.42-1.49 5.71-2.48 6.86-2.96 3.27-1.37 3.95-1.61 4.4-.1.01.03.02.05.02.08.01.12.01.25-.01.37z" />
