@@ -49,6 +49,25 @@ export interface Anime {
   is_adult?: boolean | number;
   korishlar?: number;
   created_at: string;
+  fandub_id?: string | number | null;
+  fandub_name?: string | null;
+}
+
+export interface Fandub {
+  id: string | number;
+  name: string;
+  slug: string;
+  description: string;
+  avatar_url?: string;
+  banner_url?: string;
+  subscribers_count: number;
+  animes_count?: number;
+  is_subscribed?: boolean;
+  telegram_url?: string;
+  instagram_url?: string;
+  website_url?: string;
+  created_at?: string;
+  animes?: Anime[];
 }
 
 export interface Episode {

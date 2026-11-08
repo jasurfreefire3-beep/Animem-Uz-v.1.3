@@ -5,10 +5,10 @@ import {
   ShieldAlert, Plus, Link as LinkIcon, Image, Type, AlignLeft, 
   Calendar, Building, ListOrdered, Tag, Film, Tv, Video, 
   Trash2, Edit2, Search, X, Check, Eye, Bell, BookOpen, Users, Radio,
-  Sparkles, Layers, Zap, Save, RefreshCw, FileText, ShoppingBag, Heart, Music
+  Sparkles, Layers, Zap, Save, RefreshCw, FileText, ShoppingBag, Heart, Music, Mic
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Anime, GENRE_MAP, translateGenre } from '../types';
+import { Anime, Fandub, GENRE_MAP, translateGenre } from '../types';
 import AdminNotifications from '../components/AdminNotifications';
 import AdminUsers from '../components/AdminUsers';
 import AdminGifs from '../components/AdminGifs';
@@ -18,11 +18,12 @@ import ImageUploader from '../components/ImageUploader';
 import AdminMikaReports from '../components/AdminMikaReports';
 import AdminMusic from '../components/AdminMusic';
 import { AdminReels } from '../components/AdminReels';
+import { AdminFandubs } from '../components/AdminFandubs';
 
 export default function Admin() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'music' | 'reels_reports'>('manage_animes');
+  const [activeTab, setActiveTab] = useState<'manage_animes' | 'add_anime' | 'episodes' | 'online_users' | 'notifications' | 'users' | 'gifs' | 'shop' | 'mika_reports' | 'music' | 'reels_reports' | 'fandubs'>('manage_animes');
   
   // Anime Form States
   const [title, setTitle] = useState('');
@@ -42,6 +43,9 @@ export default function Admin() {
   const [tavsiya, setTavsiya] = useState(false);
   const [isBanner, setIsBanner] = useState(false);
   const [isAdult, setIsAdult] = useState(false);
+  const [selectedFandubId, setSelectedFandubId] = useState('');
+  const [selectedFandubName, setSelectedFandubName] = useState('');
+  const [availableFandubs, setAvailableFandubs] = useState<Fandub[]>([]);
   
   // Multi Category Selection state
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -104,7 +108,19 @@ export default function Admin() {
           console.error("Failed to fetch animes", err);
         }
       };
+      const fetchFandubs = async () => {
+        try {
+          const res = await fetch(`${API_BASE}/api/fandubs?t=${Date.now()}`);
+          if (res.ok) {
+            const data = await res.json();
+            setAvailableFandubs(Array.isArray(data) ? data : []);
+          }
+        } catch (err) {
+          console.error("Failed to fetch fandubs", err);
+        }
+      };
       fetchAnimes();
+      fetchFandubs();
     }
   }, [user]);
 
@@ -151,6 +167,8 @@ export default function Admin() {
         tavsiya: tavsiya ? 1 : 0,
         is_banner: isBanner ? 1 : 0,
         is_adult: isAdult ? 1 : 0,
+        fandub_id: selectedFandubId || null,
+        fandub_name: selectedFandubName || null,
         ...(editingAnime && editingAnime.korishlar !== undefined ? { korishlar: editingAnime.korishlar } : {})
       };
 
@@ -195,6 +213,8 @@ export default function Admin() {
       setTavsiya(false);
       setIsBanner(false);
       setIsAdult(false);
+      setSelectedFandubId('');
+      setSelectedFandubName('');
       
       // Go back to list tab
       setActiveTab('manage_animes');
@@ -236,6 +256,8 @@ export default function Admin() {
     setTavsiya(!!anime.tavsiya);
     setIsBanner(!!anime.is_banner);
     setIsAdult(!!anime.is_adult);
+    setSelectedFandubId(anime.fandub_id ? String(anime.fandub_id) : '');
+    setSelectedFandubName(anime.fandub_name || '');
     
     // Switch to submit form tab
     setActiveTab('add_anime');
@@ -262,6 +284,8 @@ export default function Admin() {
     setTavsiya(false);
     setIsBanner(false);
     setIsAdult(false);
+    setSelectedFandubId('');
+    setSelectedFandubName('');
     setActiveTab('manage_animes');
   };
 
@@ -939,6 +963,18 @@ export default function Admin() {
           <Film size={16} className="text-pink-400" />
           <span>Reels & Shikoyatlar 🎬</span>
         </button>
+        <button
+          onClick={() => {
+            setActiveTab('fandubs');
+            setMessage({ type: '', text: '' });
+          }}
+          className={`flex items-center space-x-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-sm text-xs sm:text-sm font-bold transition-colors flex-1 justify-center ${
+            activeTab === 'fandubs' ? 'bg-[#ff006a] text-white' : 'text-white/50 hover:bg-[#222] hover:text-white'
+          }`}
+        >
+          <Mic size={16} className="text-purple-400" />
+          <span>Fandublar 🎙️</span>
+        </button>
       </div>
 
       {/* Status Messages */}
@@ -1327,6 +1363,39 @@ export default function Admin() {
                     onChange={(e) => setQismlarSoni(e.target.value)}
                     className="w-full bg-[#000] border border-[#222] rounded-sm pl-10 pr-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:border-[#ff006a]/50 transition-colors"
                   />
+                </div>
+              </div>
+
+              {/* Fandub Team Selection */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-white/50 mb-1.5 uppercase flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-white/80">
+                    <Mic className="w-3.5 h-3.5 text-purple-400" />
+                    Fandub guruhi / Tarjimon jamoasi
+                  </span>
+                  <span className="text-[10px] text-white/40 font-normal lowercase">(qaysi fandubga tegishli ekanligini tanlang)</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mic className="h-4 w-4 text-[#ff006a]" />
+                  </div>
+                  <select
+                    value={selectedFandubId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedFandubId(val);
+                      const match = availableFandubs.find(f => String(f.id) === val);
+                      setSelectedFandubName(match ? match.name : '');
+                    }}
+                    className="w-full bg-[#000] border border-[#222] rounded-sm pl-10 pr-4 py-2.5 text-white focus:outline-none focus:border-[#ff006a]/50 transition-colors cursor-pointer"
+                  >
+                    <option value="">— Ko'rsatilmagan / Animem.uz rasmiy —</option>
+                    {availableFandubs.map(f => (
+                      <option key={f.id} value={String(f.id)}>
+                        {f.name} {f.slug ? `(@${f.slug})` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               
@@ -2106,6 +2175,11 @@ export default function Admin() {
       {/* Tab: Reels Nazorati & Shikoyatlar */}
       {activeTab === 'reels_reports' && (
         <AdminReels />
+      )}
+
+      {/* Tab: Fandub Jamoalari Boshqaruvi */}
+      {activeTab === 'fandubs' && (
+        <AdminFandubs />
       )}
     </div>
   );

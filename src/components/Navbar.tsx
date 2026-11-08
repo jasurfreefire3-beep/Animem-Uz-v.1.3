@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-do
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Notification, Anime, toSlug } from '../types';
-import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe, ShoppingBag, Headphones, ChevronDown, History } from 'lucide-react';
+import { Search, LogOut, User, Bell, Menu, PlusCircle, Heart, Bookmark, Settings, X, Shield, Star, Film, Globe, ShoppingBag, Headphones, ChevronDown, History, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   getNotificationPermission, 
@@ -384,6 +384,14 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 className="absolute left-0 mt-2 w-52 bg-black/80 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-2 z-50 divide-y divide-white/10"
               >
                 <div className="space-y-1 pb-1">
+                  <Link
+                    to={getLocalizedPath('/fandublar')}
+                    onClick={() => setShowMoreDropdown(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                  >
+                    <Mic size={14} className="text-purple-400" />
+                    <span>Fandublar</span>
+                  </Link>
                   <Link
                     to={getLocalizedPath('/shaxsiy-royxat')}
                     onClick={() => setShowMoreDropdown(false)}

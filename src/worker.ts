@@ -570,6 +570,26 @@ async function ensureTables(env: any) {
       data TEXT,
       mime_type TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS fandubs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      description TEXT DEFAULT '',
+      avatar_url TEXT DEFAULT '',
+      banner_url TEXT DEFAULT '',
+      telegram_url TEXT DEFAULT '',
+      instagram_url TEXT DEFAULT '',
+      website_url TEXT DEFAULT '',
+      subscribers_count INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS fandub_subscribers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fandub_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(fandub_id, user_id)
     );`
   ];
 
@@ -595,6 +615,8 @@ async function ensureTables(env: any) {
     'ALTER TABLE animes ADD COLUMN is_adult INTEGER DEFAULT 0;',
     'ALTER TABLE animes ADD COLUMN telegram_url TEXT;',
     'ALTER TABLE animes ADD COLUMN tags TEXT;',
+    'ALTER TABLE animes ADD COLUMN fandub_id TEXT DEFAULT NULL;',
+    'ALTER TABLE animes ADD COLUMN fandub_name TEXT DEFAULT NULL;',
     'ALTER TABLE episodes ADD COLUMN title TEXT DEFAULT NULL;',
     'ALTER TABLE episodes ADD COLUMN is_filler INTEGER DEFAULT 0;',
     'ALTER TABLE episodes ADD COLUMN telegram_url TEXT DEFAULT NULL;',

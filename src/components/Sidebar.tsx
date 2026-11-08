@@ -18,7 +18,8 @@ import {
   Shield,
   X,
   MessageSquare,
-  Music
+  Music,
+  Mic
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { translateGenre } from '../types';
@@ -76,6 +77,7 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
   const menuItems = [
     { name: t.navHome, path: '/', icon: Home },
     { name: t.navAnimes, path: '/animelar', icon: Tv },
+    { name: 'Fandublar 🎙️', path: '/fandublar', icon: Mic, badge: 'New' },
     { name: t.navSchedule, path: '/jadval', icon: Calendar },
     { name: t.navNewReleases, path: '/yangi-chiqishlar', icon: Clock },
     { name: t.navTop100, path: '/top100', icon: Star },

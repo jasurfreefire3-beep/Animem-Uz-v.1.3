@@ -42,6 +42,7 @@ const DMCA = lazy(() => import('./pages/DMCA'));
 const Aloqa = lazy(() => import('./pages/Aloqa'));
 const Music = lazy(() => import('./pages/Music'));
 const Reels = lazy(() => import('./pages/Reels'));
+const Fandublar = lazy(() => import('./pages/Fandublar'));
 import MusicPlayerBar from './components/MusicPlayerBar';
 import MusicExpandedPlayer from './components/MusicExpandedPlayer';
 
@@ -263,6 +264,11 @@ export default function App() {
               {/* Added high fidelity views matching user design */}
               <Route path="/animelar" element={<Animelar />} />
               <Route path="/:lang/animelar" element={<Animelar />} />
+
+              <Route path="/fandublar" element={<Fandublar />} />
+              <Route path="/:lang/fandublar" element={<Fandublar />} />
+              <Route path="/fandub/:slug" element={<Fandublar />} />
+              <Route path="/:lang/fandub/:slug" element={<Fandublar />} />
 
               <Route path="/manga/*" element={<Navigate to="/" replace />} />
               <Route path="/:lang/manga/*" element={<Navigate to="/" replace />} />

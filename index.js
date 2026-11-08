@@ -120207,7 +120207,51 @@ function loadLocalStore() {
   try {
     if (fs4.existsSync(LOCAL_STORE_PATH)) {
       memoryLocalStore = JSON.parse(fs4.readFileSync(LOCAL_STORE_PATH, "utf-8"));
-      return memoryLocalStore;
+      if (memoryLocalStore) {
+        if (!memoryLocalStore.fandubs) memoryLocalStore.fandubs = [];
+        if (!memoryLocalStore.fandub_subscribers) memoryLocalStore.fandub_subscribers = [];
+        if (memoryLocalStore.fandubs.length === 0) {
+          memoryLocalStore.fandubs = [
+            {
+              id: 1,
+              name: "Animavka",
+              slug: "animavka",
+              description: "O'zbekistondagi eng mashhur va sifatli anime ovozlashtirish jamoasi. Har bir epizod professional ovoz va yuqori sifatda taqdim etiladi.",
+              avatar_url: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400",
+              banner_url: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1200",
+              telegram_url: "https://t.me/animavka",
+              instagram_url: "",
+              website_url: "",
+              subscribers_count: 128
+            },
+            {
+              id: 2,
+              name: "AnimeUz Dub",
+              slug: "animeuz-dub",
+              description: "Professional dublyaj va tezkor epizodlar taqdim etuvchi ijodiy fandub jamoasi.",
+              avatar_url: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=400",
+              banner_url: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200",
+              telegram_url: "https://t.me/animeuz",
+              instagram_url: "",
+              website_url: "",
+              subscribers_count: 94
+            },
+            {
+              id: 3,
+              name: "Tarjima Kinolar Dub",
+              slug: "tarjima-kinolar-dub",
+              description: "Klassik va yangi mavsum animelarini o'zbek tilida taqdim etamiz.",
+              avatar_url: "https://images.unsplash.com/photo-1563089145-599997674d42?w=400",
+              banner_url: "https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?w=1200",
+              telegram_url: "",
+              instagram_url: "",
+              website_url: "",
+              subscribers_count: 45
+            }
+          ];
+        }
+        return memoryLocalStore;
+      }
     }
   } catch (e5) {
     console.warn("loadLocalStore read error:", e5);
@@ -120226,7 +120270,9 @@ function loadLocalStore() {
     drama_episodes: [],
     donations: [],
     gifs: [],
-    songs: []
+    songs: [],
+    fandubs: [],
+    fandub_subscribers: []
   };
 }
 function saveLocalStore(data) {
@@ -120753,6 +120799,8 @@ async function initAnimeTables() {
     await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS logo_url TEXT DEFAULT ''`);
     await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS banner_title_color VARCHAR(50) DEFAULT ''`);
     await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS banner_title_font VARCHAR(50) DEFAULT ''`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS fandub_id VARCHAR(64) DEFAULT NULL`);
+    await pgPool.query(`ALTER TABLE anime ADD COLUMN IF NOT EXISTS fandub_name VARCHAR(255) DEFAULT NULL`);
     await pgPool.query(`ALTER TABLE episodes ADD COLUMN IF NOT EXISTS is_filler INTEGER DEFAULT 0`);
     await pgPool.query(`ALTER TABLE episodes ALTER COLUMN video_url DROP NOT NULL`).catch(() => {
     });
@@ -120802,6 +120850,8 @@ async function initAnimeTables() {
         COALESCE(video_url, ''::text) AS video_url,
         COALESCE(tags, ''::text) AS tags,
         COALESCE(is_adult, 0) AS is_adult,
+        fandub_id,
+        fandub_name,
         created_at,
         updated_at
       FROM anime;
@@ -120824,7 +120874,8 @@ async function initAnimeTables() {
           season, status, release_year,
           episodes_count, rating, views, is_featured, is_banner,
           type, age_rating, genres, studio, rating_count,
-          telegram_url, video_url, tags, is_adult, updated_at
+          telegram_url, video_url, tags, is_adult,
+          fandub_id, fandub_name, updated_at
         ) VALUES (
           v_title,
           COALESCE(NEW.title_orig, v_title),
@@ -120853,6 +120904,8 @@ async function initAnimeTables() {
           COALESCE(NEW.video_url, ''),
           COALESCE(NEW.tags, ''),
           COALESCE(NEW.is_adult, 0),
+          NEW.fandub_id,
+          NEW.fandub_name,
           CURRENT_TIMESTAMP
         ) RETURNING id INTO v_id;
 
@@ -120891,6 +120944,8 @@ async function initAnimeTables() {
           video_url = COALESCE(NEW.video_url, video_url),
           tags = COALESCE(NEW.tags, tags),
           is_adult = COALESCE(NEW.is_adult, is_adult),
+          fandub_id = COALESCE(NEW.fandub_id, fandub_id),
+          fandub_name = COALESCE(NEW.fandub_name, fandub_name),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = OLD.id;
         RETURN NEW;
@@ -120931,9 +120986,58 @@ async function initAnimeTables() {
     console.error("Failed to initialize Anime tables:", err);
   }
 }
+async function initFandubTables() {
+  try {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS fandubs (
+        id BIGSERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL UNIQUE,
+        description TEXT DEFAULT '',
+        avatar_url TEXT DEFAULT '',
+        banner_url TEXT DEFAULT '',
+        telegram_url VARCHAR(255) DEFAULT '',
+        instagram_url VARCHAR(255) DEFAULT '',
+        website_url VARCHAR(255) DEFAULT '',
+        subscribers_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_fandubs_slug ON fandubs (slug)`).catch(() => {
+    });
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS fandub_subscribers (
+        id BIGSERIAL PRIMARY KEY,
+        fandub_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(fandub_id, user_id)
+      )
+    `);
+    await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_fandub_subs_fandub ON fandub_subscribers (fandub_id)`).catch(() => {
+    });
+    await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_fandub_subs_user ON fandub_subscribers (user_id)`).catch(() => {
+    });
+    const check = await pgPool.query(`SELECT COUNT(*) as count FROM fandubs`);
+    if (check.rows && Number(check.rows[0].count) === 0) {
+      await pgPool.query(`
+        INSERT INTO fandubs (name, slug, description, avatar_url, banner_url, telegram_url, instagram_url, website_url, subscribers_count)
+        VALUES 
+        ('Animavka', 'animavka', 'O''zbekistondagi eng mashhur va sifatli anime ovozlashtirish jamoasi. Har bir epizod professional ovoz va yuqori sifatda taqdim etiladi.', 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400', 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1200', 'https://t.me/animavka', '', '', 128),
+        ('AnimeUz Dub', 'animeuz-dub', 'Professional dublyaj va tezkor epizodlar taqdim etuvchi ijodiy fandub jamoasi.', 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=400', 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200', 'https://t.me/animeuz', '', '', 94),
+        ('Tarjima Kinolar Dub', 'tarjima-kinolar-dub', 'Klassik va yangi mavsum animelarini o''zbek tilida taqdim etamiz.', 'https://images.unsplash.com/photo-1563089145-599997674d42?w=400', 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?w=1200', '', '', '', 45)
+        ON CONFLICT (slug) DO NOTHING
+      `);
+    }
+    console.log("Verified and initialized Fandub tables in PostgreSQL.");
+  } catch (err) {
+    console.warn("Fandub tables init warning:", err?.message || err);
+  }
+}
 setTimeout(() => {
   initShopTables();
   initAnimeTables();
+  initFandubTables();
 }, 500);
 var watchRooms = /* @__PURE__ */ new Map();
 var socketToWatchRoom = /* @__PURE__ */ new Map();
@@ -125385,7 +125489,9 @@ app.post("/api/animes", authenticateToken, requireAdmin, async (req, res) => {
       tavsiya,
       is_banner,
       tags,
-      is_adult
+      is_adult,
+      fandub_id,
+      fandub_name
     } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "Anime nomi kiritilishi shart!" });
@@ -125405,8 +125511,8 @@ app.post("/api/animes", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const [result] = await dbQuery(
         `INSERT INTO animes 
-        (title, description, image_url, banner_url, logo_url, banner_title_color, banner_title_font, rating, rating_count, holati, yil, studiyasi, qismlar_soni, korishlar, janrlar, telegram_url, video_url, tavsiya, is_banner, tags, is_adult) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (title, description, image_url, banner_url, logo_url, banner_title_color, banner_title_font, rating, rating_count, holati, yil, studiyasi, qismlar_soni, korishlar, janrlar, telegram_url, video_url, tavsiya, is_banner, tags, is_adult, fandub_id, fandub_name) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           cleanTitle,
           description || "",
@@ -125428,7 +125534,9 @@ app.post("/api/animes", authenticateToken, requireAdmin, async (req, res) => {
           tavsiya ? 1 : 0,
           is_banner ? 1 : 0,
           tags || "",
-          is_adult ? 1 : 0
+          is_adult ? 1 : 0,
+          fandub_id ? String(fandub_id) : null,
+          fandub_name ? String(fandub_name) : null
         ]
       );
       if (result && result.insertId) {
@@ -125469,7 +125577,9 @@ app.post("/api/animes", authenticateToken, requireAdmin, async (req, res) => {
       tavsiya: Boolean(tavsiya),
       is_banner: Boolean(is_banner),
       tags: tags || "",
-      is_adult: Boolean(is_adult)
+      is_adult: Boolean(is_adult),
+      fandub_id: fandub_id ? String(fandub_id) : null,
+      fandub_name: fandub_name ? String(fandub_name) : null
     };
     store.animes = store.animes || [];
     store.animes.unshift(newObj);
@@ -125517,7 +125627,9 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req, res) => 
       tavsiya,
       is_banner,
       tags,
-      is_adult
+      is_adult,
+      fandub_id,
+      fandub_name
     } = req.body;
     const EXPLOIT_PATTERNS = /(?:header_test|video_ssrf|webhook_anime|webhook\.site|burpcollaborator|interactsh|oastify|requestbin|169\.254\.169\.254|localhost|127\.0\.0\.1|<script|javascript:)/i;
     if (title && EXPLOIT_PATTERNS.test(title) || description && EXPLOIT_PATTERNS.test(description) || image_url && EXPLOIT_PATTERNS.test(image_url) || banner_url && EXPLOIT_PATTERNS.test(banner_url) || video_url && EXPLOIT_PATTERNS.test(video_url) || telegram_url && EXPLOIT_PATTERNS.test(telegram_url)) {
@@ -125555,11 +125667,13 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req, res) => 
     const finalIsBanner = is_banner !== void 0 ? is_banner ? 1 : 0 : existing?.is_banner ? 1 : 0;
     const finalTags = tags !== void 0 ? tags : existing?.tags || "";
     const finalIsAdult = is_adult !== void 0 ? is_adult ? 1 : 0 : existing?.is_adult ? 1 : 0;
+    const finalFandubId = fandub_id !== void 0 ? fandub_id ? String(fandub_id) : null : existing?.fandub_id || null;
+    const finalFandubName = fandub_name !== void 0 ? fandub_name ? String(fandub_name) : null : existing?.fandub_name || null;
     try {
       await dbQuery(
         `UPDATE animes SET 
         title = ?, description = ?, image_url = ?, banner_url = ?, logo_url = ?, banner_title_color = ?, banner_title_font = ?, rating = ?, rating_count = ?, 
-        holati = ?, yil = ?, studiyasi = ?, qismlar_soni = ?, korishlar = ?, janrlar = ?, telegram_url = ?, video_url = ?, tavsiya = ?, is_banner = ?, tags = ?, is_adult = ? 
+        holati = ?, yil = ?, studiyasi = ?, qismlar_soni = ?, korishlar = ?, janrlar = ?, telegram_url = ?, video_url = ?, tavsiya = ?, is_banner = ?, tags = ?, is_adult = ?, fandub_id = ?, fandub_name = ? 
         WHERE id = ?`,
         [
           finalTitle,
@@ -125583,6 +125697,8 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req, res) => 
           finalIsBanner,
           finalTags,
           finalIsAdult,
+          finalFandubId,
+          finalFandubName,
           id
         ]
       );
@@ -125614,7 +125730,9 @@ app.put("/api/animes/:id", authenticateToken, requireAdmin, async (req, res) => 
       tavsiya: Boolean(finalTavsiya),
       is_banner: Boolean(finalIsBanner),
       tags: finalTags,
-      is_adult: Boolean(finalIsAdult)
+      is_adult: Boolean(finalIsAdult),
+      fandub_id: finalFandubId,
+      fandub_name: finalFandubName
     };
     if (idx >= 0) {
       store.animes[idx] = { ...store.animes[idx], ...updatedObj };
@@ -127513,6 +127631,327 @@ app.post("/api/admin/shop/settings", authenticateToken, requireAdmin, async (req
     });
   } catch (err) {
     res.status(500).json({ error: "Sozlamalarni saqlashda xatolik" });
+  }
+});
+app.get("/api/fandubs", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  try {
+    let currentUserId = null;
+    const authHeader = req.headers["authorization"];
+    let token = authHeader && authHeader.split(" ")[1];
+    if (!token && typeof req.query.token === "string") token = req.query.token;
+    if (token) {
+      const decoded = verifyAnyJwt(token);
+      if (decoded && decoded.id) currentUserId = decoded.id;
+    }
+    let fandubs = [];
+    try {
+      const [rows] = await dbQuery(`
+        SELECT f.*,
+          (SELECT COUNT(*) FROM animes a WHERE a.fandub_id::text = f.id::text OR LOWER(a.fandub_name) = LOWER(f.name)) as animes_count,
+          (SELECT COUNT(*) FROM fandub_subscribers fs WHERE fs.fandub_id = f.id) as subscribers_count
+        FROM fandubs f
+        ORDER BY subscribers_count DESC, id ASC
+      `);
+      if (Array.isArray(rows) && rows.length > 0) {
+        fandubs = rows;
+      }
+    } catch (e5) {
+      console.warn("dbQuery fandubs error, falling back to localStore:", e5?.message);
+    }
+    if (fandubs.length === 0) {
+      const store = loadLocalStore();
+      const rawFandubs = store.fandubs || [];
+      const storeAnimes = store.animes || [];
+      const subs = store.fandub_subscribers || [];
+      fandubs = rawFandubs.map((f5) => {
+        const aCount = storeAnimes.filter((a5) => String(a5.fandub_id) === String(f5.id) || a5.fandub_name && a5.fandub_name.toLowerCase() === f5.name.toLowerCase()).length;
+        const sCount = subs.filter((s2) => String(s2.fandub_id) === String(f5.id)).length;
+        return {
+          ...f5,
+          animes_count: aCount,
+          subscribers_count: Math.max(Number(f5.subscribers_count || 0), sCount)
+        };
+      });
+    }
+    const userSubscribedFandubIds = /* @__PURE__ */ new Set();
+    if (currentUserId) {
+      try {
+        const [subRows] = await dbQuery("SELECT fandub_id FROM fandub_subscribers WHERE user_id = ?", [currentUserId]);
+        if (Array.isArray(subRows)) {
+          subRows.forEach((r5) => userSubscribedFandubIds.add(String(r5.fandub_id)));
+        }
+      } catch (_) {
+        const store = loadLocalStore();
+        const subs = store.fandub_subscribers || [];
+        subs.filter((s2) => String(s2.user_id) === String(currentUserId)).forEach((s2) => userSubscribedFandubIds.add(String(s2.fandub_id)));
+      }
+    }
+    const mapped = fandubs.map((f5) => ({
+      ...f5,
+      animes_count: Number(f5.animes_count || 0),
+      subscribers_count: Number(f5.subscribers_count || 0),
+      is_subscribed: userSubscribedFandubIds.has(String(f5.id))
+    }));
+    res.json(mapped);
+  } catch (err) {
+    console.error("GET /api/fandubs error:", err);
+    res.status(500).json({ error: "Fandublarni yuklashda xatolik yuz berdi" });
+  }
+});
+app.get("/api/fandubs/:idOrSlug", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  try {
+    const { idOrSlug } = req.params;
+    let currentUserId = null;
+    const authHeader = req.headers["authorization"];
+    let token = authHeader && authHeader.split(" ")[1];
+    if (!token && typeof req.query.token === "string") token = req.query.token;
+    if (token) {
+      const decoded = verifyAnyJwt(token);
+      if (decoded && decoded.id) currentUserId = decoded.id;
+    }
+    let fandub = null;
+    try {
+      const isNumeric = /^\d+$/.test(idOrSlug);
+      const [rows] = await dbQuery(
+        `SELECT f.*,
+           (SELECT COUNT(*) FROM fandub_subscribers fs WHERE fs.fandub_id = f.id) as subscribers_count
+         FROM fandubs f
+         WHERE ${isNumeric ? "f.id = ? OR f.slug = ?" : "f.slug = ? OR LOWER(f.name) = LOWER(?)"}
+         LIMIT 1`,
+        isNumeric ? [idOrSlug, idOrSlug] : [idOrSlug, idOrSlug]
+      );
+      if (Array.isArray(rows) && rows.length > 0) fandub = rows[0];
+    } catch (_) {
+    }
+    if (!fandub) {
+      const store = loadLocalStore();
+      const raw = store.fandubs || [];
+      fandub = raw.find((f5) => String(f5.id) === String(idOrSlug) || f5.slug === idOrSlug || f5.name.toLowerCase() === idOrSlug.toLowerCase());
+      if (fandub) {
+        const subs = (store.fandub_subscribers || []).filter((s2) => String(s2.fandub_id) === String(fandub.id));
+        fandub = {
+          ...fandub,
+          subscribers_count: Math.max(Number(fandub.subscribers_count || 0), subs.length)
+        };
+      }
+    }
+    if (!fandub) {
+      return res.status(404).json({ error: "Fandub guruhi topilmadi" });
+    }
+    let animes = [];
+    try {
+      const [animeRows] = await dbQuery(
+        `SELECT * FROM animes WHERE fandub_id::text = ? OR LOWER(fandub_name) = LOWER(?) ORDER BY id DESC`,
+        [String(fandub.id), fandub.name]
+      );
+      if (Array.isArray(animeRows)) animes = animeRows;
+    } catch (_) {
+      const store = loadLocalStore();
+      animes = (store.animes || []).filter((a5) => String(a5.fandub_id) === String(fandub.id) || a5.fandub_name && a5.fandub_name.toLowerCase() === fandub.name.toLowerCase());
+    }
+    let isSubscribed = false;
+    if (currentUserId) {
+      try {
+        const [subRows] = await dbQuery(
+          "SELECT 1 FROM fandub_subscribers WHERE fandub_id = ? AND user_id = ? LIMIT 1",
+          [fandub.id, currentUserId]
+        );
+        isSubscribed = Array.isArray(subRows) && subRows.length > 0;
+      } catch (_) {
+        const store = loadLocalStore();
+        const subs = store.fandub_subscribers || [];
+        isSubscribed = subs.some((s2) => String(s2.fandub_id) === String(fandub.id) && String(s2.user_id) === String(currentUserId));
+      }
+    }
+    fandub.animes = animes;
+    fandub.animes_count = animes.length;
+    fandub.subscribers_count = Number(fandub.subscribers_count || 0);
+    fandub.is_subscribed = isSubscribed;
+    res.json(fandub);
+  } catch (err) {
+    console.error("GET /api/fandubs/:idOrSlug error:", err);
+    res.status(500).json({ error: "Ma'lumotni yuklashda xatolik yuz berdi" });
+  }
+});
+app.post("/api/fandubs/:id/subscribe", authenticateToken, async (req, res) => {
+  try {
+    const fandubId = req.params.id;
+    const userId = req.user.id;
+    let isSubscribed = false;
+    let newCount = 0;
+    let existingSub = false;
+    try {
+      const [rows] = await dbQuery(
+        "SELECT id FROM fandub_subscribers WHERE fandub_id = ? AND user_id = ? LIMIT 1",
+        [fandubId, userId]
+      );
+      existingSub = Array.isArray(rows) && rows.length > 0;
+    } catch (_) {
+      const store2 = loadLocalStore();
+      existingSub = (store2.fandub_subscribers || []).some(
+        (s2) => String(s2.fandub_id) === String(fandubId) && String(s2.user_id) === String(userId)
+      );
+    }
+    if (existingSub) {
+      try {
+        await dbQuery("DELETE FROM fandub_subscribers WHERE fandub_id = ? AND user_id = ?", [fandubId, userId]);
+        await dbQuery("UPDATE fandubs SET subscribers_count = GREATEST(0, subscribers_count - 1) WHERE id = ?", [fandubId]);
+      } catch (_) {
+      }
+      isSubscribed = false;
+    } else {
+      try {
+        await dbQuery("INSERT INTO fandub_subscribers (fandub_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING", [fandubId, userId]);
+        await dbQuery("UPDATE fandubs SET subscribers_count = subscribers_count + 1 WHERE id = ?", [fandubId]);
+      } catch (_) {
+      }
+      isSubscribed = true;
+    }
+    const store = loadLocalStore();
+    store.fandub_subscribers = store.fandub_subscribers || [];
+    if (isSubscribed) {
+      if (!store.fandub_subscribers.some((s2) => String(s2.fandub_id) === String(fandubId) && String(s2.user_id) === String(userId))) {
+        store.fandub_subscribers.push({ fandub_id: Number(fandubId) || fandubId, user_id: Number(userId) || userId, created_at: (/* @__PURE__ */ new Date()).toISOString() });
+      }
+    } else {
+      store.fandub_subscribers = store.fandub_subscribers.filter(
+        (s2) => !(String(s2.fandub_id) === String(fandubId) && String(s2.user_id) === String(userId))
+      );
+    }
+    const fIdx = (store.fandubs || []).findIndex((f5) => String(f5.id) === String(fandubId));
+    if (fIdx >= 0) {
+      const currentSubs = store.fandub_subscribers.filter((s2) => String(s2.fandub_id) === String(fandubId)).length;
+      store.fandubs[fIdx].subscribers_count = currentSubs;
+      newCount = currentSubs;
+    } else {
+      newCount = store.fandub_subscribers.filter((s2) => String(s2.fandub_id) === String(fandubId)).length;
+    }
+    saveLocalStore(store);
+    res.json({
+      success: true,
+      subscribed: isSubscribed,
+      subscribers_count: newCount,
+      message: isSubscribed ? "Fandub jamoasiga obuna bo'ldingiz!" : "Obuna bekor qilindi"
+    });
+  } catch (err) {
+    console.error("POST /api/fandubs/:id/subscribe error:", err);
+    res.status(500).json({ error: "Obunani yangilashda xatolik yuz berdi" });
+  }
+});
+app.post("/api/admin/fandubs", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { name: name2, slug, description, avatar_url, banner_url, telegram_url, instagram_url, website_url } = req.body;
+    if (!name2 || !name2.trim()) {
+      return res.status(400).json({ error: "Fandub nomi kiritilishi shart!" });
+    }
+    const cleanName = name2.trim();
+    const cleanSlug = slug && slug.trim() ? slug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-") : cleanName.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+    const cleanAvatar = normalizeImageUrl(avatar_url || "");
+    const cleanBanner = normalizeImageUrl(banner_url || "");
+    let insertId = 0;
+    try {
+      const [result] = await dbQuery(
+        `INSERT INTO fandubs (name, slug, description, avatar_url, banner_url, telegram_url, instagram_url, website_url, subscribers_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0) RETURNING id`,
+        [cleanName, cleanSlug, description || "", cleanAvatar, cleanBanner, telegram_url || "", instagram_url || "", website_url || ""]
+      );
+      if (result && result.id) insertId = result.id;
+      else if (result && result.insertId) insertId = result.insertId;
+    } catch (e5) {
+      console.warn("DB insert fandub error:", e5?.message);
+    }
+    if (!insertId) {
+      insertId = Date.now();
+    }
+    const store = loadLocalStore();
+    store.fandubs = store.fandubs || [];
+    const newFandub = {
+      id: insertId,
+      name: cleanName,
+      slug: cleanSlug,
+      description: description || "",
+      avatar_url: cleanAvatar,
+      banner_url: cleanBanner,
+      telegram_url: telegram_url || "",
+      instagram_url: instagram_url || "",
+      website_url: website_url || "",
+      subscribers_count: 0,
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    store.fandubs.unshift(newFandub);
+    saveLocalStore(store);
+    res.status(201).json({ success: true, fandub: newFandub, message: "Yangi fandub jamoasi qo'shildi!" });
+  } catch (err) {
+    console.error("POST /api/admin/fandubs error:", err);
+    res.status(500).json({ error: "Fandub qo'shishda xatolik yuz berdi" });
+  }
+});
+app.put("/api/admin/fandubs/:id", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { name: name2, slug, description, avatar_url, banner_url, telegram_url, instagram_url, website_url } = req.body;
+    const cleanName = name2 ? name2.trim() : void 0;
+    const cleanSlug = slug ? slug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-") : void 0;
+    const cleanAvatar = avatar_url !== void 0 ? normalizeImageUrl(avatar_url) : void 0;
+    const cleanBanner = banner_url !== void 0 ? normalizeImageUrl(banner_url) : void 0;
+    try {
+      await dbQuery(
+        `UPDATE fandubs SET
+           name = COALESCE(?, name),
+           slug = COALESCE(?, slug),
+           description = COALESCE(?, description),
+           avatar_url = COALESCE(?, avatar_url),
+           banner_url = COALESCE(?, banner_url),
+           telegram_url = COALESCE(?, telegram_url),
+           instagram_url = COALESCE(?, instagram_url),
+           website_url = COALESCE(?, website_url)
+         WHERE id = ?`,
+        [cleanName, cleanSlug, description, cleanAvatar, cleanBanner, telegram_url, instagram_url, website_url, id]
+      );
+    } catch (e5) {
+      console.warn("DB update fandub error:", e5?.message);
+    }
+    const store = loadLocalStore();
+    const idx = (store.fandubs || []).findIndex((f5) => String(f5.id) === String(id));
+    if (idx >= 0) {
+      store.fandubs[idx] = {
+        ...store.fandubs[idx],
+        ...cleanName !== void 0 ? { name: cleanName } : {},
+        ...cleanSlug !== void 0 ? { slug: cleanSlug } : {},
+        ...description !== void 0 ? { description } : {},
+        ...cleanAvatar !== void 0 ? { avatar_url: cleanAvatar } : {},
+        ...cleanBanner !== void 0 ? { banner_url: cleanBanner } : {},
+        ...telegram_url !== void 0 ? { telegram_url } : {},
+        ...instagram_url !== void 0 ? { instagram_url } : {},
+        ...website_url !== void 0 ? { website_url } : {}
+      };
+      saveLocalStore(store);
+    }
+    res.json({ success: true, message: "Fandub ma'lumotlari yangilandi!" });
+  } catch (err) {
+    console.error("PUT /api/admin/fandubs/:id error:", err);
+    res.status(500).json({ error: "Fandubni yangilashda xatolik yuz berdi" });
+  }
+});
+app.delete("/api/admin/fandubs/:id", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    try {
+      await dbQuery("DELETE FROM fandub_subscribers WHERE fandub_id = ?", [id]);
+      await dbQuery("DELETE FROM fandubs WHERE id = ?", [id]);
+    } catch (e5) {
+      console.warn("DB delete fandub error:", e5?.message);
+    }
+    const store = loadLocalStore();
+    store.fandubs = (store.fandubs || []).filter((f5) => String(f5.id) !== String(id));
+    store.fandub_subscribers = (store.fandub_subscribers || []).filter((s2) => String(s2.fandub_id) !== String(id));
+    saveLocalStore(store);
+    res.json({ success: true, message: "Fandub jamoasi o'chirildi!" });
+  } catch (err) {
+    console.error("DELETE /api/admin/fandubs/:id error:", err);
+    res.status(500).json({ error: "Fandubni o'chirishda xatolik yuz berdi" });
   }
 });
 app.get("/api/chat/messages", async (req, res) => {

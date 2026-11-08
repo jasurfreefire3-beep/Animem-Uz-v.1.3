@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Anime, Comment, translateGenre, toSlug } from '../types';
-import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward, Maximize2, Minimize2, Check, Lock } from 'lucide-react';
+import { Star, MessageSquare, Send, Clock, Play, Plus, Calendar, Building, ListOrdered, Share2, Heart, Flag, PlayCircle, Eye, Shield, Moon, Sun, Trash2, Trophy, X, ThumbsUp, ThumbsDown, MessageCircle, ArrowLeft, ExternalLink, Users, FastForward, Maximize2, Minimize2, Check, Lock, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import VideoPlayer from '../components/VideoPlayer';
 import WatchTogetherRoom from '../components/WatchTogetherRoom';
@@ -1447,6 +1447,18 @@ export default function AnimeDetails() {
                   <span className="text-white/40 block text-[10px]">Qismlar soni</span>
                   <span className="text-white font-bold">{combinedEpisodes.length} ta</span>
                 </div>
+                {anime.fandub_name && (
+                  <div className="col-span-2 pt-2 mt-1 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-white/40 block text-[10px]">Ovozlashtiruvchi:</span>
+                    <Link
+                      to={`/fandub/${anime.fandub_id || anime.fandub_name}`}
+                      className="text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1 transition-colors hover:underline"
+                    >
+                      <Mic className="w-3 h-3 text-purple-400" />
+                      <span>{anime.fandub_name}</span>
+                    </Link>
+                  </div>
+                )}
               </div>
 
               {/* Rating Component */}
@@ -1681,6 +1693,16 @@ export default function AnimeDetails() {
                   <span className="text-white/80 text-xs font-medium flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
                     <Eye className="w-3.5 h-3.5 text-[#ff006a]" /> {anime.korishlar || 0} ta ko'rish
                   </span>
+                  {anime.fandub_name && (
+                    <Link
+                      to={`/fandub/${anime.fandub_id || anime.fandub_name}`}
+                      className="text-white/90 hover:text-white text-xs font-semibold flex items-center gap-1.5 bg-gradient-to-r from-purple-600/30 to-[#ff006a]/30 hover:from-purple-600/50 hover:to-[#ff006a]/50 backdrop-blur-md px-3 py-1 rounded-lg border border-purple-500/40 shadow-sm transition-all"
+                      title="Ovoz bergan fandub jamoasi"
+                    >
+                      <Mic className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Ovoz: <strong className="text-white">{anime.fandub_name}</strong></span>
+                    </Link>
+                  )}
                 </div>
                 
                 <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black text-white mb-2 leading-tight tracking-tight uppercase drop-shadow-[0_2px_15px_rgba(0,0,0,0.8)]">
