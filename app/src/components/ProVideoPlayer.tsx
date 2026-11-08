@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Hls from 'hls.js';
 import {
   Play,
   Pause,
@@ -86,21 +87,118 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
     return currentEp.video_url || currentEp.backup_video_url || '';
   }, [currentEp, selectedServer]);
 
-  // Reset states on episode change
+  const hlsRef = useRef<any>(null);
+
+  // Check if source is an embed iframe
+  const isEmbed = React.useMemo(() => {
+    if (!videoSource) return false;
+    const lower = videoSource.toLowerCase().trim();
+    return (
+      lower.startsWith('<iframe') ||
+      lower.includes('playerjs') ||
+      lower.includes('sibnet.ru') ||
+      lower.includes('alloha') ||
+      lower.includes('kodik') ||
+      lower.includes('youtube.com/embed') ||
+      lower.includes('ok.ru/videoembed') ||
+      lower.includes('embed') ||
+      lower.includes('iframe')
+    );
+  }, [videoSource]);
+
+  const embedUrl = React.useMemo(() => {
+    if (!videoSource) return '';
+    if (videoSource.includes('<iframe')) {
+      const match = videoSource.match(/src=["']([^"']+)["']/i);
+      if (match && match[1]) return match[1];
+    }
+    return videoSource;
+  }, [videoSource]);
+
+  const isHls = React.useMemo(() => {
+    if (!videoSource) return false;
+    const lower = videoSource.toLowerCase();
+    return lower.includes('.m3u8') || lower.includes('/hls/') || lower.includes('playlist');
+  }, [videoSource]);
+
+  // Reset states on episode change & initialize HLS/Direct video
   useEffect(() => {
     setHasError(false);
     setErrorMessage('');
     setIsLoading(true);
     setCurrentTime(0);
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.load();
-      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (isEmbed) {
+      setIsLoading(false);
+      return;
+    }
+
+    const videoEl = videoRef.current;
+    if (!videoEl || !videoSource) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (isHls && Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 90
+      });
+      hlsRef.current = hls;
+      hls.loadSource(videoSource);
+      hls.attachMedia(videoEl);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setIsLoading(false);
+        videoEl.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      });
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              hls.destroy();
+              setHasError(true);
+              setErrorMessage("HLS oqimini yuklashda xatolik yuz berdi");
+              break;
+          }
+        }
+      });
+    } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+      // Native Apple iOS/macOS Safari HLS
+      videoEl.src = videoSource;
+      videoEl.load();
+      videoEl.play().then(() => setIsPlaying(true)).catch(() => {
+        setIsPlaying(false);
+        setIsLoading(false);
+      });
+    } else {
+      // Standard Direct MP4 / WebM
+      videoEl.src = videoSource;
+      videoEl.load();
+      videoEl.play().then(() => setIsPlaying(true)).catch(() => {
         setIsPlaying(false);
         setIsLoading(false);
       });
     }
-  }, [videoSource]);
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [videoSource, isEmbed, isHls]);
 
   // Auto-hide controls timer
   useEffect(() => {
@@ -264,6 +362,68 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
   };
 
   const serverDisplayName = currentEp?.server_name || "TAS-IX Ultra (1080p FHD)";
+
+  // If the source is an external embed (PlayerJS, Sibnet, Alloha, YouTube, Kodik), render responsive iFrame!
+  if (isEmbed) {
+    return (
+      <div
+        ref={containerRef}
+        className={`relative w-full overflow-hidden bg-black select-none ${
+          isFullscreen ? 'fixed inset-0 z-50 h-screen w-screen' : 'aspect-video rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.9)] border border-white/10'
+        }`}
+      >
+        {/* Top Header Bar for Embed */}
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-3 bg-gradient-to-b from-black/80 to-transparent pointer-events-auto">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1.5 rounded-full bg-black/60 hover:bg-black/90 text-white backdrop-blur-md transition-all active:scale-95"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div className="text-white text-xs font-bold truncate max-w-[200px]">
+              {animeTitle} • {currentEpisodeNumber}-qism
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDrawer(true)}
+              className="px-2.5 py-1 rounded-xl bg-black/60 hover:bg-black/90 text-white text-xs font-bold backdrop-blur-md flex items-center gap-1 border border-white/10"
+            >
+              <Layers size={13} className="text-[#ff006a]" />
+              <span>Qismlar</span>
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 rounded-full bg-black/60 hover:bg-black/90 text-white backdrop-blur-md"
+            >
+              {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Embedded Iframe */}
+        <iframe
+          src={embedUrl}
+          className="w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+          allowFullScreen
+          title={`${animeTitle} - ${currentEpisodeNumber}-qism`}
+        />
+
+        {/* Episode Drawer */}
+        <EpisodeDrawer
+          isOpen={showDrawer}
+          onClose={() => setShowDrawer(false)}
+          episodes={episodes}
+          currentEpisodeNumber={currentEpisodeNumber}
+          onSelectEpisode={onEpisodeChange}
+          animeTitle={animeTitle}
+        />
+      </div>
+    );
+  }
 
   return (
     <div

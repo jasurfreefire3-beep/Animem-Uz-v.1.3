@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Compass, PlaySquare, Heart, Sparkles, User as UserIcon } from 'lucide-react';
+import { Home, Mic2, PlaySquare, MessageCircle, User as UserIcon } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
   const location = useLocation();
@@ -12,10 +12,9 @@ export const BottomNav: React.FC = () => {
 
   const navItems = [
     { to: '/', label: 'Asosiy', icon: Home },
-    { to: '/explore', label: 'Katalog', icon: Compass },
+    { to: '/fandublar', label: 'Fandub', icon: Mic2 },
     { to: '/reels', label: 'Reels', icon: PlaySquare, badge: 'HOT' },
-    { to: '/favorites', label: 'Sevimlilar', icon: Heart },
-    { to: '/mika', label: 'Mika AI', icon: Sparkles, glow: true },
+    { to: '/chat', label: 'Chat', icon: MessageCircle, glow: true },
     { to: '/profile', label: 'Profil', icon: UserIcon },
   ];
 

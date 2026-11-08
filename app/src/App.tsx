@@ -11,6 +11,8 @@ import { HomeScreen } from './pages/HomeScreen';
 import { ExploreScreen } from './pages/ExploreScreen';
 import { WatchScreen } from './pages/WatchScreen';
 import { ReelsScreen } from './pages/ReelsScreen';
+import { FandublarScreen } from './pages/FandublarScreen';
+import { ChatScreen } from './pages/ChatScreen';
 import { FavoritesScreen } from './pages/FavoritesScreen';
 import { MikaScreen } from './pages/MikaScreen';
 import { ProfileScreen } from './pages/ProfileScreen';
@@ -38,9 +40,11 @@ const AppContent: React.FC = () => {
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<HomeScreen />} />
+          <Route path="/fandublar" element={<FandublarScreen />} />
+          <Route path="/reels" element={<ReelsScreen />} />
+          <Route path="/chat" element={<ChatScreen />} />
           <Route path="/explore" element={<ExploreScreen />} />
           <Route path="/watch/:id" element={<WatchScreen />} />
-          <Route path="/reels" element={<ReelsScreen />} />
           <Route path="/favorites" element={<FavoritesScreen />} />
           <Route path="/mika" element={<MikaScreen />} />
           <Route path="/profile" element={<ProfileScreen />} />
@@ -57,9 +61,10 @@ const AppContent: React.FC = () => {
 };
 
 export default function App() {
+  const isSubApp = typeof window !== 'undefined' && window.location.pathname.startsWith('/app');
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={isSubApp ? '/app' : '/'}>
         <AppContent />
       </BrowserRouter>
     </AuthProvider>

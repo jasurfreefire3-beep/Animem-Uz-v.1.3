@@ -1,0 +1,25 @@
+{
+  "name": "Animem Uz - Anime Mobile App",
+  "short_name": "Animem Uz",
+  "description": "O'zbekistondagi eng yaxshi va qulay anime ilovasi",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07070a",
+  "theme_color": "#07070a",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

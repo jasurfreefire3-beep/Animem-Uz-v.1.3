@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User } from '../types';
+import { API_BASE } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -132,7 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const checkTelegramSession = async () => {
         try {
-          const res = await fetch(`/api/auth/telegram/status/${targetSessionId}`);
+          const res = await fetch(`${API_BASE}/api/auth/telegram/status/${targetSessionId}`);
           if (!res.ok) return false;
           const data = await res.json();
           if (!isMounted) return true;

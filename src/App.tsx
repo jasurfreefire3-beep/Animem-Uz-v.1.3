@@ -89,6 +89,13 @@ export default function App() {
     setMobileSidebarOpen(false);
   };
 
+  if (rawPath === '/app' || rawPath.startsWith('/app/')) {
+    if (typeof window !== 'undefined') {
+      window.location.replace('/app/index.html');
+    }
+    return null;
+  }
+
   if (isSupportBot) {
     return (
       <div className="min-h-screen bg-[#030303] text-white font-sans selection:bg-[#ff006a]/30 custom-scrollbar relative flex">

@@ -17,6 +17,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../services/api';
 
 // Official SVG Logos
 const TelegramLogo = () => (
@@ -110,7 +111,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
 
     const pollTgStatus = async () => {
       try {
-        const res = await fetch(`/api/auth/telegram/status/${tgSessionId}`);
+        const res = await fetch(`${API_BASE}/api/auth/telegram/status/${tgSessionId}`);
         if (!res.ok) return false;
         const data = await res.json();
         if (!isMounted) return true;
@@ -155,31 +156,41 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
       setError('');
       setLoading(true);
 
-      // Check if session API is available
-      let sessionId = 'tg_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+      // 1. Fetch fresh session from server
+      let sessionId = '';
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/telegram/session`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.sessionId) sessionId = data.sessionId;
+        }
+      } catch (e) {}
+
+      if (!sessionId) {
+        sessionId = 'auth_' + Math.random().toString(36).substring(2, 15);
+      }
+
       localStorage.setItem('animem_tg_session', sessionId);
       setTgSessionId(sessionId);
 
-      // Get official authorization URL
-      const res = await fetch('/api/auth/telegram/url');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) {
-          setTgBotUrl(data.url);
-          setViewMode('telegram_wait');
-          // Open official authorization in device browser
-          window.open(data.url, '_blank');
-          setLoading(false);
-          return;
-        }
-      }
+      // 2. Official Telegram Bot: @Animem_reg_bot
+      const botUsername = 'Animem_reg_bot';
+      const tgDeepLink = `tg://resolve?domain=${botUsername}&start=${sessionId}`;
+      const tgWebLink = `https://t.me/${botUsername}?start=${sessionId}`;
 
-      // Fallback bot link
-      const fallbackUrl = `https://t.me/animem_auth_bot?start=auth_${sessionId}`;
-      setTgBotUrl(fallbackUrl);
+      setTgBotUrl(tgWebLink);
       setViewMode('telegram_wait');
-      window.open(fallbackUrl, '_blank');
       setLoading(false);
+
+      // Mobile devices: direct deep link triggers Telegram app directly!
+      if (typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        window.location.href = tgDeepLink;
+        setTimeout(() => {
+          window.open(tgWebLink, '_blank');
+        }, 1200);
+      } else {
+        window.open(tgWebLink, '_blank');
+      }
     } catch (err: any) {
       setLoading(false);
       setError(err.message || "Telegram orqali kirishda xatolik yuz berdi");
@@ -203,7 +214,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
                 });
                 const profile = await userRes.json();
 
-                const res = await fetch('/api/auth/google', {
+                const res = await fetch(`${API_BASE}/api/auth/google`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -254,7 +265,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
     try {
       setError('');
       setLoading(true);
-      const res = await fetch('/api/auth/discord/url');
+      const res = await fetch(`${API_BASE}/api/auth/discord/url`);
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error || "Discord havolasi olinmadi");
 
@@ -281,10 +292,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/send-code', {
+      const res = await fetch(`${API_BASE}/api/auth/send-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-client-app': 'mobile'
+        },
+        body: JSON.stringify({ email: cleanEmail, isLogin: true }),
       });
 
       const text = await res.text();
@@ -319,10 +333,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
     setSuccessMsg('');
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/send-code', {
+      const res = await fetch(`${API_BASE}/api/auth/send-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-client-app': 'mobile'
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), isLogin: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Kodni qayta yuborib bo'lmadi");
@@ -351,22 +368,28 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/verify-code', {
+      const res = await fetch(`${API_BASE}/api/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase(), code: cleanCode }),
       });
 
-      const text = await res.text();
-      let data: any = {};
-      try { data = JSON.parse(text); } catch {
-        throw new Error("Serverdan kutilmagan javob keldi");
-      }
-
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.error || "Tasdiqlash kodi xato");
       }
 
+      // If user already exists: INSTANT 1-CLICK LOGIN!
+      if (data.userExists && data.token && data.user) {
+        setSuccessMsg("Tizimga muvaffaqiyatli kirdingiz! Xush kelibsiz!");
+        setTimeout(() => {
+          login(data.token, data.user);
+          if (onClose) onClose();
+        }, 600);
+        return;
+      }
+
+      // New user: proceed to enter name
       setSuccessMsg("Kod to'g'ri tasdiqlandi!");
       setEmailStep('input_details');
     } catch (err: any) {
@@ -393,7 +416,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/register-verified', {
+      const res = await fetch(`${API_BASE}/api/auth/register-verified`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -442,7 +465,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose }) => {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

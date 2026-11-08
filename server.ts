@@ -2569,15 +2569,17 @@ async function sendEmailNotification(
 // Send 6-digit verification code via MailerSend
 app.post("/api/auth/send-code", async (req, res) => {
   try {
-    const { email, captchaToken } = req.body;
-    if (!captchaToken) {
-      return res.status(400).json({ error: "Robot emasligingizni tasdiqlang!" });
+    const { email, captchaToken, isRegisterOnly } = req.body;
+    
+    // Captcha verification (if provided by web client)
+    if (captchaToken) {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const isHuman = await verifyCaptchaToken(captchaToken, ip as string);
+      if (!isHuman) {
+        return res.status(400).json({ error: "Captcha tasdiqlanmadi. Iltimos qaytadan urinib ko'ring." });
+      }
     }
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-    const isHuman = await verifyCaptchaToken(captchaToken, ip as string);
-    if (!isHuman) {
-      return res.status(400).json({ error: "Captcha tasdiqlanmadi. Iltimos qaytadan urinib ko'ring." });
-    }
+
     if (!email || !email.includes("@")) {
       return res.status(400).json({ error: "Yaroqli email manzilini kiriting!" });
     }
@@ -2586,7 +2588,9 @@ app.post("/api/auth/send-code", async (req, res) => {
 
     // Check if email already exists in DB
     const [existing]: any = await dbQuery("SELECT id FROM users WHERE email = ?", [cleanEmail]);
-    if (existing && existing.length > 0) {
+    const userExists = existing && existing.length > 0;
+
+    if (isRegisterOnly && userExists) {
       return res.status(400).json({ error: "Ushbu email bilan allaqachon ro'yxatdan o'tilgan! Kirish sahifasidan foydalaning." });
     }
 
@@ -2608,22 +2612,33 @@ app.post("/api/auth/send-code", async (req, res) => {
       verified: false,
     };
 
-    console.log(`[Email Auth] Verification code generated for ${cleanEmail}: ${code}`);
+    console.log(`[Email Auth] Verification code generated for ${cleanEmail} (userExists: ${userExists}): ${code}`);
+
+    const emailSubject = userExists 
+      ? "Animem.uz — Kirish tasdiqlash kodi: " + code
+      : "Animem.uz — Ro'yxatdan o'tish tasdiqlash kodi: " + code;
+    const emailHeader = userExists
+      ? "TIZIMGA KIRISHNI TASDIQLASH"
+      : "RO'YXATDAN O'TISHNI TASDIQLASH";
+    const emailDesc = userExists
+      ? "Animem.uz akkauntingizga xavfsiz kirish uchun bir martalik kodingiz:"
+      : "Animem.uz platformasida yangi akkaunt yaratishni yakunlash uchun bir martalik xavfsizlik kodingiz:";
 
     // Send email using Direct SMTP / Direct MX / fallback
     const emailResult = await sendEmailNotification(
       cleanEmail,
-      "Animem.uz — Ro'yxatdan o'tish tasdiqlash kodi: " + code,
-      "RO'YXATDAN O'TISHNI TASDIQLASH",
-      "Animem.uz platformasida yangi akkaunt yaratishni yakunlash uchun bir martalik xavfsizlik kodingiz:",
+      emailSubject,
+      emailHeader,
+      emailDesc,
       code,
-      "Ushbu kod 10 daqiqa davomida amal qiladi. Agarda siz ro'yxatdan o'tish so'rovini yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring."
+      "Ushbu kod 10 daqiqa davomida amal qiladi. Agarda siz ushbu amalni bajarmagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring."
     );
 
     if (emailResult.ok) {
       return res.json({
         success: true,
         emailSent: true,
+        userExists,
         method: emailResult.method,
         message: "Tasdiqlash kodi email manzilingizga yuborildi! Pochtani (va Spam papkasini) tekshiring.",
       });
@@ -2634,6 +2649,7 @@ app.post("/api/auth/send-code", async (req, res) => {
     return res.json({
       success: true,
       emailSent: false,
+      userExists,
       devCode: code,
       message: `Tasdiqlash kodi tayyorlandi! ${emailResult.error ? `(Pochta xizmati: ${emailResult.error}. Tasdiqlash kodi: ${code})` : ''}`,
     });
@@ -2835,8 +2851,48 @@ app.post("/api/auth/verify-code", async (req, res) => {
     // Mark as verified
     record.verified = true;
 
+    // Check if user already exists with this email for instant 1-click OTP login!
+    try {
+      const [existingUsers]: any = await dbQuery("SELECT * FROM users WHERE email = ? LIMIT 1", [cleanEmail]);
+      if (existingUsers && existingUsers.length > 0) {
+        const user = existingUsers[0];
+        delete verificationCodes[cleanEmail];
+
+        const userPayload = {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar_url: user.avatar_url,
+          avatar_frame_url: user.avatar_frame_url || null,
+          coins: user.coins || 0,
+          level: user.level || 1,
+          xp: user.xp || 0
+        };
+
+        const tokenPayload = {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        };
+
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: "30d" });
+
+        return res.json({
+          success: true,
+          userExists: true,
+          token,
+          user: userPayload,
+          message: "Tizimga muvaffaqiyatli kirdingiz!"
+        });
+      }
+    } catch (dbErr) {
+      console.error("Error checking user existence in verify-code:", dbErr);
+    }
+
     return res.json({
       success: true,
+      userExists: false,
       message: "Tasdiqlash kodi to'g'ri kiritildi!",
     });
   } catch (error: any) {
@@ -10362,7 +10418,11 @@ async function runTelegramBot() {
                       inline_keyboard: [
                         [
                           {
-                            text: "▶️ Saytga kirish (Avtomatik login)",
+                            text: "📱 Ilovaga qaytish",
+                            url: `https://animem.uz/app?auth_session=${sessionId}`
+                          },
+                          {
+                            text: "🌐 Saytga kirish",
                             url: `https://animem.uz/login?auth_session=${sessionId}`
                           }
                         ]
@@ -13337,6 +13397,30 @@ Darhol xafa bo'ling, arazlang: "Iya! Nega so‘kinyapsiz?! Meni xafa qildingiz �
       console.warn("Vite dev middleware skipped (backend-only mode)");
     }
   } else {
+    // Serve Mobile App bundle at /app
+    const possibleAppDistPaths = [
+      path.join(process.cwd(), 'app', 'dist'),
+      path.join(process.cwd(), 'dist', 'app'),
+    ];
+    const resolvedAppDist = possibleAppDistPaths.find(p => fs.existsSync(path.join(p, 'index.html')));
+    if (resolvedAppDist) {
+      console.log(`[Mobile App] Serving mobile bundle from: ${resolvedAppDist}`);
+      app.use('/app', express.static(resolvedAppDist, {
+        maxAge: '1h',
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+          }
+        }
+      }));
+      app.get(['/app', '/app/*'], (req, res) => {
+        if (req.path.startsWith('/app/assets/')) {
+          return res.status(404).type("text/plain").send("Asset not found");
+        }
+        res.sendFile(path.join(resolvedAppDist, 'index.html'));
+      });
+    }
+
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath, {
         maxAge: '1y',

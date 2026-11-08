@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="description" content="Animem Uz - Professional O'zbekcha Anime Mobil Ilovasi" />
+    <link rel="manifest" href="/app/manifest.json" />
     <title>Animem Uz - Mobil Ilova</title>
     
     <!-- Fonts -->
@@ -20,6 +21,15 @@
 
     <!-- Telegram Official Login SDK -->
     <script src="https://oauth.telegram.org/js/telegram-login.js" async defer></script>
+
+    <!-- Service Worker for PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/app/sw.js').catch(() => {});
+        });
+      }
+    </script>
   </head>
   <body class="bg-[#07070a] text-white antialiased select-none overflow-x-hidden font-sans">
     <div id="root"></div>

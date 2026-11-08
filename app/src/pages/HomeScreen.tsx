@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Clock, Sparkles, Compass } from 'lucide-react';
-import { Anime, SITE_GENRES, animeMatchesGenre } from '../types';
-import { fetchAnimes } from '../services/api';
+import { Flame, Clock, Sparkles, Compass, Mic2, Heart, Search } from 'lucide-react';
+import { Anime, SITE_GENRES, animeMatchesGenre, Fandub } from '../types';
+import { fetchAnimes, fetchFandubs } from '../services/api';
 import { HeroCarousel } from '../components/HeroCarousel';
 import { SectionSlider } from '../components/SectionSlider';
 import { AnimeCard } from '../components/AnimeCard';
 
 export const HomeScreen: React.FC = () => {
   const [animes, setAnimes] = useState<Anime[]>([]);
+  const [fandubs, setFandubs] = useState<Fandub[]>([]);
   const [selectedGenre, setSelectedGenre] = useState('Barchasi');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export const HomeScreen: React.FC = () => {
       setAnimes(data);
       setLoading(false);
     });
+    fetchFandubs().then(setFandubs).catch(() => {});
   }, []);
 
   const filtered = selectedGenre === 'Barchasi'
@@ -37,6 +39,112 @@ export const HomeScreen: React.FC = () => {
       <div className="px-4">
         <HeroCarousel animes={animes} />
       </div>
+
+      {/* Quick Feature Action Pills */}
+      <div className="px-4 grid grid-cols-4 gap-2 text-center">
+        <button
+          onClick={() => navigate('/fandublar')}
+          className="p-2.5 rounded-2xl bg-[#0f1016] border border-white/10 hover:border-[#ff006a]/50 flex flex-col items-center gap-1.5 transition-all active:scale-95 group shadow-lg"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#ff006a] to-[#7928ca] p-0.5 flex items-center justify-center">
+            <div className="w-full h-full bg-[#0f1016] rounded-[10px] flex items-center justify-center text-[#ff006a] group-hover:scale-110 transition-transform">
+              <Mic2 size={18} />
+            </div>
+          </div>
+          <span className="text-[11px] font-bold text-white/90">Fandublar</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/explore')}
+          className="p-2.5 rounded-2xl bg-[#0f1016] border border-white/10 hover:border-[#00dfd8]/50 flex flex-col items-center gap-1.5 transition-all active:scale-95 group shadow-lg"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00dfd8] to-[#0070f3] p-0.5 flex items-center justify-center">
+            <div className="w-full h-full bg-[#0f1016] rounded-[10px] flex items-center justify-center text-[#00dfd8] group-hover:scale-110 transition-transform">
+              <Search size={18} />
+            </div>
+          </div>
+          <span className="text-[11px] font-bold text-white/90">Katalog</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/mika')}
+          className="p-2.5 rounded-2xl bg-[#0f1016] border border-white/10 hover:border-[#ff006a]/50 flex flex-col items-center gap-1.5 transition-all active:scale-95 group shadow-lg"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#ff006a] to-[#ff4b4b] p-0.5 flex items-center justify-center">
+            <div className="w-full h-full bg-[#0f1016] rounded-[10px] flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+              🌸
+            </div>
+          </div>
+          <span className="text-[11px] font-bold text-white/90">Mika AI</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/favorites')}
+          className="p-2.5 rounded-2xl bg-[#0f1016] border border-white/10 hover:border-[#ff006a]/50 flex flex-col items-center gap-1.5 transition-all active:scale-95 group shadow-lg"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-[#ff006a] p-0.5 flex items-center justify-center">
+            <div className="w-full h-full bg-[#0f1016] rounded-[10px] flex items-center justify-center text-[#ff006a] group-hover:scale-110 transition-transform">
+              <Heart size={18} className="fill-[#ff006a]" />
+            </div>
+          </div>
+          <span className="text-[11px] font-bold text-white/90">Sevimlilar</span>
+        </button>
+      </div>
+
+      {/* Fandublar Highlights Slider */}
+      {fandubs.length > 0 && (
+        <div className="space-y-3">
+          <div className="px-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[#ff006a]/20 text-[#ff006a] flex items-center justify-center">
+                <Mic2 size={15} />
+              </div>
+              <div>
+                <h3 className="font-display font-black text-sm text-white">
+                  Fandub Jamoalari
+                </h3>
+                <p className="text-[10px] text-white/40">Ovoz ustalari va tarjima studiyalari</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate('/fandublar')}
+              className="text-[#ff006a] text-xs font-bold hover:underline"
+            >
+              Barchasi →
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 overflow-x-auto no-scrollbar px-4 pb-1">
+            {fandubs.map((f) => (
+              <div
+                key={f.id}
+                onClick={() => navigate('/fandublar')}
+                className="shrink-0 w-36 rounded-2xl p-3 bg-[#0f1016] border border-white/10 hover:border-[#ff006a]/40 transition-all cursor-pointer space-y-2 text-center group active:scale-95"
+              >
+                <div className="relative w-12 h-12 mx-auto rounded-xl overflow-hidden border border-white/15 bg-white/5">
+                  {f.avatar_url ? (
+                    <img src={f.avatar_url} alt={f.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-bold text-sm text-[#ff006a]">
+                      {f.name.charAt(0)}
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <h5 className="font-bold text-xs text-white truncate group-hover:text-[#ff006a]">
+                    {f.name}
+                  </h5>
+                  <span className="text-[10px] text-white/40 block">
+                    {f.subscribers_count || 0} obunachi
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Website Synchronized Genres Chips */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-4 py-1">

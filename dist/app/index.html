@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="uz" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="https://api.animem.uz/api/images/1788100529230_au9wggu" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#07070a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="Animem Uz - Professional O'zbekcha Anime Mobil Ilovasi" />
+    <link rel="manifest" href="/app/manifest.json" />
+    <title>Animem Uz - Mobil Ilova</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Google Identity Services (Google OAuth 2.0) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <!-- Telegram Official Login SDK -->
+    <script src="https://oauth.telegram.org/js/telegram-login.js" async defer></script>
+
+    <!-- Service Worker for PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/app/sw.js').catch(() => {});
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/app/assets/index-Bxm_a4cV.js"></script>
+    <link rel="stylesheet" crossorigin href="/app/assets/index-BM6CGGDG.css">
+  </head>
+  <body class="bg-[#07070a] text-white antialiased select-none overflow-x-hidden font-sans">
+    <div id="root"></div>
+  </body>
+</html>

@@ -22,6 +22,7 @@ public/animebot/kawaii.db
 *.webm
 uploads/
 check_media.cjs
-app/dist/
+.pnpm-store/
+app/node_modules
 
 

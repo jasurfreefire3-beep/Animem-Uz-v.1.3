@@ -30,6 +30,18 @@
       "destination": "https://ss-test.wasmer.app/:filename"
     },
     {
+      "source": "/app",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/app/(.*\\.[a-zA-Z0-9]+)",
+      "destination": "/app/$1"
+    },
+    {
+      "source": "/app/(.*)",
+      "destination": "/app/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

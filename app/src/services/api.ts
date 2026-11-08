@@ -1,8 +1,16 @@
-import { Anime, Episode, User } from '../types';
+import { Anime, Episode, User, Fandub } from '../types';
 
-// Connect to existing backend. In dev with Vite proxy, it defaults to /api,
-// or fallback to https://animem.uz if running standalone
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+// Connect to existing backend. In web browser on animem.uz or ss-test.wasmer.app, it defaults to relative '',
+// or in Capacitor APK / file://, it connects to https://ss-test.wasmer.app
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || (
+  typeof window !== 'undefined' && (
+    window.location.protocol === 'file:' ||
+    window.location.origin.includes('capacitor://') ||
+    window.location.origin.includes('localhost:5175')
+  )
+    ? 'https://ss-test.wasmer.app'
+    : ''
+);
 
 export const SAMPLE_FALLBACK_ANIMES: Anime[] = [
   {
@@ -235,4 +243,181 @@ export async function askMikaAI(prompt: string, history: { role: string; text: s
   }
   return "Juda qiziq savol! Men sizga Animem Uz orqali eng sara o'zbekcha tarjima animelarni topishda va tomosha qilishda bajonidil yordam beraman! 🌸";
 }
+
+// ================= FANDUBS API =================
+export async function fetchFandubs(token?: string): Promise<Fandub[]> {
+  try {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/api/fandubs`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (err) {
+    console.warn("Fandublarni yuklashda xatolik:", err);
+  }
+  return [];
+}
+
+export async function fetchFandubById(idOrSlug: string | number, token?: string): Promise<{ fandub: Fandub; animes: Anime[] } | null> {
+  try {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/api/fandubs/${idOrSlug}`, { headers });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn("Fandub ma'lumotlarini yuklashda xatolik:", err);
+  }
+  return null;
+}
+
+export async function toggleFandubSubscription(id: number | string, token: string): Promise<{ is_subscribed: boolean; subscribers_count: number }> {
+  const res = await fetch(`${API_BASE}/api/fandubs/${id}/subscribe`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Obunani o'zgartirishda xatolik");
+  }
+  return await res.json();
+}
+
+// ================= REELS API =================
+export async function fetchReels(page = 1, limit = 10, token?: string): Promise<{ reels: any[]; page: number; limit: number }> {
+  try {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/api/reels?page=${page}&limit=${limit}`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.reels)) return data;
+    }
+  } catch (err) {
+    console.warn("Reels yuklashda xatolik:", err);
+  }
+  return { reels: [], page, limit };
+}
+
+export async function toggleReelLike(id: string | number, token: string): Promise<{ liked: boolean; likes_count: number }> {
+  const res = await fetch(`${API_BASE}/api/reels/${id}/like`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Like qo'yishda xatolik");
+  }
+  return await res.json();
+}
+
+export async function fetchReelComments(id: string | number): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/reels/${id}/comments`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (err) {
+    console.warn("Izohlarni yuklashda xatolik:", err);
+  }
+  return [];
+}
+
+export async function postReelComment(id: string | number, comment: string, token: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/reels/${id}/comments`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ comment })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Izoh qoldirishda xatolik");
+  }
+  return await res.json();
+}
+
+export async function uploadReelVideo(formData: FormData, token: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/reels/upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Reel yuklashda xatolik yuz berdi");
+  }
+  return await res.json();
+}
+
+// ================= USER PROFILE & UPLOAD API =================
+export async function uploadUserAvatar(file: File, token: string): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/api/user/avatar`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || "Avatarni yuklashda xatolik yuz berdi");
+  }
+  return data.avatar_url || data.user?.avatar_url || '';
+}
+
+export async function uploadUserBanner(file: File, token: string): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/api/user/banner`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || "Banerni yuklashda xatolik yuz berdi");
+  }
+  return data.banner_url || data.user?.banner_url || '';
+}
+
+export async function updateUserProfile(payload: { name?: string; bio?: string; password?: string }, token: string): Promise<User> {
+  const res = await fetch(`${API_BASE}/api/user/profile`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || "Profilni yangilashda xatolik yuz berdi");
+  }
+  return data.user || data;
+}
+
 

@@ -54,7 +54,23 @@ export interface Anime {
   video_url?: string;
   tags?: string;
   is_trending?: boolean;
+  fandub_id?: number | null;
+  fandub_name?: string | null;
+  fandub_slug?: string | null;
   episodes?: Episode[];
+}
+
+export interface Fandub {
+  id: number;
+  name: string;
+  slug: string;
+  avatar_url?: string;
+  banner_url?: string;
+  description?: string;
+  subscribers_count?: number;
+  anime_count?: number;
+  is_subscribed?: boolean;
+  created_at?: string;
 }
 
 export const GENRE_MAP: Record<string, string> = {
