@@ -846,7 +846,7 @@ export default function Profil() {
               
               {/* Avatar Square */}
               <div className="relative shrink-0 aspect-square group w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
-                <div className={`w-full h-full aspect-square rounded-2xl border-2 sm:border-4 ${
+                <div className={`w-full h-full aspect-square ${profileUser.avatar_frame_url ? 'rounded-full' : 'rounded-3xl'} border-2 sm:border-4 ${
                   hasCustomBg ? 'border-white/25 bg-black/60 backdrop-blur-md' : 'border-[#111] bg-[#1c1c1e]'
                 } overflow-hidden flex items-center justify-center text-4xl sm:text-5xl font-black text-[#ff006a] uppercase shadow-[0_0_30px_rgba(255,0,106,0.3)] relative`}>
                   {profileUser.avatar_url ? (

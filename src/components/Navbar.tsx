@@ -171,7 +171,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
   ];
 
   return (
-    <header className="fixed top-0 right-0 left-0 h-16 md:h-20 bg-[#07080e]/65 backdrop-blur-3xl border-b border-white/14 shadow-[0_8px_32px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.18)] z-40 px-3 min-[400px]:px-4 md:px-8 flex items-center justify-between text-white select-none transition-all">
+    <header className="fixed top-0 right-0 left-0 h-16 md:h-20 bg-[#07080e]/75 backdrop-blur-3xl border-b border-white/14 shadow-[0_8px_32px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.18)] z-40 px-3 min-[400px]:px-4 md:px-6 lg:px-8 flex items-center justify-between text-white select-none transition-all gap-2 md:gap-4">
       
       {/* Mobile Search Overlay */}
       <AnimatePresence>
@@ -180,15 +180,15 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="absolute inset-x-0 top-0 bg-[#09090b] px-4 py-3 flex flex-col gap-2 z-40 border-b border-[#222] shadow-2xl sm:hidden"
+            className="absolute inset-x-0 top-0 bg-[#090a12]/95 backdrop-blur-3xl px-3 sm:px-4 py-3 flex flex-col gap-2 z-50 border-b border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.85)] md:hidden"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowMobileSearch(false)}
-                className="p-1.5 text-white/60 hover:text-white transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer active:scale-90 shrink-0"
               >
-                <X size={20} />
+                <X size={17} />
               </button>
               <form onSubmit={handleSearchSubmit} className="relative flex-1">
                 <input
@@ -197,9 +197,9 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   placeholder={t.searchPlaceholder}
-                  className="w-full bg-white/[0.08] border border-white/20 text-white text-xs rounded-xl pl-4 pr-10 py-2.5 focus:outline-none focus:border-[#ff006a] backdrop-blur-md transition-all placeholder:text-white/40 font-bold"
+                  className="w-full bg-white/[0.08] border border-white/20 text-white text-xs rounded-full pl-4 pr-10 py-2.5 focus:outline-none focus:border-[#ff006a] backdrop-blur-2xl transition-all placeholder:text-white/40 font-bold shadow-[inset_0_1px_1px_rgba(0,0,0,0.3)]"
                 />
-                <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#ff006a] hover:text-white transition-colors cursor-pointer">
+                <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#ff006a] hover:text-white transition-colors cursor-pointer active:scale-90">
                   <Search size={16} />
                 </button>
               </form>
@@ -207,7 +207,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
             {/* Mobile Live Results */}
             {searchValue.trim() && (
-              <div className="bg-[#111113] border border-[#222] rounded-sm max-h-72 overflow-y-auto divide-y divide-[#1a1a1c] mt-1">
+              <div className="bg-[#0e0f17]/95 backdrop-blur-3xl border border-white/15 rounded-2xl max-h-72 overflow-y-auto divide-y divide-white/10 mt-1 shadow-2xl">
                 {searchResults.length === 0 ? (
                   <div className="p-3 text-center text-xs text-white/40 flex items-center justify-center gap-2">
                     <Film size={14} />
@@ -223,12 +223,12 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                           setShowMobileSearch(false);
                           setIsSearchFocused(false);
                         }}
-                        className="p-2 flex items-center gap-3 hover:bg-[#1a1a1c] transition-colors"
+                        className="p-2 flex items-center gap-3 hover:bg-white/10 transition-colors"
                       >
                         <img
                           src={anime.image_url}
                           alt={anime.title}
-                          className="w-9 h-12 object-cover rounded-sm border border-white/10 shrink-0"
+                          className="w-9 h-12 object-cover rounded-lg border border-white/10 shrink-0"
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold text-white truncate">{anime.title}</p>
@@ -246,7 +246,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                     ))}
                     <button
                       onClick={() => handleSearchSubmit()}
-                      className="w-full p-2.5 text-center text-xs font-bold text-[#ff006a] hover:bg-[#ff006a]/10 transition-colors bg-[#09090b] cursor-pointer"
+                      className="w-full p-2.5 text-center text-xs font-bold text-[#ff006a] hover:bg-[#ff006a]/10 transition-colors bg-white/[0.04] cursor-pointer rounded-b-2xl"
                     >
                       {searchResults.length} {t.searchResults} →
                     </button>
@@ -258,172 +258,176 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         )}
       </AnimatePresence>
 
-      {/* Left side: Hamburger + Logo + Desktop Nav Links */}
-      <div className="flex items-center space-x-2 md:space-x-3.5 flex-1 min-w-0 mr-2 md:mr-4">
+      {/* Left side: Hamburger + Logo */}
+      <div className="flex items-center space-x-2 md:space-x-3 shrink-0">
         {/* Hamburger Trigger (Mobile & Drawer) */}
         <button
           onClick={onToggleSidebar}
-          className="p-2 -ml-1 text-white/80 hover:text-white bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 rounded-full backdrop-blur-xl transition-all shrink-0 cursor-pointer lg:hidden active:scale-90 shadow-sm"
+          className="w-9 h-9 text-white/80 hover:text-white bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 rounded-full backdrop-blur-xl transition-all shrink-0 cursor-pointer lg:hidden active:scale-90 flex items-center justify-center shadow-sm"
           title="Menyu"
         >
           <Menu size={18} />
         </button>
 
-        {/* Brand Logo (Visible on all screen sizes!) */}
-        <Link to={getLocalizedPath('/')} className="flex items-center shrink-0 mr-1 lg:mr-4 group">
+        {/* Brand Logo (Guaranteed room, never shrinks or gets squashed) */}
+        <Link to={getLocalizedPath('/')} className="flex items-center shrink-0 group">
           <img 
             src={logoImg} 
             alt="AnimeUz" 
-            className="h-8 min-[380px]:h-9 md:h-11 w-auto object-contain max-w-[120px] md:max-w-[155px] transition-transform group-hover:scale-105 drop-shadow-md" 
+            className="h-7 min-[380px]:h-8 md:h-10 w-auto object-contain max-w-[95px] min-[380px]:max-w-[115px] md:max-w-[145px] transition-transform group-hover:scale-105 drop-shadow-md" 
           />
         </Link>
+      </div>
 
-        {/* Desktop Nav Links (Apple Segmented Liquid Glass Capsule) */}
-        <nav className="hidden lg:flex items-center space-x-1 p-1 bg-white/[0.06] border border-white/12 rounded-full backdrop-blur-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.18)] shrink-0">
-          <Link
-            to={getLocalizedPath('/')}
-            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
-              isItemActive('/')
-                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
-            }`}
-          >
-            {t.navHome || 'Bosh sahifa'}
-          </Link>
+      {/* Desktop Nav Links (Apple Segmented Liquid Glass Capsule) */}
+      <nav className="hidden lg:flex items-center space-x-0.5 xl:space-x-1 p-1 bg-white/[0.06] border border-white/12 rounded-full backdrop-blur-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.18)] shrink-0 mx-auto">
+        <Link
+          to={getLocalizedPath('/')}
+          className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
+            isItemActive('/')
+              ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+              : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
+          }`}
+        >
+          {t.navHome || 'Bosh sahifa'}
+        </Link>
 
-          <Link
-            to={getLocalizedPath('/animelar')}
-            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
-              isItemActive('/animelar')
-                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
-            }`}
-          >
-            {t.navAnimes || 'Animelar'}
-          </Link>
+        <Link
+          to={getLocalizedPath('/animelar')}
+          className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
+            isItemActive('/animelar')
+              ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+              : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
+          }`}
+        >
+          {t.navAnimes || 'Animelar'}
+        </Link>
 
-          <Link
-            to={getLocalizedPath('/jadval')}
-            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
-              isItemActive('/jadval')
-                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
-            }`}
-          >
-            {t.navSchedule || 'Jadval'}
-          </Link>
+        <Link
+          to={getLocalizedPath('/jadval')}
+          className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
+            isItemActive('/jadval')
+              ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+              : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
+          }`}
+        >
+          {t.navSchedule || 'Jadval'}
+        </Link>
 
-          <Link
-            to={getLocalizedPath('/yangi-chiqishlar')}
-            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
-              isItemActive('/yangi-chiqishlar')
-                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
-            }`}
-          >
-            {t.navNewReleases || 'Yangi'}
-          </Link>
+        <Link
+          to={getLocalizedPath('/yangi-chiqishlar')}
+          className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
+            isItemActive('/yangi-chiqishlar')
+              ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+              : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
+          }`}
+        >
+          {t.navNewReleases || 'Yangi'}
+        </Link>
 
-          <Link
-            to={getLocalizedPath('/top100')}
-            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
-              isItemActive('/top100')
-                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
-            }`}
-          >
-            {t.navTop100 || 'Top 100'}
-          </Link>
+        <Link
+          to={getLocalizedPath('/top100')}
+          className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
+            isItemActive('/top100')
+              ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+              : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
+          }`}
+        >
+          {t.navTop100 || 'Top 100'}
+        </Link>
 
-          <Link
-            to={getLocalizedPath('/reels')}
-            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
-              isItemActive('/reels')
-                ? 'bg-gradient-to-r from-pink-500 to-indigo-500 text-white shadow-[0_2px_14px_rgba(236,72,153,0.5),inset_0_1px_0_rgba(255,255,255,0.4)]'
-                : 'text-white/75 hover:text-pink-400 hover:bg-white/10 active:scale-95'
-            }`}
-          >
-            <span>Reels</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-gradient-to-r from-pink-500 to-indigo-500 text-white animate-pulse">
-              HOT
+        <Link
+          to={getLocalizedPath('/reels')}
+          className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
+            isItemActive('/reels')
+              ? 'bg-gradient-to-r from-pink-500 to-indigo-500 text-white shadow-[0_2px_14px_rgba(236,72,153,0.5),inset_0_1px_0_rgba(255,255,255,0.4)]'
+              : 'text-white/75 hover:text-pink-400 hover:bg-white/10 active:scale-95'
+          }`}
+        >
+          <span>Reels</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-gradient-to-r from-pink-500 to-indigo-500 text-white animate-pulse">
+            HOT
+          </span>
+        </Link>
+
+        <Link
+          to={getLocalizedPath('/music')}
+          className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
+            isItemActive('/music')
+              ? 'bg-cyan-500/25 text-[#00f0ff] border border-cyan-400/40 shadow-[0_0_14px_rgba(0,240,255,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+              : 'text-white/75 hover:text-[#00c8ff] hover:bg-white/10 active:scale-95'
+          }`}
+        >
+          <span>{t.navMusic || 'Musiqa'}</span>
+          {isNewBadgeVisible && (
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-[#ff006a] text-white animate-pulse">
+              New
             </span>
-          </Link>
+          )}
+        </Link>
 
-          <Link
-            to={getLocalizedPath('/music')}
-            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
-              isItemActive('/music')
-                ? 'bg-cyan-500/25 text-[#00f0ff] border border-cyan-400/40 shadow-[0_0_14px_rgba(0,240,255,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
-                : 'text-white/75 hover:text-[#00c8ff] hover:bg-white/10 active:scale-95'
-            }`}
+        {/* More Items Dropdown */}
+        <div className="relative" ref={moreRef}>
+          <button
+            onClick={() => setShowMoreDropdown(!showMoreDropdown)}
+            className="flex items-center gap-1 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs xl:text-sm font-bold text-white/75 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
-            <span>{t.navMusic || 'Musiqa'}</span>
-            {isNewBadgeVisible && (
-              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-[#ff006a] text-white animate-pulse">
-                New
-              </span>
+            <span>Yana</span>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${showMoreDropdown ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showMoreDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                className="absolute left-0 mt-2 w-52 bg-black/80 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-2 z-50 divide-y divide-white/10"
+              >
+                <div className="space-y-1 pb-1">
+                  <Link
+                    to={getLocalizedPath('/shaxsiy-royxat')}
+                    onClick={() => setShowMoreDropdown(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                  >
+                    <Bookmark size={14} className="text-[#ff006a]" />
+                    <span>{t.navMyList || "Shaxsiy ro'yxat"}</span>
+                  </Link>
+                  <Link
+                    to={getLocalizedPath('/sevimlilar')}
+                    onClick={() => setShowMoreDropdown(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                  >
+                    <Heart size={14} className="text-[#ff006a]" />
+                    <span>{t.navFavorites || 'Sevimlilar'}</span>
+                  </Link>
+                  <Link
+                    to={getLocalizedPath('/tarix')}
+                    onClick={() => setShowMoreDropdown(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                  >
+                    <History size={14} className="text-[#ff006a]" />
+                    <span>{t.navHistory || 'Tarix'}</span>
+                  </Link>
+                  <Link
+                    to={getLocalizedPath('/sozlamalar')}
+                    onClick={() => setShowMoreDropdown(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                  >
+                    <Settings size={14} className="text-white/60" />
+                    <span>{t.navSettings || 'Sozlamalar'}</span>
+                  </Link>
+                </div>
+              </motion.div>
             )}
-          </Link>
+          </AnimatePresence>
+        </div>
+      </nav>
 
-          {/* More Items Dropdown */}
-          <div className="relative" ref={moreRef}>
-            <button
-              onClick={() => setShowMoreDropdown(!showMoreDropdown)}
-              className="flex items-center gap-1 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs xl:text-sm font-bold text-white/75 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              <span>Yana</span>
-              <ChevronDown size={14} className={`transition-transform duration-200 ${showMoreDropdown ? 'rotate-180' : ''}`} />
-            </button>
-            <AnimatePresence>
-              {showMoreDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                  className="absolute left-0 mt-2 w-52 bg-black/80 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-2 z-50 divide-y divide-white/10"
-                >
-                  <div className="space-y-1 pb-1">
-                    <Link
-                      to={getLocalizedPath('/shaxsiy-royxat')}
-                      onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-                    >
-                      <Bookmark size={14} className="text-[#ff006a]" />
-                      <span>{t.navMyList || "Shaxsiy ro'yxat"}</span>
-                    </Link>
-                    <Link
-                      to={getLocalizedPath('/sevimlilar')}
-                      onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-                    >
-                      <Heart size={14} className="text-[#ff006a]" />
-                      <span>{t.navFavorites || 'Sevimlilar'}</span>
-                    </Link>
-                    <Link
-                      to={getLocalizedPath('/tarix')}
-                      onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-                    >
-                      <History size={14} className="text-[#ff006a]" />
-                      <span>{t.navHistory || 'Tarix'}</span>
-                    </Link>
-                    <Link
-                      to={getLocalizedPath('/sozlamalar')}
-                      onClick={() => setShowMoreDropdown(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-                    >
-                      <Settings size={14} className="text-white/60" />
-                      <span>{t.navSettings || 'Sozlamalar'}</span>
-                    </Link>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </nav>
-
-        {/* Search Bar Input (Desktop - Apple iOS Glass Capsule) */}
-        <div className="relative w-32 min-[500px]:w-44 lg:w-48 xl:w-72 2xl:w-80 hidden sm:block ml-auto shrink transition-all" ref={searchContainerRef}>
+      {/* Right side: Search, Actions & Profile */}
+      <div className="flex items-center gap-1.5 min-[380px]:gap-2 md:gap-2.5 shrink-0 ml-auto">
+        
+        {/* Desktop Search Bar Input (Apple iOS Glass Capsule) */}
+        <div className="relative w-36 lg:w-44 xl:w-64 2xl:w-72 hidden md:block shrink transition-all" ref={searchContainerRef}>
           <form onSubmit={handleSearchSubmit} className="relative w-full">
             <input
               type="text"
@@ -434,9 +438,9 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 setIsSearchFocused(true);
               }}
               placeholder={t.searchPlaceholder}
-              className="w-full bg-white/[0.07] hover:bg-white/[0.12] focus:bg-white/[0.14] border border-white/14 focus:border-white/35 backdrop-blur-2xl text-white text-xs rounded-full pl-4 pr-10 py-2 focus:outline-none transition-all placeholder:text-white/40 font-semibold shadow-[inset_0_1px_1px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.15)]"
+              className="w-full bg-white/[0.07] hover:bg-white/[0.12] focus:bg-white/[0.14] border border-white/14 focus:border-white/35 backdrop-blur-2xl text-white text-xs rounded-full pl-3.5 pr-8 py-2 focus:outline-none transition-all placeholder:text-white/40 font-semibold shadow-[inset_0_1px_1px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.15)]"
             />
-            <button type="submit" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors cursor-pointer active:scale-90">
+            <button type="submit" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors cursor-pointer active:scale-90">
               <Search size={14} />
             </button>
           </form>
@@ -499,24 +503,21 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
             )}
           </AnimatePresence>
         </div>
-      </div>
 
-      {/* Right side: Actions & Profile */}
-      <div className="flex items-center gap-1.5 min-[380px]:gap-2 md:gap-3 shrink-0">
-        
-        {/* Mobile Search Icon */}
+        {/* Mobile Search Icon - opens sleek iOS search overlay */}
         <button 
           onClick={() => setShowMobileSearch(true)} 
-          className="w-8 h-8 min-[380px]:w-9 min-[380px]:h-9 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 sm:hidden cursor-pointer shadow-sm"
+          className="w-8 h-8 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 md:hidden cursor-pointer shadow-sm shrink-0"
+          title={t.search}
         >
           <Search size={15} />
         </button>
 
         {/* Language Switcher Dropdown */}
-        <div className="relative" ref={langRef}>
+        <div className="relative hidden min-[390px]:block" ref={langRef}>
           <button
             onClick={() => setShowLangDropdown(!showLangDropdown)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 min-[380px]:px-3 min-[380px]:py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 hover:border-[#ff006a]/40 text-xs font-bold text-white/90 backdrop-blur-xl transition-all active:scale-95 shadow-sm cursor-pointer"
+            className="w-8 h-8 md:w-auto md:h-auto md:px-2.5 md:py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 hover:border-[#ff006a]/40 text-xs font-bold text-white/90 backdrop-blur-xl transition-all active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1 shrink-0"
             title="Tilni o'zgartirish"
           >
             <Globe size={13} className="text-[#ff006a]" />
@@ -559,14 +560,14 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         {/* Music Quick Link */}
         <Link
           to={getLocalizedPath('/music')}
-          className={`flex items-center justify-center w-8 h-8 min-[380px]:w-9 min-[380px]:h-9 md:w-auto md:h-auto md:px-3 md:py-1.5 rounded-full transition-all shrink-0 active:scale-95 shadow-sm ${
+          className={`hidden min-[480px]:flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:px-2.5 md:py-1.5 rounded-full transition-all shrink-0 active:scale-95 shadow-sm ${
             isMusicPage 
               ? 'bg-cyan-500/25 text-[#00f0ff] border border-cyan-400/40 shadow-[0_0_14px_rgba(0,240,255,0.45)] backdrop-blur-xl' 
               : 'bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl text-white/75 hover:text-[#00c8ff]'
           }`}
           title="Animem Musiqa (music.animem.uz)"
         >
-          <Headphones size={15} />
+          <Headphones size={14} />
           <span className="hidden xl:inline text-xs font-bold text-white/90 hover:text-[#00c8ff] ml-1.5">Musiqa</span>
         </Link>
 
@@ -574,10 +575,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         {user?.role === 'admin' && (
           <Link
             to={getLocalizedPath('/admin')}
-            className="w-8 h-8 min-[380px]:w-9 min-[380px]:h-9 md:w-10 md:h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/70 hover:text-[#ff006a] transition-all active:scale-90 shadow-sm"
+            className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/70 hover:text-[#ff006a] transition-all active:scale-90 shadow-sm shrink-0"
             title="Katalog boshqaruvi"
           >
-            <PlusCircle size={17} />
+            <PlusCircle size={16} />
           </Link>
         )}
 
@@ -593,11 +594,11 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 localStorage.setItem('last_read_notif_id', String(highestId));
               }
             }}
-            className="w-8 h-8 min-[380px]:w-9 min-[380px]:h-9 md:w-10 md:h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 shadow-sm relative cursor-pointer"
+            className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 shadow-sm relative cursor-pointer shrink-0"
           >
-            <Bell size={16} />
+            <Bell size={15} />
             {notifCount > 0 && (
-              <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-[#ff006a] rounded-full text-[9px] flex items-center justify-center font-bold text-white ring-2 ring-[#09090b]">
+              <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-[#ff006a] rounded-full text-[9px] flex items-center justify-center font-bold text-white ring-2 ring-[#07080e]">
                 {notifCount}
               </span>
             )}
@@ -660,7 +661,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-              className="flex items-center space-x-2 p-1 pl-1.5 pr-2.5 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/16 backdrop-blur-xl transition-all cursor-pointer active:scale-95 shadow-sm"
+              className="flex items-center space-x-1.5 p-0.5 md:p-1 md:pl-1.5 md:pr-2.5 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/16 backdrop-blur-xl transition-all cursor-pointer active:scale-95 shadow-sm shrink-0"
             >
               <UserAvatar
                 size="sm"
@@ -668,7 +669,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 frameUrl={user.avatar_frame_url}
                 name={user.name}
               />
-              <span className="text-xs font-bold hidden md:inline text-white/80">{user.name}</span>
+              <span className="text-xs font-bold hidden md:inline text-white/80 max-w-[100px] truncate">{user.name}</span>
             </button>
 
             <AnimatePresence>
@@ -741,16 +742,16 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
             </AnimatePresence>
           </div>
         ) : (
-          <div className="flex items-center space-x-1.5 min-[400px]:space-x-2">
+          <div className="flex items-center space-x-1 min-[400px]:space-x-2 shrink-0">
             <Link 
               to={getLocalizedPath('/login')} 
-              className="text-white/80 hover:text-white text-xs font-bold px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/14 backdrop-blur-xl transition-all uppercase tracking-wider whitespace-nowrap active:scale-95 shadow-sm"
+              className="text-white/80 hover:text-white text-[11px] min-[400px]:text-xs font-bold px-2.5 min-[400px]:px-3 py-1 min-[400px]:py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/14 backdrop-blur-xl transition-all uppercase tracking-wider whitespace-nowrap active:scale-95 shadow-sm"
             >
               {t.login}
             </Link>
             <Link 
               to={getLocalizedPath('/register')} 
-              className="hidden min-[450px]:inline-flex bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white px-4 py-1.5 rounded-full text-xs font-bold hover:brightness-110 border border-white/25 shadow-[0_2px_14px_rgba(255,0,106,0.4),inset_0_1px_0_rgba(255,255,255,0.35)] transition-all uppercase tracking-wider whitespace-nowrap shrink-0 active:scale-95"
+              className="hidden min-[480px]:inline-flex bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white px-3 min-[400px]:px-4 py-1 min-[400px]:py-1.5 rounded-full text-[11px] min-[400px]:text-xs font-bold hover:brightness-110 border border-white/25 shadow-[0_2px_14px_rgba(255,0,106,0.4),inset_0_1px_0_rgba(255,255,255,0.35)] transition-all uppercase tracking-wider whitespace-nowrap shrink-0 active:scale-95"
             >
               {t.register}
             </Link>

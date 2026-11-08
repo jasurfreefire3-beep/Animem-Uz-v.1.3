@@ -17,13 +17,13 @@ interface UserAvatarProps {
 }
 
 const sizeMap = {
-  xs: { box: 'w-7 h-7 min-w-[28px] min-h-[28px]', text: 'text-[10px]', rounded: 'rounded-md' },
-  sm: { box: 'w-9 h-9 min-w-[36px] min-h-[36px]', text: 'text-xs', rounded: 'rounded-lg' },
-  md: { box: 'w-12 h-12 min-w-[48px] min-h-[48px]', text: 'text-sm', rounded: 'rounded-xl' },
-  lg: { box: 'w-16 h-16 min-w-[64px] min-h-[64px]', text: 'text-base', rounded: 'rounded-xl' },
-  xl: { box: 'w-24 h-24 min-w-[96px] min-h-[96px]', text: 'text-2xl', rounded: 'rounded-2xl' },
-  '2xl': { box: 'w-28 h-28 sm:w-36 sm:h-36 min-w-[112px] min-h-[112px]', text: 'text-4xl sm:text-5xl', rounded: 'rounded-2xl' },
-  custom: { box: '', text: 'text-sm', rounded: 'rounded-xl' }
+  xs: { box: 'w-7 h-7 min-w-[28px] min-h-[28px]', text: 'text-[10px]', rounded: 'rounded-full' },
+  sm: { box: 'w-9 h-9 min-w-[36px] min-h-[36px]', text: 'text-xs', rounded: 'rounded-full' },
+  md: { box: 'w-12 h-12 min-w-[48px] min-h-[48px]', text: 'text-sm', rounded: 'rounded-full' },
+  lg: { box: 'w-16 h-16 min-w-[64px] min-h-[64px]', text: 'text-base', rounded: 'rounded-full' },
+  xl: { box: 'w-24 h-24 min-w-[96px] min-h-[96px]', text: 'text-2xl', rounded: 'rounded-full' },
+  '2xl': { box: 'w-28 h-28 sm:w-36 sm:h-36 min-w-[112px] min-h-[112px]', text: 'text-4xl sm:text-5xl', rounded: 'rounded-full' },
+  custom: { box: '', text: 'text-sm', rounded: 'rounded-full' }
 };
 
 // Generates consistent vivid color gradients based on user's name
@@ -104,9 +104,9 @@ export default function UserAvatar({
 
   return (
     <div className={`relative shrink-0 aspect-square flex items-center justify-center ${currentSize.box} ${className}`}>
-      {/* Square avatar container fitting the frame completely */}
+      {/* Circular avatar container fitting the frame completely */}
       <div 
-        className={`w-full h-full aspect-square ${currentSize.rounded} overflow-hidden bg-[#18181c] border border-white/10 flex items-center justify-center shadow-md relative ${avatarClassName}`}
+        className={`w-full h-full aspect-square ${currentSize.rounded} overflow-hidden bg-[#18181c] border border-white/15 flex items-center justify-center shadow-md relative ${avatarClassName}`}
       >
         {cleanSrc && !imgError ? (
           isAvatarVideo ? (
@@ -116,7 +116,7 @@ export default function UserAvatar({
               loop
               muted
               playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover rounded-full"
               onError={() => setImgError(true)}
             />
           ) : (
@@ -126,12 +126,12 @@ export default function UserAvatar({
               referrerPolicy="no-referrer"
               src={cleanSrc}
               alt={name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover rounded-full"
               onError={() => setImgError(true)}
             />
           )
         ) : (
-          <div className={`w-full h-full flex items-center justify-center bg-gradient-to-tr ${gradientClass}`}>
+          <div className={`w-full h-full rounded-full flex items-center justify-center bg-gradient-to-tr ${gradientClass}`}>
             <span className={`font-black text-white uppercase drop-shadow-md select-none ${currentSize.text}`}>
               {initial}
             </span>
@@ -139,7 +139,7 @@ export default function UserAvatar({
         )}
       </div>
 
-      {/* Frame overlay around square avatar - perfectly concentric and centered on all 4 sides */}
+      {/* Frame overlay around circular avatar - perfectly concentric and centered on all 4 sides */}
       {cleanFrame && !frameError && (
         isFrameVideo ? (
           <video
@@ -148,7 +148,7 @@ export default function UserAvatar({
             loop
             muted
             playsInline
-            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_12px_rgba(255,0,106,0.6)] ${frameClassName}`}
+            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[124%] h-[124%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_12px_rgba(255,0,106,0.6)] ${frameClassName}`}
             onError={() => setFrameError(true)}
           />
         ) : (
@@ -158,7 +158,7 @@ export default function UserAvatar({
             referrerPolicy="no-referrer"
             src={cleanFrame}
             alt="Frame"
-            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[122%] h-[122%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_12px_rgba(255,0,106,0.6)] ${frameClassName}`}
+            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[124%] h-[124%] max-w-none max-h-none pointer-events-none object-contain z-10 drop-shadow-[0_0_12px_rgba(255,0,106,0.6)] ${frameClassName}`}
             onError={() => setFrameError(true)}
           />
         )
