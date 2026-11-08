@@ -7,7 +7,7 @@ const prefetchedUrls = new Set<string>();
 /**
  * Preload high-priority image URLs into browser memory & Service Worker cache
  */
-export function prefetchImages(urls: (string | undefined | null)[], maxCount: number = 30): void {
+export function prefetchImages(urls: (string | undefined | null)[], maxCount: number = 10): void {
   if (typeof window === 'undefined' || !Array.isArray(urls)) return;
 
   const validUrls = urls

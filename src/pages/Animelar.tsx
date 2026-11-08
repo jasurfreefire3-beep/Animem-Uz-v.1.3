@@ -30,7 +30,7 @@ export default function Animelar() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          prefetchImages(parsed.slice(0, 30).map((a: any) => a.image_url));
+          prefetchImages(parsed.slice(0, 10).map((a: any) => a.image_url));
           return parsed;
         }
       }

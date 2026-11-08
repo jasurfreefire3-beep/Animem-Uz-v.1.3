@@ -18,9 +18,9 @@ export default function Home() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Immediately pre-warm images in background
-          prefetchImages(parsed.slice(0, 30).map((a: any) => a.image_url));
-          prefetchImages(parsed.slice(0, 5).map((a: any) => a.banner_url || a.image_url));
+          // Immediately pre-warm visible images in background
+          prefetchImages(parsed.slice(0, 10).map((a: any) => a.image_url));
+          prefetchImages(parsed.slice(0, 3).map((a: any) => a.banner_url || a.image_url));
           return parsed;
         }
       }
@@ -66,9 +66,9 @@ export default function Home() {
                 localStorage.setItem('cached_home_animes', JSON.stringify(data));
                 sessionStorage.setItem('cached_home_animes', JSON.stringify(data)); 
               } catch {}
-              // Preload first 30 posters and hero banners for 0ms transitions
-              prefetchImages(data.slice(0, 30).map(a => a.image_url));
-              prefetchImages(data.slice(0, 5).map(a => a.banner_url || a.image_url));
+              // Preload first 10 posters and hero banners for 0ms transitions without network choking
+              prefetchImages(data.slice(0, 10).map(a => a.image_url));
+              prefetchImages(data.slice(0, 3).map(a => a.banner_url || a.image_url));
             }
           })
           .catch(() => isMounted && setLoading(false));

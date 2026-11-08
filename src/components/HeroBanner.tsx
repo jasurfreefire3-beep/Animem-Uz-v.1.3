@@ -34,25 +34,8 @@ function HeroBanner({ banners }: HeroBannerProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
-  const [scrollY, setScrollY] = useState(0);
 
   const featuredAnime = displayBanners[bannerIndex] || displayBanners[0];
-
-  // Parallax Scroll Tracking: background moves slower, text & buttons scroll up naturally
-  useEffect(() => {
-    let ticking = false;
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          setScrollY(window.scrollY);
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const updateSlide = (nextIndex: number) => {
     setBannerIndex(nextIndex);
@@ -135,10 +118,7 @@ function HeroBanner({ banners }: HeroBannerProps) {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
-          style={{
-            transform: `translateY(${Math.min(scrollY * 0.42, 300)}px) scale(${1 + Math.min(scrollY * 0.00025, 0.07)})`
-          }}
-          className="absolute inset-0 w-full h-full pointer-events-none will-change-transform"
+          className="absolute inset-0 w-full h-full pointer-events-none"
         >
           <img
             src={featuredAnime.banner_url || featuredAnime.image_url}
@@ -161,13 +141,8 @@ function HeroBanner({ banners }: HeroBannerProps) {
       {/* Bottom transition that lets content below glide seamlessly over the hero */}
       <div className="absolute bottom-0 inset-x-0 h-16 sm:h-20 bg-gradient-to-t from-[#060609] to-transparent pointer-events-none z-[2]" />
 
-      {/* 3. Left-Aligned Foreground Content (Scrolls Up in Parallax) */}
-      <div 
-        style={{
-          transform: `translateY(-${Math.min(scrollY * 0.28, 200)}px)`,
-          opacity: Math.max(1 - scrollY / 550, 0)
-        }}
-        className="relative z-10 w-full max-w-2xl lg:max-w-3xl px-4 min-[400px]:px-6 sm:px-12 md:px-16 lg:px-20 pb-8 sm:pb-10 md:pb-14 will-change-transform"
+      {/* 3. Left-Aligned Foreground Content */}
+      <div className="relative z-10 w-full max-w-2xl lg:max-w-3xl px-4 min-[400px]:px-6 sm:px-12 md:px-16 lg:px-20 pb-8 sm:pb-10 md:pb-14"
       >
         {/* Row 1: Logo (if available) or Stylized Bold Typography */}
         <AnimatePresence mode="wait">

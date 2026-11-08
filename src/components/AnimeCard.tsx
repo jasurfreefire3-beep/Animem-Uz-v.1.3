@@ -54,10 +54,10 @@ function AnimeCard({ anime, showBadge }: AnimeCardProps) {
       <div className="relative p-[1.5px] rounded-[22px] bg-gradient-to-b from-white/28 via-white/8 to-white/12 group-hover:from-white/50 group-hover:via-[#ff006a]/40 group-hover:to-purple-500/40 shadow-[0_10px_28px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.25)] group-hover:shadow-[0_16px_40px_rgba(255,0,106,0.35),0_0_24px_rgba(255,255,255,0.15)] group-hover:scale-[1.025] transition-all duration-300 ease-out">
         
         {/* Inner Card Canvas with tall cinematic aspect ratio & continuous squircle corners */}
-        <div className="relative aspect-[2/3] overflow-hidden rounded-[20.5px] bg-[#0c0d16]/90 backdrop-blur-md">
+        <div className="relative aspect-[2/3] overflow-hidden rounded-[20.5px] bg-[#0c0d16]">
           {/* Instant dark placeholder skeleton while image loads */}
           {!loaded && !isAlreadyLoaded && (
-            <div className="absolute inset-0 bg-gradient-to-tr from-[#0a0b12] via-[#151724] to-[#0c0d16] animate-pulse pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-[#0a0b12] via-[#151724] to-[#0c0d16] pointer-events-none" />
           )}
 
           {/* Crisp, Vivid Poster Image */}
@@ -79,20 +79,20 @@ function AnimeCard({ anime, showBadge }: AnimeCardProps) {
 
           {/* Hover Play Button: Liquid Glass Specular Disc */}
           <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-2xl rounded-full flex items-center justify-center transform scale-75 group-hover:scale-100 transition-all duration-300 shadow-[0_8px_32px_rgba(255,0,106,0.6),inset_0_1px_1px_rgba(255,255,255,0.6)] border border-white/40">
+            <div className="w-12 h-12 bg-white/25 rounded-full flex items-center justify-center transform scale-75 group-hover:scale-100 transition-all duration-300 shadow-[0_8px_32px_rgba(255,0,106,0.6),inset_0_1px_1px_rgba(255,255,255,0.6)] border border-white/40">
               <Play className="w-5 h-5 text-white fill-current ml-0.5" />
             </div>
           </div>
 
           {/* Episode Count Badge: iOS Frosted Glass Pill */}
-          <div className="absolute bottom-2.5 left-2.5 bg-black/60 backdrop-blur-xl border border-white/20 text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-lg tracking-wider flex items-center gap-1.5">
+          <div className="absolute bottom-2.5 left-2.5 bg-[#07080e]/85 border border-white/20 text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-lg tracking-wider flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#ff006a] animate-pulse shadow-[0_0_6px_#ff006a]" />
             <span>{isMultiEpisode ? `EP ${episodeCount}` : 'FILM / 1 QISM'}</span>
           </div>
 
           {/* Rating Badge: iOS Frosted Glass Pill */}
           {anime.rating && (
-            <div className="absolute top-2.5 left-2.5 bg-black/60 backdrop-blur-xl text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-white/20 shadow-lg">
+            <div className="absolute top-2.5 left-2.5 bg-[#07080e]/85 text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-white/20 shadow-lg">
               <Star className="w-3 h-3 text-yellow-400 fill-current" />
               <span>{Number(anime.rating).toFixed(1)}</span>
             </div>
@@ -100,7 +100,7 @@ function AnimeCard({ anime, showBadge }: AnimeCardProps) {
 
           {/* Custom Tag Badge if provided */}
           {showBadge && (
-            <div className="absolute top-2.5 right-2.5 bg-gradient-to-r from-emerald-500/90 to-teal-400/90 backdrop-blur-md text-black text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-lg border border-white/30">
+            <div className="absolute top-2.5 right-2.5 bg-gradient-to-r from-emerald-500 to-teal-400 text-black text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-lg border border-white/30">
               {showBadge}
             </div>
           )}
