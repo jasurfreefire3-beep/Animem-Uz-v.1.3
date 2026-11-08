@@ -120292,8 +120292,14 @@ function queryLocalStore(sql, params = []) {
     if (!store) return [];
     const lower = sql.toLowerCase();
     let table = "";
-    const match = lower.match(/from\s+([a-zA-Z0-9_]+)/);
-    if (match) table = match[1];
+    if (lower.includes("from fandub_subscribers")) {
+      table = "fandub_subscribers";
+    } else if (lower.includes("from fandubs")) {
+      table = "fandubs";
+    } else {
+      const match = lower.match(/from\s+([a-zA-Z0-9_]+)/);
+      if (match) table = match[1];
+    }
     if (!table || !store[table]) return [];
     let data = store[table];
     if (!Array.isArray(data)) return [];
@@ -120362,6 +120368,8 @@ function queryLocalStore(sql, params = []) {
       data = data.filter((item) => String(item.drama_id) === String(params[0]));
     } else if (lower.includes("where slug =") && params.length > 0) {
       data = data.filter((item) => String(item.slug) === String(params[0]));
+    } else if (lower.includes("where fandub_id =") && params.length > 0) {
+      data = data.filter((item) => String(item.fandub_id) === String(params[0]));
     } else if (lower.includes("where is_banner =") || lower.includes("where is_banner=1")) {
       data = data.filter((item) => item.is_banner == 1 || item.is_banner === true);
     } else if (lower.includes("where tavsiya =") || lower.includes("where tavsiya=1")) {
@@ -127646,53 +127654,47 @@ app.get("/api/fandubs", async (req, res) => {
     }
     let fandubs = [];
     try {
-      const [rows] = await dbQuery(`
-        SELECT f.*,
-          (SELECT COUNT(*) FROM animes a WHERE a.fandub_id::text = f.id::text OR LOWER(a.fandub_name) = LOWER(f.name)) as animes_count,
-          (SELECT COUNT(*) FROM fandub_subscribers fs WHERE fs.fandub_id = f.id) as subscribers_count
-        FROM fandubs f
-        ORDER BY subscribers_count DESC, id ASC
-      `);
+      const [rows] = await dbQuery("SELECT * FROM fandubs ORDER BY subscribers_count DESC, id ASC");
       if (Array.isArray(rows) && rows.length > 0) {
         fandubs = rows;
       }
     } catch (e5) {
       console.warn("dbQuery fandubs error, falling back to localStore:", e5?.message);
     }
+    const store = loadLocalStore();
     if (fandubs.length === 0) {
-      const store = loadLocalStore();
-      const rawFandubs = store.fandubs || [];
-      const storeAnimes = store.animes || [];
-      const subs = store.fandub_subscribers || [];
-      fandubs = rawFandubs.map((f5) => {
-        const aCount = storeAnimes.filter((a5) => String(a5.fandub_id) === String(f5.id) || a5.fandub_name && a5.fandub_name.toLowerCase() === f5.name.toLowerCase()).length;
-        const sCount = subs.filter((s2) => String(s2.fandub_id) === String(f5.id)).length;
-        return {
-          ...f5,
-          animes_count: aCount,
-          subscribers_count: Math.max(Number(f5.subscribers_count || 0), sCount)
-        };
-      });
+      fandubs = store.fandubs || [];
+    }
+    let storeAnimes = [];
+    try {
+      const [aRows] = await dbQuery("SELECT id, fandub_id, fandub_name FROM animes");
+      if (Array.isArray(aRows)) storeAnimes = aRows;
+    } catch (_) {
+      storeAnimes = store.animes || [];
+    }
+    let subRows = [];
+    try {
+      const [sRows] = await dbQuery("SELECT fandub_id, user_id FROM fandub_subscribers");
+      if (Array.isArray(sRows)) subRows = sRows;
+    } catch (_) {
+      subRows = store.fandub_subscribers || [];
     }
     const userSubscribedFandubIds = /* @__PURE__ */ new Set();
     if (currentUserId) {
-      try {
-        const [subRows] = await dbQuery("SELECT fandub_id FROM fandub_subscribers WHERE user_id = ?", [currentUserId]);
-        if (Array.isArray(subRows)) {
-          subRows.forEach((r5) => userSubscribedFandubIds.add(String(r5.fandub_id)));
-        }
-      } catch (_) {
-        const store = loadLocalStore();
-        const subs = store.fandub_subscribers || [];
-        subs.filter((s2) => String(s2.user_id) === String(currentUserId)).forEach((s2) => userSubscribedFandubIds.add(String(s2.fandub_id)));
-      }
+      subRows.filter((s2) => String(s2.user_id) === String(currentUserId)).forEach((s2) => userSubscribedFandubIds.add(String(s2.fandub_id)));
     }
-    const mapped = fandubs.map((f5) => ({
-      ...f5,
-      animes_count: Number(f5.animes_count || 0),
-      subscribers_count: Number(f5.subscribers_count || 0),
-      is_subscribed: userSubscribedFandubIds.has(String(f5.id))
-    }));
+    const mapped = fandubs.map((f5) => {
+      const aCount = storeAnimes.filter(
+        (a5) => String(a5.fandub_id) === String(f5.id) || a5.fandub_name && a5.fandub_name.toLowerCase() === f5.name.toLowerCase()
+      ).length;
+      const sCount = subRows.filter((s2) => String(s2.fandub_id) === String(f5.id)).length;
+      return {
+        ...f5,
+        animes_count: aCount,
+        subscribers_count: Math.max(Number(f5.subscribers_count || 0), sCount),
+        is_subscribed: userSubscribedFandubIds.has(String(f5.id))
+      };
+    });
     res.json(mapped);
   } catch (err) {
     console.error("GET /api/fandubs error:", err);
@@ -127712,64 +127714,51 @@ app.get("/api/fandubs/:idOrSlug", async (req, res) => {
       if (decoded && decoded.id) currentUserId = decoded.id;
     }
     let fandub = null;
+    const store = loadLocalStore();
     try {
-      const isNumeric = /^\d+$/.test(idOrSlug);
-      const [rows] = await dbQuery(
-        `SELECT f.*,
-           (SELECT COUNT(*) FROM fandub_subscribers fs WHERE fs.fandub_id = f.id) as subscribers_count
-         FROM fandubs f
-         WHERE ${isNumeric ? "f.id = ? OR f.slug = ?" : "f.slug = ? OR LOWER(f.name) = LOWER(?)"}
-         LIMIT 1`,
-        isNumeric ? [idOrSlug, idOrSlug] : [idOrSlug, idOrSlug]
-      );
-      if (Array.isArray(rows) && rows.length > 0) fandub = rows[0];
+      const [rows] = await dbQuery("SELECT * FROM fandubs");
+      if (Array.isArray(rows) && rows.length > 0) {
+        fandub = rows.find(
+          (f5) => String(f5.id) === String(idOrSlug) || f5.slug === idOrSlug || f5.name.toLowerCase() === idOrSlug.toLowerCase()
+        );
+      }
     } catch (_) {
     }
     if (!fandub) {
-      const store = loadLocalStore();
-      const raw = store.fandubs || [];
-      fandub = raw.find((f5) => String(f5.id) === String(idOrSlug) || f5.slug === idOrSlug || f5.name.toLowerCase() === idOrSlug.toLowerCase());
-      if (fandub) {
-        const subs = (store.fandub_subscribers || []).filter((s2) => String(s2.fandub_id) === String(fandub.id));
-        fandub = {
-          ...fandub,
-          subscribers_count: Math.max(Number(fandub.subscribers_count || 0), subs.length)
-        };
-      }
+      fandub = (store.fandubs || []).find(
+        (f5) => String(f5.id) === String(idOrSlug) || f5.slug === idOrSlug || f5.name.toLowerCase() === idOrSlug.toLowerCase()
+      );
     }
     if (!fandub) {
       return res.status(404).json({ error: "Fandub guruhi topilmadi" });
     }
-    let animes = [];
+    let allAnimes = [];
     try {
-      const [animeRows] = await dbQuery(
-        `SELECT * FROM animes WHERE fandub_id::text = ? OR LOWER(fandub_name) = LOWER(?) ORDER BY id DESC`,
-        [String(fandub.id), fandub.name]
-      );
-      if (Array.isArray(animeRows)) animes = animeRows;
+      const [animeRows] = await dbQuery("SELECT * FROM animes");
+      if (Array.isArray(animeRows)) allAnimes = animeRows;
     } catch (_) {
-      const store = loadLocalStore();
-      animes = (store.animes || []).filter((a5) => String(a5.fandub_id) === String(fandub.id) || a5.fandub_name && a5.fandub_name.toLowerCase() === fandub.name.toLowerCase());
+      allAnimes = store.animes || [];
     }
-    let isSubscribed = false;
-    if (currentUserId) {
-      try {
-        const [subRows] = await dbQuery(
-          "SELECT 1 FROM fandub_subscribers WHERE fandub_id = ? AND user_id = ? LIMIT 1",
-          [fandub.id, currentUserId]
-        );
-        isSubscribed = Array.isArray(subRows) && subRows.length > 0;
-      } catch (_) {
-        const store = loadLocalStore();
-        const subs = store.fandub_subscribers || [];
-        isSubscribed = subs.some((s2) => String(s2.fandub_id) === String(fandub.id) && String(s2.user_id) === String(currentUserId));
-      }
+    const teamAnimes = allAnimes.filter(
+      (a5) => String(a5.fandub_id) === String(fandub.id) || a5.fandub_name && a5.fandub_name.toLowerCase() === fandub.name.toLowerCase()
+    );
+    let allSubs = [];
+    try {
+      const [sRows] = await dbQuery("SELECT fandub_id, user_id FROM fandub_subscribers");
+      if (Array.isArray(sRows)) allSubs = sRows;
+    } catch (_) {
+      allSubs = store.fandub_subscribers || [];
     }
-    fandub.animes = animes;
-    fandub.animes_count = animes.length;
-    fandub.subscribers_count = Number(fandub.subscribers_count || 0);
-    fandub.is_subscribed = isSubscribed;
-    res.json(fandub);
+    const teamSubs = allSubs.filter((s2) => String(s2.fandub_id) === String(fandub.id));
+    const isSubscribed = currentUserId ? teamSubs.some((s2) => String(s2.user_id) === String(currentUserId)) : false;
+    const result = {
+      ...fandub,
+      animes: teamAnimes,
+      animes_count: teamAnimes.length,
+      subscribers_count: Math.max(Number(fandub.subscribers_count || 0), teamSubs.length),
+      is_subscribed: isSubscribed
+    };
+    res.json(result);
   } catch (err) {
     console.error("GET /api/fandubs/:idOrSlug error:", err);
     res.status(500).json({ error: "Ma'lumotni yuklashda xatolik yuz berdi" });
