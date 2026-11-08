@@ -3,8 +3,8 @@
 @import "./player.css";
 
 @theme {
-  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
@@ -88,6 +88,130 @@ img, video, iframe {
   outline: 3px solid #ff006a !important;
   outline-offset: 2px !important;
   border-radius: 4px;
+}
+
+/* ==========================================
+   APPLE iOS & VISIONOS LIQUID GLASS SYSTEM
+   ========================================== */
+
+:root {
+  --ios-glass-bg: rgba(18, 19, 28, 0.65);
+  --ios-glass-border: rgba(255, 255, 255, 0.14);
+  --ios-glass-highlight: rgba(255, 255, 255, 0.22);
+  --ios-glass-blur: blur(28px) saturate(190%) contrast(105%);
+}
+
+.ios-glass {
+  background: var(--ios-glass-bg);
+  backdrop-filter: var(--ios-glass-blur);
+  -webkit-backdrop-filter: var(--ios-glass-blur);
+  border: 1px solid var(--ios-glass-border);
+  box-shadow: inset 0 1px 1px 0 var(--ios-glass-highlight), 0 16px 40px -10px rgba(0, 0, 0, 0.5);
+}
+
+.ios-glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.2), 0 12px 36px -8px rgba(0, 0, 0, 0.45);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
+}
+
+.ios-glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 2px 0 rgba(255, 255, 255, 0.35), 0 20px 48px -6px rgba(0, 0, 0, 0.65), 0 0 24px rgba(255, 0, 106, 0.2);
+}
+
+.ios-glass-pill {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.22), 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ios-glass-pill:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.ios-glass-pill:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ios-glass-pill-active {
+  background: linear-gradient(135deg, #ff006a 0%, #a855f7 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.4), 0 0 20px rgba(255, 0, 106, 0.4);
+}
+
+.ios-glass-dock {
+  background: rgba(10, 11, 18, 0.7);
+  backdrop-filter: blur(32px) saturate(210%);
+  -webkit-backdrop-filter: blur(32px) saturate(210%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.3), 0 16px 48px rgba(0, 0, 0, 0.75);
+}
+
+.ios-glass-input {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ios-glass-input:focus {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15), 0 0 0 3px rgba(255, 0, 106, 0.25);
+}
+
+.ios-squircle-sm { border-radius: 14px; }
+.ios-squircle-md { border-radius: 20px; }
+.ios-squircle-lg { border-radius: 26px; }
+.ios-squircle-xl { border-radius: 32px; }
+
+/* Liquid Glass Specular Shimmer */
+@keyframes liquid-glare {
+  0% { transform: translateX(-100%) rotate(25deg); }
+  100% { transform: translateX(200%) rotate(25deg); }
+}
+
+.liquid-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.liquid-sheen::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  transform: rotate(25deg);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.liquid-sheen:hover::after {
+  opacity: 1;
+  animation: liquid-glare 1.2s ease-in-out infinite;
 }
 
 @layer utilities {

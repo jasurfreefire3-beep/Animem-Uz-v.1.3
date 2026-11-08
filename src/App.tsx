@@ -114,11 +114,12 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#060609] text-white font-sans selection:bg-[#ff006a]/30 custom-scrollbar relative flex overflow-x-hidden">
-      {/* Global Ambient Glow Mesh for 100% Rich Frosted Glass Refraction */}
-      <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-[#ff006a]/12 rounded-full blur-[170px] pointer-events-none -z-10" />
-      <div className="fixed bottom-1/4 right-10 w-[600px] h-[600px] bg-[#7928ca]/12 rounded-full blur-[190px] pointer-events-none -z-10" />
-      <div className="fixed top-2/3 left-10 w-[450px] h-[450px] bg-[#00c8ff]/10 rounded-full blur-[160px] pointer-events-none -z-10" />
+    <div className="min-h-screen bg-[#07070a] text-white font-sans selection:bg-[#ff006a]/30 custom-scrollbar relative flex overflow-x-hidden">
+      {/* Global Apple iOS Liquid Glass Ambient Refraction Mesh */}
+      <div className="fixed top-0 left-1/4 w-[520px] h-[520px] bg-[#ff006a]/14 rounded-full blur-[160px] pointer-events-none -z-10 animate-pulse duration-[8000ms]" />
+      <div className="fixed bottom-1/4 right-10 w-[620px] h-[620px] bg-[#7928ca]/14 rounded-full blur-[180px] pointer-events-none -z-10 animate-pulse duration-[10000ms]" />
+      <div className="fixed top-1/2 left-10 w-[460px] h-[460px] bg-[#00c8ff]/12 rounded-full blur-[170px] pointer-events-none -z-10" />
+      <div className="fixed -bottom-20 left-1/3 w-[500px] h-[500px] bg-[#ff3366]/10 rounded-full blur-[190px] pointer-events-none -z-10" />
       <AnimatePresence>
         {showTelegramBanner && !isReels && (
           <motion.div
@@ -201,10 +202,10 @@ export default function App() {
       {mobileSidebarOpen && (
         <div 
           onClick={closeMobileSidebar}
-          className="fixed inset-0 bg-black/70 backdrop-blur-xl z-50 animate-fade-in"
+          className="fixed inset-0 bg-black/60 backdrop-blur-2xl z-50 animate-fade-in"
         />
       )}
-      <div className={`fixed inset-y-0 left-0 w-80 max-w-[88vw] border-r border-white/20 bg-black/80 backdrop-blur-3xl transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 shadow-[0_0_80px_rgba(0,0,0,0.9)]`}>
+      <div className={`fixed inset-y-0 left-0 w-80 max-w-[88vw] border-r border-white/20 bg-[#090a12]/80 backdrop-blur-3xl transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 shadow-[0_0_80px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.18)]`}>
         <Sidebar onClose={closeMobileSidebar} />
       </div>
 

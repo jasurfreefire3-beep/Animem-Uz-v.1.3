@@ -241,23 +241,23 @@ function HeroBanner({ banners }: HeroBannerProps) {
 
         {/* Row 5: Action Buttons */}
         <div className="flex items-center gap-3 drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
-          {/* Primary Watch Button: White Pill with Black Play Icon */}
+          {/* Primary Watch Button: Apple iOS Liquid Pill */}
           <Link
             to={getLocalizedPath(`/anime/${toSlug(featuredAnime.title) || featuredAnime.id}`)}
-            className="px-6 sm:px-8 py-3 sm:py-3.5 rounded-full bg-white hover:bg-white/90 text-black font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2.5 shadow-[0_10px_35px_rgba(255,255,255,0.25)] hover:shadow-[0_12px_45px_rgba(255,255,255,0.4)] transition-all hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+            className="px-6 sm:px-8 py-3 sm:py-3.5 rounded-full bg-white hover:bg-white/95 text-black font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2.5 shadow-[0_10px_35px_rgba(255,255,255,0.3),inset_0_1px_1px_rgba(255,255,255,0.9)] hover:shadow-[0_14px_45px_rgba(255,255,255,0.5)] transition-all hover:scale-105 active:scale-95 cursor-pointer shrink-0"
           >
             <Play className="w-4 h-4 fill-black text-black shrink-0 ml-0.5" />
             <span>Tomosha qilish</span>
           </Link>
 
-          {/* Favorite Button: Dark Pill / Circle */}
+          {/* Favorite Button: Apple Glass Disc */}
           <button
             type="button"
             onClick={handleToggleFavorite}
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border transition-all flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 cursor-pointer shrink-0 ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border transition-all flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 cursor-pointer shrink-0 backdrop-blur-2xl ${
               isFavorited
-                ? 'bg-[#ff006a] border-[#ff006a] text-white shadow-[0_0_20px_rgba(255,0,106,0.5)]'
-                : 'bg-black/60 hover:bg-black/80 border-white/20 hover:border-white/40 text-white'
+                ? 'bg-[#ff006a] border-[#ff006a] text-white shadow-[0_0_20px_rgba(255,0,106,0.6)]'
+                : 'bg-white/[0.12] hover:bg-white/[0.22] border-white/25 text-white shadow-[0_8px_30px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.35)]'
             }`}
             title={isFavorited ? "Sevimlilardan o'chirish" : "Sevimlilarga saqlash"}
           >
@@ -267,17 +267,17 @@ function HeroBanner({ banners }: HeroBannerProps) {
           {/* Details / Info Button */}
           <Link
             to={getLocalizedPath(`/anime/${toSlug(featuredAnime.title) || featuredAnime.id}`)}
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 hover:border-white/40 text-white flex items-center justify-center shadow-lg transition-all hover:scale-110 active:scale-95 cursor-pointer shrink-0"
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/[0.12] hover:bg-white/[0.22] backdrop-blur-2xl border border-white/25 text-white flex items-center justify-center shadow-[0_8px_30px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.35)] transition-all hover:scale-110 active:scale-95 cursor-pointer shrink-0"
             title="Batafsil ma'lumot"
           >
-            <Info className="w-5 h-5 text-white/80" />
+            <Info className="w-5 h-5 text-white/90" />
           </Link>
         </div>
       </div>
 
-      {/* 4. Bottom-Right Slide Indicator & Controller */}
+      {/* 4. Bottom-Right Apple iOS Liquid Glass Slide Indicator & Controller */}
       <div className="absolute bottom-6 sm:bottom-8 right-4 sm:right-10 md:right-16 z-20 flex items-center gap-2">
-        <div className="bg-black/60 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-2xl">
+        <div className="bg-[#0a0b12]/75 backdrop-blur-3xl border border-white/22 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-[0_12px_36px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.3)]">
           {/* Pause / Play toggle */}
           <button
             type="button"

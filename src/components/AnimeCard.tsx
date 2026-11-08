@@ -50,17 +50,17 @@ function AnimeCard({ anime, showBadge }: AnimeCardProps) {
         containIntrinsicSize: '240px 380px'
       }}
     >
-      {/* Outer Bright Luminous Anime Frame (Crisp, High Contrast, Vibrant) */}
-      <div className="relative p-[2px] rounded-2xl bg-gradient-to-b from-white/35 via-white/10 to-[#ff006a]/40 group-hover:from-[#ff006a] group-hover:via-[#ff006a] group-hover:to-purple-500 transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.6)] group-hover:shadow-[0_0_30px_rgba(255,0,106,0.55)] group-hover:scale-[1.02]">
+      {/* Outer Apple iOS Liquid Glass Anime Frame */}
+      <div className="relative p-[1.5px] rounded-[22px] bg-gradient-to-b from-white/28 via-white/8 to-white/12 group-hover:from-white/50 group-hover:via-[#ff006a]/40 group-hover:to-purple-500/40 shadow-[0_10px_28px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.25)] group-hover:shadow-[0_16px_40px_rgba(255,0,106,0.35),0_0_24px_rgba(255,255,255,0.15)] group-hover:scale-[1.025] transition-all duration-300 ease-out">
         
-        {/* Inner Card Canvas with tall cinematic aspect ratio */}
-        <div className="relative aspect-[2/3] overflow-hidden rounded-[14px] bg-[#0c0d14]">
+        {/* Inner Card Canvas with tall cinematic aspect ratio & continuous squircle corners */}
+        <div className="relative aspect-[2/3] overflow-hidden rounded-[20.5px] bg-[#0c0d16]/90 backdrop-blur-md">
           {/* Instant dark placeholder skeleton while image loads */}
           {!loaded && !isAlreadyLoaded && (
             <div className="absolute inset-0 bg-gradient-to-tr from-[#0a0b12] via-[#151724] to-[#0c0d16] animate-pulse pointer-events-none" />
           )}
 
-          {/* Crisp, Vivid Poster Image (Loaded once, stays in memory and sw cache forever) */}
+          {/* Crisp, Vivid Poster Image */}
           <img
             src={anime.image_url}
             alt={`${anime.title} - ${targetUrl}`}
@@ -69,43 +69,38 @@ function AnimeCard({ anime, showBadge }: AnimeCardProps) {
             decoding="async"
             fetchPriority={showBadge ? "high" : "auto"}
             onLoad={handleImageLoad}
-            className={`w-full h-full object-cover brightness-105 contrast-[1.06] group-hover:scale-106 transition-transform duration-500 ease-out ${
+            className={`w-full h-full object-cover brightness-105 contrast-[1.05] group-hover:scale-106 transition-transform duration-500 ease-out ${
               loaded || isAlreadyLoaded ? 'opacity-100' : 'opacity-90'
             }`}
           />
 
-          {/* Minimal Bottom Shadow for Badge Contrast (Preserves 90% image clarity) */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none opacity-70 group-hover:opacity-40 transition-opacity" />
+          {/* Soft Liquid Glass Ambient Glare Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20 pointer-events-none opacity-80 group-hover:opacity-40 transition-opacity" />
 
-          {/* Bright Luminous Frame Corner Accents */}
-          <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-white/80 group-hover:border-[#ff006a] rounded-tl-sm transition-colors duration-300 pointer-events-none drop-shadow-[0_0_4px_rgba(255,255,255,0.6)]" />
-          <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-white/80 group-hover:border-[#ff006a] rounded-tr-sm transition-colors duration-300 pointer-events-none drop-shadow-[0_0_4px_rgba(255,255,255,0.6)]" />
-          <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-white/80 group-hover:border-[#ff006a] rounded-bl-sm transition-colors duration-300 pointer-events-none drop-shadow-[0_0_4px_rgba(255,255,255,0.6)]" />
-          <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-white/80 group-hover:border-[#ff006a] rounded-br-sm transition-colors duration-300 pointer-events-none drop-shadow-[0_0_4px_rgba(255,255,255,0.6)]" />
-
-          {/* Hover Play Button Overlay with Pulse Glow */}
-          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-            <div className="w-13 h-13 bg-gradient-to-tr from-[#ff006a] to-[#ff4081] rounded-full flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-300 shadow-[0_0_25px_rgba(255,0,106,0.8)] border-2 border-white">
-              <Play className="w-6 h-6 text-white fill-current ml-0.5" />
+          {/* Hover Play Button: Liquid Glass Specular Disc */}
+          <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur-2xl rounded-full flex items-center justify-center transform scale-75 group-hover:scale-100 transition-all duration-300 shadow-[0_8px_32px_rgba(255,0,106,0.6),inset_0_1px_1px_rgba(255,255,255,0.6)] border border-white/40">
+              <Play className="w-5 h-5 text-white fill-current ml-0.5" />
             </div>
           </div>
 
-          {/* Episode Count Badge */}
-          <div className="absolute bottom-2.5 left-2.5 bg-[#ff006a] text-white text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded-md shadow-lg border border-white/25 tracking-wider">
-            {isMultiEpisode ? `EP ${episodeCount}` : 'FILM / 1 QISM'}
+          {/* Episode Count Badge: iOS Frosted Glass Pill */}
+          <div className="absolute bottom-2.5 left-2.5 bg-black/60 backdrop-blur-xl border border-white/20 text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-lg tracking-wider flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#ff006a] animate-pulse shadow-[0_0_6px_#ff006a]" />
+            <span>{isMultiEpisode ? `EP ${episodeCount}` : 'FILM / 1 QISM'}</span>
           </div>
 
-          {/* Rating Badge */}
+          {/* Rating Badge: iOS Frosted Glass Pill */}
           {anime.rating && (
-            <div className="absolute top-2.5 left-2.5 bg-black/85 text-white text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 border border-yellow-500/40 shadow-lg">
+            <div className="absolute top-2.5 left-2.5 bg-black/60 backdrop-blur-xl text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-white/20 shadow-lg">
               <Star className="w-3 h-3 text-yellow-400 fill-current" />
-              {Number(anime.rating).toFixed(1)}
+              <span>{Number(anime.rating).toFixed(1)}</span>
             </div>
           )}
 
           {/* Custom Tag Badge if provided */}
           {showBadge && (
-            <div className="absolute top-2.5 right-2.5 bg-gradient-to-r from-emerald-500 to-teal-400 text-black text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-lg border border-emerald-300/40">
+            <div className="absolute top-2.5 right-2.5 bg-gradient-to-r from-emerald-500/90 to-teal-400/90 backdrop-blur-md text-black text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-lg border border-white/30">
               {showBadge}
             </div>
           )}

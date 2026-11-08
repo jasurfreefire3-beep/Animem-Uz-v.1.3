@@ -171,7 +171,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
   ];
 
   return (
-    <header className="fixed top-0 right-0 left-0 h-16 md:h-20 bg-black/40 backdrop-blur-xl border-b border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-40 px-3 min-[400px]:px-4 md:px-8 flex items-center justify-between text-white select-none transition-all">
+    <header className="fixed top-0 right-0 left-0 h-16 md:h-20 bg-[#07080e]/65 backdrop-blur-3xl border-b border-white/14 shadow-[0_8px_32px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.18)] z-40 px-3 min-[400px]:px-4 md:px-8 flex items-center justify-between text-white select-none transition-all">
       
       {/* Mobile Search Overlay */}
       <AnimatePresence>
@@ -263,10 +263,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         {/* Hamburger Trigger (Mobile & Drawer) */}
         <button
           onClick={onToggleSidebar}
-          className="p-1.5 -ml-1 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors shrink-0 cursor-pointer lg:hidden"
+          className="p-2 -ml-1 text-white/80 hover:text-white bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 rounded-full backdrop-blur-xl transition-all shrink-0 cursor-pointer lg:hidden active:scale-90 shadow-sm"
           title="Menyu"
         >
-          <Menu size={20} />
+          <Menu size={18} />
         </button>
 
         {/* Brand Logo (Visible on all screen sizes!) */}
@@ -278,14 +278,14 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           />
         </Link>
 
-        {/* Desktop Nav Links (The Sidebar integrated directly into Top Navbar!) */}
-        <nav className="hidden lg:flex items-center space-x-0.5 xl:space-x-1.5 shrink-0">
+        {/* Desktop Nav Links (Apple Segmented Liquid Glass Capsule) */}
+        <nav className="hidden lg:flex items-center space-x-1 p-1 bg-white/[0.06] border border-white/12 rounded-full backdrop-blur-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.18)] shrink-0">
           <Link
             to={getLocalizedPath('/')}
-            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/')
-                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10'
+                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
           >
             {t.navHome || 'Bosh sahifa'}
@@ -293,10 +293,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/animelar')}
-            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/animelar')
-                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10'
+                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
           >
             {t.navAnimes || 'Animelar'}
@@ -304,10 +304,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/jadval')}
-            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/jadval')
-                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10'
+                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
           >
             {t.navSchedule || 'Jadval'}
@@ -315,10 +315,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/yangi-chiqishlar')}
-            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/yangi-chiqishlar')
-                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10'
+                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
           >
             {t.navNewReleases || 'Yangi'}
@@ -326,10 +326,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/top100')}
-            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all ${
+            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all ${
               isItemActive('/top100')
-                ? 'bg-[#ff006a] text-white shadow-[0_0_15px_rgba(255,0,106,0.3)]'
-                : 'text-white/75 hover:text-white hover:bg-white/10'
+                ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_2px_14px_rgba(255,0,106,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-white/75 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
           >
             {t.navTop100 || 'Top 100'}
@@ -337,10 +337,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/reels')}
-            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
               isItemActive('/reels')
-                ? 'bg-gradient-to-r from-pink-500 to-indigo-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.4)]'
-                : 'text-white/75 hover:text-pink-400 hover:bg-white/10'
+                ? 'bg-gradient-to-r from-pink-500 to-indigo-500 text-white shadow-[0_2px_14px_rgba(236,72,153,0.5),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-white/75 hover:text-pink-400 hover:bg-white/10 active:scale-95'
             }`}
           >
             <span>Reels</span>
@@ -351,10 +351,10 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
 
           <Link
             to={getLocalizedPath('/music')}
-            className={`px-2 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 ${
               isItemActive('/music')
-                ? 'bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 shadow-[0_0_12px_rgba(0,240,255,0.4)]'
-                : 'text-white/75 hover:text-[#00c8ff] hover:bg-white/10'
+                ? 'bg-cyan-500/25 text-[#00f0ff] border border-cyan-400/40 shadow-[0_0_14px_rgba(0,240,255,0.45),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-white/75 hover:text-[#00c8ff] hover:bg-white/10 active:scale-95'
             }`}
           >
             <span>{t.navMusic || 'Musiqa'}</span>
@@ -422,7 +422,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           </div>
         </nav>
 
-        {/* Search Bar Input (Desktop - Auto Adapts to Display Size) */}
+        {/* Search Bar Input (Desktop - Apple iOS Glass Capsule) */}
         <div className="relative w-32 min-[500px]:w-44 lg:w-48 xl:w-72 2xl:w-80 hidden sm:block ml-auto shrink transition-all" ref={searchContainerRef}>
           <form onSubmit={handleSearchSubmit} className="relative w-full">
             <input
@@ -434,9 +434,9 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 setIsSearchFocused(true);
               }}
               placeholder={t.searchPlaceholder}
-              className="w-full bg-white/[0.08] hover:bg-white/[0.12] border border-white/15 focus:border-[#ff006a] backdrop-blur-md text-white text-xs rounded-xl pl-4 pr-10 py-2.5 focus:outline-none transition-all placeholder:text-white/40 font-bold"
+              className="w-full bg-white/[0.07] hover:bg-white/[0.12] focus:bg-white/[0.14] border border-white/14 focus:border-white/35 backdrop-blur-2xl text-white text-xs rounded-full pl-4 pr-10 py-2 focus:outline-none transition-all placeholder:text-white/40 font-semibold shadow-[inset_0_1px_1px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.15)]"
             />
-            <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-[#ff006a] transition-colors cursor-pointer">
+            <button type="submit" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors cursor-pointer active:scale-90">
               <Search size={14} />
             </button>
           </form>
@@ -502,21 +502,21 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
       </div>
 
       {/* Right side: Actions & Profile */}
-      <div className="flex items-center gap-1 min-[380px]:gap-1.5 md:gap-3 shrink-0">
+      <div className="flex items-center gap-1.5 min-[380px]:gap-2 md:gap-3 shrink-0">
         
         {/* Mobile Search Icon */}
         <button 
           onClick={() => setShowMobileSearch(true)} 
-          className="p-1.5 text-white/60 hover:text-white transition-colors sm:hidden cursor-pointer"
+          className="w-8 h-8 min-[380px]:w-9 min-[380px]:h-9 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 sm:hidden cursor-pointer shadow-sm"
         >
-          <Search size={16} />
+          <Search size={15} />
         </button>
 
         {/* Language Switcher Dropdown */}
         <div className="relative" ref={langRef}>
           <button
             onClick={() => setShowLangDropdown(!showLangDropdown)}
-            className="flex items-center gap-1 px-1.5 py-1 min-[380px]:px-2 min-[380px]:py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#ff006a]/40 text-xs font-bold text-white/80 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 min-[380px]:px-3 min-[380px]:py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 hover:border-[#ff006a]/40 text-xs font-bold text-white/90 backdrop-blur-xl transition-all active:scale-95 shadow-sm cursor-pointer"
             title="Tilni o'zgartirish"
           >
             <Globe size={13} className="text-[#ff006a]" />
@@ -529,7 +529,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 mt-2 w-40 bg-black/85 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden z-50 p-1.5 space-y-0.5"
+                className="absolute right-0 mt-2 w-44 bg-[#0a0b12]/85 backdrop-blur-3xl border border-white/20 rounded-[22px] shadow-[0_20px_50px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.2)] overflow-hidden z-50 p-1.5 space-y-0.5"
               >
                 {languagesList.map((item) => (
                   <button
@@ -559,25 +559,25 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
         {/* Music Quick Link */}
         <Link
           to={getLocalizedPath('/music')}
-          className={`flex items-center justify-center w-7 h-7 min-[380px]:w-8 min-[380px]:h-8 md:w-auto md:h-auto md:px-2.5 md:py-1.5 rounded-lg transition-all shrink-0 ${
+          className={`flex items-center justify-center w-8 h-8 min-[380px]:w-9 min-[380px]:h-9 md:w-auto md:h-auto md:px-3 md:py-1.5 rounded-full transition-all shrink-0 active:scale-95 shadow-sm ${
             isMusicPage 
-              ? 'bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 shadow-[0_0_12px_rgba(0,240,255,0.4)]' 
-              : 'text-white/60 hover:text-[#00c8ff] hover:bg-white/5 border border-transparent'
+              ? 'bg-cyan-500/25 text-[#00f0ff] border border-cyan-400/40 shadow-[0_0_14px_rgba(0,240,255,0.45)] backdrop-blur-xl' 
+              : 'bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl text-white/75 hover:text-[#00c8ff]'
           }`}
           title="Animem Musiqa (music.animem.uz)"
         >
           <Headphones size={15} />
-          <span className="hidden xl:inline text-xs font-bold text-white/80 hover:text-[#00c8ff] ml-1.5">Musiqa</span>
+          <span className="hidden xl:inline text-xs font-bold text-white/90 hover:text-[#00c8ff] ml-1.5">Musiqa</span>
         </Link>
 
         {/* Upload/Add Anime Quick-link (Admins only) */}
         {user?.role === 'admin' && (
           <Link
             to={getLocalizedPath('/admin')}
-            className="p-2 text-white/60 hover:text-[#ff006a] hover:bg-[#111] rounded-sm transition-all"
+            className="w-8 h-8 min-[380px]:w-9 min-[380px]:h-9 md:w-10 md:h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/70 hover:text-[#ff006a] transition-all active:scale-90 shadow-sm"
             title="Katalog boshqaruvi"
           >
-            <PlusCircle size={18} />
+            <PlusCircle size={17} />
           </Link>
         )}
 
@@ -593,7 +593,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 localStorage.setItem('last_read_notif_id', String(highestId));
               }
             }}
-            className="p-1.5 sm:p-2 text-white/60 hover:text-white hover:bg-[#111] rounded-sm transition-all relative cursor-pointer"
+            className="w-8 h-8 min-[380px]:w-9 min-[380px]:h-9 md:w-10 md:h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 shadow-sm relative cursor-pointer"
           >
             <Bell size={16} />
             {notifCount > 0 && (
@@ -609,11 +609,11 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="fixed sm:absolute top-16 sm:top-auto right-2 sm:right-0 left-2 sm:left-auto mt-1 sm:mt-3 w-auto sm:w-84 bg-black/85 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] overflow-hidden text-sm z-50"
+                className="fixed sm:absolute top-16 sm:top-auto right-2 sm:right-0 left-2 sm:left-auto mt-1 sm:mt-3 w-auto sm:w-84 bg-[#0a0b12]/85 backdrop-blur-3xl border border-white/20 rounded-[26px] shadow-[0_25px_60px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.2)] overflow-hidden text-sm z-50"
               >
                 <div className="p-3.5 border-b border-white/10 bg-white/5 flex items-center justify-between">
                   <span className="font-bold text-xs uppercase tracking-wider text-white/70">{t.notificationsTitle}</span>
-                  <button onClick={() => setShowNotifications(false)} className="text-white/40 hover:text-white p-1 hover:bg-white/10 rounded-lg transition-colors cursor-pointer">
+                  <button onClick={() => setShowNotifications(false)} className="text-white/40 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer">
                     <X size={14} />
                   </button>
                 </div>
@@ -630,7 +630,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                         await requestNotificationPermission();
                         setShowNotifications(false);
                       }}
-                      className="px-2.5 py-1 bg-[#ff006a] hover:bg-[#e6005c] text-white text-[10px] font-bold rounded-lg uppercase shrink-0 transition-all cursor-pointer shadow-md shadow-[#ff006a]/30"
+                      className="px-3 py-1 bg-[#ff006a] hover:bg-[#e6005c] text-white text-[10px] font-bold rounded-full uppercase shrink-0 transition-all cursor-pointer shadow-md shadow-[#ff006a]/30"
                     >
                       {t.enableNotifications}
                     </button>
@@ -660,7 +660,7 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-              className="flex items-center space-x-2 p-1 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
+              className="flex items-center space-x-2 p-1 pl-1.5 pr-2.5 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/16 backdrop-blur-xl transition-all cursor-pointer active:scale-95 shadow-sm"
             >
               <UserAvatar
                 size="sm"
@@ -677,44 +677,44 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 mt-3 w-56 bg-black/85 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] overflow-hidden z-50 text-xs"
+                  className="absolute right-0 mt-3 w-60 bg-[#0a0b12]/85 backdrop-blur-3xl border border-white/20 rounded-[26px] shadow-[0_25px_60px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.25)] overflow-hidden z-50 text-xs"
                 >
-                  <div className="p-3.5 border-b border-white/10 bg-white/5">
-                    <p className="font-bold text-white truncate">{user.name}</p>
-                    <p className="text-[10px] text-white/50 truncate mt-0.5">{user.email}</p>
+                  <div className="p-4 border-b border-white/10 bg-white/[0.04]">
+                    <p className="font-bold text-white text-sm truncate">{user.name}</p>
+                    <p className="text-[11px] text-white/50 truncate mt-0.5">{user.email}</p>
                   </div>
-                  <div className="p-1.5 space-y-0.5">
+                  <div className="p-2 space-y-1">
                     <Link
                       to={getLocalizedPath('/profil')}
                       onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2.5 px-3 py-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                      className="flex items-center space-x-2.5 px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
-                      <User size={14} className="text-[#ff006a]" />
-                      <span>{t.myProfile}</span>
+                      <User size={15} className="text-[#ff006a]" />
+                      <span className="font-semibold">{t.myProfile}</span>
                     </Link>
                     <Link
                       to={getLocalizedPath('/shaxsiy-royxat')}
                       onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2.5 px-3 py-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                      className="flex items-center space-x-2.5 px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
-                      <Bookmark size={14} className="text-[#ff006a]" />
-                      <span>{t.myList}</span>
+                      <Bookmark size={15} className="text-[#ff006a]" />
+                      <span className="font-semibold">{t.myList}</span>
                     </Link>
                     <Link
                       to={getLocalizedPath('/sevimlilar')}
                       onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2.5 px-3 py-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                      className="flex items-center space-x-2.5 px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
-                      <Heart size={14} className="text-[#ff006a]" />
-                      <span>{t.favorites}</span>
+                      <Heart size={15} className="text-[#ff006a]" />
+                      <span className="font-semibold">{t.favorites}</span>
                     </Link>
                     <Link
                       to={getLocalizedPath('/sozlamalar')}
                       onClick={() => setShowProfileDropdown(false)}
-                      className="flex items-center space-x-2.5 px-3 py-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                      className="flex items-center space-x-2.5 px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
                     >
-                      <Settings size={14} className="text-white/60" />
-                      <span>{t.settings}</span>
+                      <Settings size={15} className="text-white/60" />
+                      <span className="font-semibold">{t.settings}</span>
                     </Link>
                     {user.role === 'admin' && (
                       <Link
@@ -722,17 +722,17 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                         onClick={() => setShowProfileDropdown(false)}
                         className="flex items-center space-x-2.5 px-3 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-all"
                       >
-                        <Shield size={14} />
-                        <span>Control Panel</span>
+                        <Shield size={15} />
+                        <span className="font-semibold">Control Panel</span>
                       </Link>
                     )}
                   </div>
-                  <div className="p-1.5 border-t border-white/10 bg-white/5">
+                  <div className="p-2 border-t border-white/10 bg-white/[0.03]">
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center space-x-2.5 px-3 py-2 text-white/60 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all text-left cursor-pointer"
+                      className="w-full flex items-center space-x-2.5 px-3 py-2 text-white/60 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all text-left cursor-pointer font-semibold"
                     >
-                      <LogOut size={14} />
+                      <LogOut size={15} />
                       <span>{t.logout}</span>
                     </button>
                   </div>
@@ -741,16 +741,16 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
             </AnimatePresence>
           </div>
         ) : (
-          <div className="flex items-center space-x-1 min-[400px]:space-x-2">
+          <div className="flex items-center space-x-1.5 min-[400px]:space-x-2">
             <Link 
               to={getLocalizedPath('/login')} 
-              className="text-white/70 hover:text-white text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-1.5 sm:py-2 transition-colors uppercase tracking-wider whitespace-nowrap"
+              className="text-white/80 hover:text-white text-xs font-bold px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/14 backdrop-blur-xl transition-all uppercase tracking-wider whitespace-nowrap active:scale-95 shadow-sm"
             >
               {t.login}
             </Link>
             <Link 
               to={getLocalizedPath('/register')} 
-              className="hidden min-[450px]:inline-flex bg-[#ff006a] text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-sm text-[11px] sm:text-xs font-bold hover:bg-[#d40058] transition-colors uppercase tracking-wider whitespace-nowrap shrink-0"
+              className="hidden min-[450px]:inline-flex bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white px-4 py-1.5 rounded-full text-xs font-bold hover:brightness-110 border border-white/25 shadow-[0_2px_14px_rgba(255,0,106,0.4),inset_0_1px_0_rgba(255,255,255,0.35)] transition-all uppercase tracking-wider whitespace-nowrap shrink-0 active:scale-95"
             >
               {t.register}
             </Link>

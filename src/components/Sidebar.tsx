@@ -111,21 +111,21 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
 
   return (
     <div className="w-full h-full flex flex-col text-white select-none">
-      {/* Brand Logo */}
-      <div className="relative h-44 flex items-center justify-center px-3 border-b border-white/10 bg-white/[0.02]">
+      {/* Brand Logo & iOS Grabber */}
+      <div className="relative h-36 flex items-center justify-center px-4 border-b border-white/10 bg-white/[0.02]">
         <Link to={getLocalizedPath('/')} onClick={onClose} className="flex items-center justify-center w-full group py-1">
           <img 
             src={logoImg} 
             alt="AnimeUz" 
-            className="h-[145px] w-full max-w-[240px] object-contain transition-transform group-hover:scale-105 drop-shadow-xl" 
+            className="h-[110px] w-full max-w-[210px] object-contain transition-transform group-hover:scale-105 drop-shadow-xl" 
           />
         </Link>
         {onClose && (
           <button 
             onClick={onClose}
-            className="absolute top-3 right-3 p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-white/10"
+            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 backdrop-blur-xl flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer active:scale-90 shadow-sm"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         )}
       </div>
@@ -142,16 +142,16 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
                 key={item.name}
                 to={getLocalizedPath(item.path)}
                 onClick={onClose}
-                className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all border ${
+                className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-[16px] text-xs sm:text-sm font-bold transition-all border ${
                   active 
-                    ? 'bg-gradient-to-r from-[#ff006a]/90 to-[#a855f7]/90 text-white shadow-[0_0_20px_rgba(255,0,106,0.35)] border-white/25' 
-                    : 'text-white/70 hover:bg-white/10 hover:text-white border-transparent hover:border-white/10 backdrop-blur-sm'
+                    ? 'bg-gradient-to-r from-[#ff006a] to-[#a855f7] text-white shadow-[0_4px_18px_rgba(255,0,106,0.4),inset_0_1px_0_rgba(255,255,255,0.4)] border-white/25' 
+                    : 'text-white/75 hover:bg-white/[0.08] hover:text-white border-transparent hover:border-white/10 backdrop-blur-md active:scale-95'
                 }`}
               >
-                <Icon size={18} className={active ? 'text-white' : 'text-white/60'} />
+                <Icon size={18} className={active ? 'text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.8)]' : 'text-white/60'} />
                 <span className="flex-1 truncate">{item.name}</span>
                 {item.badge && (
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-gradient-to-r from-[#ff006a] to-[#00c8ff] text-white shadow-sm shadow-[#ff006a]/30">
+                  <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-[#ff006a] to-[#00c8ff] text-white shadow-sm shadow-[#ff006a]/30">
                     {item.badge}
                   </span>
                 )}
@@ -163,10 +163,10 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
             <Link
               to={getLocalizedPath('/admin')}
               onClick={onClose}
-              className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all border ${
+              className={`flex items-center space-x-3.5 px-3.5 py-2.5 rounded-[16px] text-xs sm:text-sm font-bold transition-all border ${
                 isItemActive('/admin')
-                  ? 'bg-rose-600/90 text-white shadow-lg shadow-rose-600/30 border-rose-400/30'
-                  : 'text-rose-400/80 hover:bg-rose-500/10 hover:text-rose-300 border-transparent hover:border-rose-500/20'
+                  ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30 border-rose-400/30'
+                  : 'text-rose-400/80 hover:bg-rose-500/10 hover:text-rose-300 border-transparent hover:border-rose-500/20 active:scale-95'
               }`}
             >
               <Shield size={18} />
@@ -189,7 +189,7 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
                   if (onGenreSelect) onGenreSelect(genre);
                   if (onClose) onClose();
                 }}
-                className="flex items-center px-3.5 py-2 text-xs font-bold text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10"
+                className="flex items-center px-3.5 py-2 text-xs font-bold text-white/65 hover:text-white hover:bg-white/[0.08] rounded-[14px] transition-all border border-transparent hover:border-white/10 active:scale-95"
               >
                 <span className="mr-2 text-[#ff006a]/70 group-hover:text-[#ff006a] font-mono">&gt;</span>
                 {translateGenre(genre)}
@@ -200,18 +200,18 @@ export default function Sidebar({ onClose, onGenreSelect }: SidebarProps) {
       </div>
 
       {/* Bottom Mode Switch & Info */}
-      <div className="p-4 border-t border-white/10 bg-black/50 backdrop-blur-2xl flex items-center justify-between">
+      <div className="p-4 border-t border-white/10 bg-black/40 backdrop-blur-3xl flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <button 
             onClick={toggleDarkMode}
-            className="p-2 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition-all cursor-pointer border border-transparent hover:border-white/10"
+            className="w-9 h-9 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/14 backdrop-blur-xl flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer active:scale-90 shadow-sm"
             title={darkMode ? "Kungi rejim" : "Tungi rejim"}
           >
-            {darkMode ? <Moon size={16} /> : <Sun size={16} />}
+            {darkMode ? <Moon size={15} /> : <Sun size={15} />}
           </button>
         </div>
         <div className="text-[10px] text-white/30 font-bold tracking-wider font-mono uppercase">
-          ANIMEUZ v1.2
+          ANIMEUZ iOS Liquid
         </div>
       </div>
     </div>

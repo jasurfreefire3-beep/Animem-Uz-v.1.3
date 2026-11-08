@@ -92,37 +92,37 @@ export default function MobileBottomNav() {
 
   return (
     <>
-      {/* Mobile Bottom Navigation Bar - 100% Frosted Glass */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-black/45 backdrop-blur-2xl border-t border-white/15 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-[0_-8px_32px_rgba(0,0,0,0.6)]">
-        <div className="flex items-center justify-around max-w-md mx-auto relative">
+      {/* Mobile Floating Apple iOS Liquid Glass Dock */}
+      <nav className="fixed bottom-3.5 left-3.5 right-3.5 z-40 md:hidden max-w-md mx-auto rounded-[28px] bg-[#090a12]/75 backdrop-blur-3xl border border-white/20 px-2 py-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.28)]">
+        <div className="flex items-center justify-around w-full relative">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = item.isActive;
 
             const content = (
               <motion.div
-                whileTap={{ scale: 0.88 }}
-                className={`relative flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all duration-200 select-none ${
-                  active ? 'text-[#ff006a]' : 'text-white/45 hover:text-white/80'
+                whileTap={{ scale: 0.85 }}
+                className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all duration-200 select-none ${
+                  active ? 'text-white' : 'text-white/50 hover:text-white/80'
                 }`}
               >
-                {/* Active Neon Background Indicator */}
+                {/* Active Apple Liquid Glass Capsule */}
                 {active && (
                   <motion.div
                     layoutId="mobileActiveTab"
-                    className="absolute inset-0 bg-gradient-to-t from-[#ff006a]/20 via-[#ff006a]/10 to-transparent rounded-xl border-t-2 border-[#ff006a]"
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    className="absolute inset-0 bg-gradient-to-tr from-[#ff006a]/30 via-purple-600/25 to-[#00c8ff]/20 rounded-2xl border border-white/30 shadow-[0_4px_20px_rgba(255,0,106,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]"
+                    transition={{ type: 'spring', stiffness: 450, damping: 32 }}
                   />
                 )}
 
                 <div className="relative z-10 flex flex-col items-center gap-0.5">
                   <div className="relative">
-                    <Icon size={20} className={active ? 'drop-shadow-[0_0_8px_rgba(255,0,106,0.8)] stroke-[2.5]' : 'stroke-[1.8]'} />
+                    <Icon size={20} className={active ? 'text-[#ff006a] drop-shadow-[0_0_10px_rgba(255,0,106,0.85)] stroke-[2.4]' : 'stroke-[1.8]'} />
                     {active && (
-                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#ff006a] rounded-full shadow-[0_0_6px_#ff006a]" />
+                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#ff006a] rounded-full shadow-[0_0_8px_#ff006a]" />
                     )}
                   </div>
-                  <span className={`text-[10px] tracking-tight font-bold ${active ? 'text-white' : 'text-white/50'}`}>
+                  <span className={`text-[10px] tracking-tight font-bold ${active ? 'text-white' : 'text-white/55'}`}>
                     {item.label}
                   </span>
                 </div>
@@ -153,9 +153,10 @@ export default function MobileBottomNav() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-2xl flex flex-col md:hidden p-4 overflow-hidden"
+            className="fixed inset-0 z-50 bg-[#07080e]/90 backdrop-blur-3xl flex flex-col md:hidden p-4 overflow-hidden"
           >
-            {/* Header */}
+            {/* iOS Sheet Header */}
+            <div className="w-12 h-1 bg-white/25 rounded-full mx-auto mb-3" />
             <div className="flex items-center gap-3 pb-3 border-b border-white/15">
               <form onSubmit={handleSearchSubmit} className="relative flex-1">
                 <input
@@ -164,14 +165,14 @@ export default function MobileBottomNav() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t.searchPlaceholder}
-                  className="w-full bg-white/[0.08] border border-white/20 text-white text-sm rounded-2xl pl-10 pr-10 py-3 focus:outline-none focus:border-[#ff006a] backdrop-blur-md transition-all font-bold placeholder:text-white/40"
+                  className="w-full bg-white/[0.08] border border-white/18 text-white text-sm rounded-full pl-11 pr-11 py-2.5 focus:outline-none focus:border-[#ff006a] backdrop-blur-2xl transition-all font-semibold placeholder:text-white/40 shadow-inner"
                 />
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#ff006a]" />
+                <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/50" />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer active:scale-90"
                   >
                     <X size={16} />
                   </button>
@@ -180,7 +181,7 @@ export default function MobileBottomNav() {
               <button
                 type="button"
                 onClick={() => setShowSearchModal(false)}
-                className="p-2.5 bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-white rounded-2xl font-bold text-xs transition-colors shrink-0 cursor-pointer"
+                className="px-4 py-2 bg-white/[0.1] hover:bg-white/[0.16] border border-white/16 text-white rounded-full font-bold text-xs transition-all shrink-0 cursor-pointer active:scale-90 shadow-sm"
               >
                 {t.close}
               </button>
@@ -200,7 +201,7 @@ export default function MobileBottomNav() {
                         key={anime.id}
                         to={getLocalizedPath(`/anime/${toSlug(anime.title)}`)}
                         onClick={() => setShowSearchModal(false)}
-                        className="flex items-center gap-3 p-2.5 bg-black/40 backdrop-blur-xl border border-white/15 rounded-2xl hover:border-[#ff006a]/50 transition-all active:scale-[0.98]"
+                        className="flex items-center gap-3 p-3 bg-white/[0.05] backdrop-blur-2xl border border-white/14 rounded-[20px] hover:border-[#ff006a]/50 transition-all active:scale-[0.98] shadow-sm"
                       >
                         <img
                           src={anime.image_url}
