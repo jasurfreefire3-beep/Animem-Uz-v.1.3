@@ -24,5 +24,12 @@ uploads/
 check_media.cjs
 .pnpm-store/
 app/node_modules
+.android_env/
+.idea/
+algo_lang/
+animem_flutter/
+bot-animem-uz/
+*.apk
+*.vsix
 
 

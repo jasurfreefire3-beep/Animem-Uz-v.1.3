@@ -3,31 +3,31 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://ss-test.wasmer.app/api/:path*"
+      "destination": "https://animem-uz-jasurfreefire3.wasmer.app/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://ss-test.wasmer.app/uploads/:path*"
+      "destination": "https://animem-uz-jasurfreefire3.wasmer.app/uploads/:path*"
     },
     {
       "source": "/media/:path*",
-      "destination": "https://ss-test.wasmer.app/media/:path*"
+      "destination": "https://animem-uz-jasurfreefire3.wasmer.app/media/:path*"
     },
     {
       "source": "/i/:path*",
-      "destination": "https://ss-test.wasmer.app/i/:path*"
+      "destination": "https://animem-uz-jasurfreefire3.wasmer.app/i/:path*"
     },
     {
       "source": "/stream/:path*",
-      "destination": "https://ss-test.wasmer.app/stream/:path*"
+      "destination": "https://animem-uz-jasurfreefire3.wasmer.app/stream/:path*"
     },
     {
       "source": "/sitemap.xml",
-      "destination": "https://ss-test.wasmer.app/sitemap.xml"
+      "destination": "https://animem-uz-jasurfreefire3.wasmer.app/sitemap.xml"
     },
     {
       "source": "/:filename(.*\\.(?:gif|webp|png|jpe?g|svg|ico|webm|mp4))",
-      "destination": "https://ss-test.wasmer.app/:filename"
+      "destination": "https://animem-uz-jasurfreefire3.wasmer.app/:filename"
     },
     {
       "source": "/app",
