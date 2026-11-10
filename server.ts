@@ -1,3 +1,6 @@
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
+
 import os from "os";
 import express from "express";
 import cors from "cors";
@@ -281,9 +284,9 @@ const DATABASE_URL = process.env.DATABASE_URL ||
 const pgPool = new PgPool({
   connectionString: DATABASE_URL,
   ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 15000,
-  connectionTimeoutMillis: 8000,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 pgPool.on("error", (err) => {
   console.warn("[PostgreSQL Pool Error Caught]:", err.message);

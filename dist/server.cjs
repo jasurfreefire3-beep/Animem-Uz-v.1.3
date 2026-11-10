@@ -46,6 +46,7 @@ var import_child_process = require("child_process");
 var import_util = __toESM(require("util"), 1);
 var import_compression = __toESM(require("compression"), 1);
 var import_web_push = __toESM(require("web-push"), 1);
+import_dns.default.setDefaultResultOrder("ipv4first");
 if (!process.env.HOME || process.env.HOME === "/nonexistent") {
   process.env.HOME = "/tmp";
 }
@@ -255,9 +256,9 @@ var DATABASE_URL = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_jh
 var pgPool = new import_pg.Pool({
   connectionString: DATABASE_URL,
   ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 15e3,
-  connectionTimeoutMillis: 8e3
+  max: 20,
+  idleTimeoutMillis: 3e4,
+  connectionTimeoutMillis: 5e3
 });
 pgPool.on("error", (err) => {
   console.warn("[PostgreSQL Pool Error Caught]:", err.message);
