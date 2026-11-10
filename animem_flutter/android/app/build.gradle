@@ -4,12 +4,23 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+def flutterExt = project.extensions.findByName("flutter")
+rootProject.allprojects { p ->
+    p.ext.flutter = flutterExt
+}
+
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
     localPropertiesFile.withReader('UTF-8') { reader ->
         localProperties.load(reader)
     }
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
@@ -24,7 +35,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace "uz.animem.mobile"
-    compileSdkVersion 34
+    compileSdkVersion 35
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -40,10 +51,21 @@ android {
         main.java.srcDirs += 'src/main/kotlin'
     }
 
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias'] ?: 'animem_key'
+            keyPassword keystoreProperties['keyPassword'] ?: 'AnimemUz2026SecureKey!'
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : file('animem_release.jks')
+            storePassword keystoreProperties['storePassword'] ?: 'AnimemUz2026SecureKey!'
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
+
     defaultConfig {
         applicationId "uz.animem.mobile"
         minSdkVersion 21
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
@@ -51,7 +73,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
         }
@@ -59,5 +81,5 @@ android {
 }
 
 flutter {
-    source '../..'
+    source = '../..'
 }

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/update_service.dart';
 import '../../widgets/custom_nav_bar.dart';
 import 'home/home_screen.dart';
-import 'fandubs/fandub_screen.dart';
-import 'reels/reels_screen.dart';
-import 'chat/live_chat_screen.dart';
+import 'catalog/catalog_screen.dart';
+import 'watchlist/watchlist_screen.dart';
 import 'profile/profile_screen.dart';
 
 class MainShellScreen extends StatefulWidget {
@@ -19,17 +19,21 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   final List<Widget> _screens = const [
     HomeScreen(),
-    FandubScreen(),
-    ReelsScreen(),
-    LiveChatScreen(),
+    CatalogScreen(),
+    WatchlistScreen(),
     ProfileScreen(),
   ];
 
   @override
-  Widget build(BuildContext context) {
-    // When on ReelsScreen (index 2), hide the bottom nav bar for true immersion!
-    final isReels = _currentIndex == 2;
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkAndShowPrompt(context);
+    });
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       extendBody: true,
@@ -37,14 +41,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: isReels 
-          ? null 
-          : CustomNavBar(
-              currentIndex: _currentIndex,
-              onTap: (index) {
-                setState(() => _currentIndex = index);
-              },
-            ),
+      bottomNavigationBar: CustomNavBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() => _currentIndex = index);
+        },
+      ),
     );
   }
 }

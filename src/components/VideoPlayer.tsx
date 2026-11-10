@@ -17,13 +17,24 @@ declare global {
 function parseEmbedUrl(rawUrl: string): { isEmbed: boolean; embedUrl: string } {
   if (!rawUrl || typeof rawUrl !== 'string') return { isEmbed: false, embedUrl: '' };
 
-  const trimmed = rawUrl.trim();
+  let trimmed = rawUrl.trim();
+  // Automatically rewrite legacy/dead Wasmer & s3 domains to ss2-animem.wasmer.app
+  trimmed = trimmed.replace(/https?:\/\/s2-animem\.wasmer\.app/gi, 'https://ss2-animem.wasmer.app');
+  trimmed = trimmed.replace(/https?:\/\/s3\.animem\.uz/gi, 'https://ss2-animem.wasmer.app');
+  trimmed = trimmed.replace(/https?:\/\/ss-test\.wasmer\.app/gi, 'https://ss2-animem.wasmer.app');
+  trimmed = trimmed.replace(/https?:\/\/animem-uz-jasurfreefire3\.wasmer\.app\/embed\//gi, 'https://ss2-animem.wasmer.app/embed/');
+
   const lowerUrl = trimmed.toLowerCase();
 
   if (lowerUrl.includes('<iframe')) {
     const srcMatch = trimmed.match(/src=["']([^"']+)["']/i);
     if (srcMatch) {
-      return { isEmbed: true, embedUrl: srcMatch[1].startsWith('//') ? `https:${srcMatch[1]}` : srcMatch[1] };
+      let finalSrc = srcMatch[1].startsWith('//') ? `https:${srcMatch[1]}` : srcMatch[1];
+      finalSrc = finalSrc.replace(/https?:\/\/s2-animem\.wasmer\.app/gi, 'https://ss2-animem.wasmer.app');
+      finalSrc = finalSrc.replace(/https?:\/\/s3\.animem\.uz/gi, 'https://ss2-animem.wasmer.app');
+      finalSrc = finalSrc.replace(/https?:\/\/ss-test\.wasmer\.app/gi, 'https://ss2-animem.wasmer.app');
+      finalSrc = finalSrc.replace(/https?:\/\/animem-uz-jasurfreefire3\.wasmer\.app\/embed\//gi, 'https://ss2-animem.wasmer.app/embed/');
+      return { isEmbed: true, embedUrl: finalSrc };
     }
   }
 
@@ -45,9 +56,14 @@ function parseEmbedUrl(rawUrl: string): { isEmbed: boolean; embedUrl: string } {
     return { isEmbed: true, embedUrl: `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=0&rel=0` };
   }
 
-  const embedHosts = ['player.vimeo.com', 'sibnet.ru', 'myvi.tv', 'myvi.ru', 'ok.ru', 'vk.com', 'yandex.ru/video/preview', 'rutube.ru', 'drive.google.com', 'kodik.', 'allplay.uz/embed', 'mover.uz'];
+  const embedHosts = ['player.vimeo.com', 'ss2-animem.wasmer.app', 's2-animem.wasmer.app', 's3.animem.uz', 'sibnet.ru', 'myvi.tv', 'myvi.ru', 'ok.ru', 'vk.com', 'yandex.ru/video/preview', 'rutube.ru', 'drive.google.com', 'kodik.', 'allplay.uz/embed', 'mover.uz'];
   if (embedHosts.some(host => lowerUrl.includes(host)) || lowerUrl.includes('/embed/') || lowerUrl.includes('/video/embed/')) {
-    return { isEmbed: true, embedUrl: trimmed.startsWith('//') ? `https:${trimmed}` : trimmed };
+    let finalUrl = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed;
+    finalUrl = finalUrl.replace(/https?:\/\/s2-animem\.wasmer\.app/gi, 'https://ss2-animem.wasmer.app');
+    finalUrl = finalUrl.replace(/https?:\/\/s3\.animem\.uz/gi, 'https://ss2-animem.wasmer.app');
+    finalUrl = finalUrl.replace(/https?:\/\/ss-test\.wasmer\.app/gi, 'https://ss2-animem.wasmer.app');
+    finalUrl = finalUrl.replace(/https?:\/\/animem-uz-jasurfreefire3\.wasmer\.app\/embed\//gi, 'https://ss2-animem.wasmer.app/embed/');
+    return { isEmbed: true, embedUrl: finalUrl };
   }
 
   return { isEmbed: false, embedUrl: '' };
@@ -78,27 +94,51 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   const reactId = useId();
   const playerId = useRef(`animem-player-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`).current;
   const playerRef = useRef<{ api?: (command: string, value?: unknown) => unknown } | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const [hasError, setHasError] = useState(false);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!shellRef.current) return;
+    if (!document.fullscreenElement) {
+      shellRef.current.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
 
   const resolveSource = (raw: string): string => {
     if (!raw || typeof raw !== 'string') return '/assets/sample/video.mp4';
-    const trimmed = raw.trim();
+    let trimmed = raw.trim();
+    trimmed = trimmed.replace(/https?:\/\/s2-animem\.wasmer\.app/gi, 'https://ss2-animem.wasmer.app');
+    trimmed = trimmed.replace(/https?:\/\/s3\.animem\.uz/gi, 'https://ss2-animem.wasmer.app');
+    trimmed = trimmed.replace(/https?:\/\/ss-test\.wasmer\.app/gi, 'https://ss2-animem.wasmer.app');
 
-    // HLS havolalarini avtomatik ravishda to'g'ridan-to'g'ri o'ta tezkor oqimga yo'naltirish
+    // Telegram HLS / Streamlarni ss2-animem.wasmer.app ga to'g'ridan-to'g'ri o'ta tezkor oqimga yo'naltirish
     const tgHlsMatch = trimmed.match(/\/api\/tghls\/([^\/]+)\/([0-9]+)/i);
     if (tgHlsMatch) {
-      return `https://s3.animem.uz/api/tgstream/${tgHlsMatch[1]}/${tgHlsMatch[2]}`;
+      return `https://ss2-animem.wasmer.app/api/medi/${tgHlsMatch[1]}/${tgHlsMatch[2]}.mp4`;
     }
 
-    if (trimmed.includes('/api/tgstream/')) {
-      const tgPath = trimmed.substring(trimmed.indexOf('/api/tgstream/'));
-      return `https://s3.animem.uz${tgPath}`;
+    const tgStreamMatch = trimmed.match(/\/api\/tgstream\/([^\/]+)\/([0-9]+)/i);
+    if (tgStreamMatch) {
+      return `https://ss2-animem.wasmer.app/api/medi/${tgStreamMatch[1]}/${tgStreamMatch[2]}.mp4`;
     }
 
-    if (trimmed.includes('/api/tghls/')) {
-      const tgPath = trimmed.substring(trimmed.indexOf('/api/tghls/'));
-      return `https://s3.animem.uz${tgPath}`;
+    if (trimmed.includes('/api/tgstream/') || trimmed.includes('/api/tghls/')) {
+      const match = trimmed.match(/\/(?:tgstream|tghls)\/([^\/]+)\/([0-9]+)/i);
+      if (match) {
+        return `https://ss2-animem.wasmer.app/api/medi/${match[1]}/${match[2]}.mp4`;
+      }
     }
 
     return trimmed;
@@ -112,7 +152,7 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
       setIsIframeLoading(true);
       const timer = setTimeout(() => {
         setIsIframeLoading(false);
-      }, 10000);
+      }, 1500);
       return () => clearTimeout(timer);
     }
   }, [embedUrl, isEmbed]);
@@ -214,19 +254,12 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
   }, [isEmbed]);
 
   return (
-    <div className="animem-player-shell group relative">
+    <div ref={shellRef} className={`animem-player-shell group relative ${isFullscreen ? 'animem-fullscreen-active' : ''}`}>
       <div className="animem-player-stage relative overflow-hidden">
         {isEmbed ? (
           <>
             {isIframeLoading && (
-              <div className="animem-player-loading-overlay">
-                {poster && (
-                  <img
-                    src={poster}
-                    alt={animeTitle || 'Poster'}
-                    className="animem-player-loading-bg"
-                  />
-                )}
+              <div className="animem-player-loading-overlay pointer-events-none">
                 <div className="animem-player-loading-content">
                   <div className="animem-player-spinner" />
                   <span className="animem-player-loading-text">Video yuklanmoqda...</span>
@@ -237,9 +270,9 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
             <iframe
               src={embedUrl}
               title={animeTitle || 'Video Player'}
-              className={`animem-player-embed transition-opacity duration-300 ${isIframeLoading ? 'opacity-0' : 'opacity-100'}`}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
+              className="animem-player-embed w-full h-full block"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+              allowFullScreen={true}
               onLoad={() => setIsIframeLoading(false)}
             />
           </>
@@ -258,6 +291,14 @@ export default function VideoPlayer({ url, poster, animeTitle }: VideoPlayerProp
 
       <div className="animem-player-footer">
         <span>{isEmbed ? 'Tashqi player orqali tomosha qilinmoqda' : 'Sifat va tezlik player sozlamalarida'}</span>
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="animem-player-fs-btn"
+          title={isFullscreen ? "To'liq ekrandan chiqish" : "To'liq ekran (Kattalashtirish)"}
+        >
+          {isFullscreen ? "Kichraytirish" : "To'liq ekran ⛶"}
+        </button>
       </div>
     </div>
   );

@@ -16,40 +16,39 @@ class CustomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(left: 16, right: 16, bottom: 20),
-      height: 70,
+      margin: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+      height: 64,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withOpacity(0.6),
             blurRadius: 25,
             offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: const Color(0xE60E0F17), // 90% opacity dark
-              borderRadius: BorderRadius.circular(32),
+              color: const Color(0xF012111E),
+              borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: Colors.white.withOpacity(0.12),
-                width: 1.2,
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
               ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(0, Icons.home_rounded, "Bosh sahifa"),
-                _buildNavItem(1, Icons.groups_rounded, "Fandublar"),
-                _buildReelsItem(2),
-                _buildNavItem(3, Icons.forum_rounded, "Chat"),
-                _buildNavItem(4, Icons.person_rounded, "Profil"),
+                _buildNavItem(0, Icons.home_rounded, Icons.home_outlined, "Asosiy"),
+                _buildNavItem(1, Icons.explore_rounded, Icons.explore_outlined, "Katalog"),
+                _buildNavItem(2, Icons.bookmark_rounded, Icons.bookmark_outline_rounded, "Sevimlilar"),
+                _buildNavItem(3, Icons.person_rounded, Icons.person_outline_rounded, "Profil"),
               ],
             ),
           ),
@@ -58,7 +57,7 @@ class CustomNavBar extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
     final isSelected = currentIndex == index;
 
     return GestureDetector(
@@ -69,72 +68,26 @@ class CustomNavBar extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary.withOpacity(0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              icon,
+              isSelected ? activeIcon : inactiveIcon,
               color: isSelected ? AppColors.primary : AppColors.textMuted,
-              size: 24,
+              size: 22,
             ),
             const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? AppColors.primary : AppColors.textMuted,
-                fontSize: 10,
+                color: isSelected ? Colors.white : AppColors.textMuted,
+                fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReelsItem(int index) {
-    final isSelected = currentIndex == index;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap(index);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: AppColors.primaryGradient,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.5),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  )
-                ]
-              : null,
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.play_circle_fill_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-            SizedBox(width: 4),
-            Text(
-              "Reels",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
               ),
             ),
           ],

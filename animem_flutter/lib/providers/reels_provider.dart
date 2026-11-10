@@ -21,9 +21,14 @@ class ReelsProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _reels = await _api.fetchReels();
-    _isLoading = false;
-    notifyListeners();
+    try {
+      _reels = await _api.fetchReels();
+    } catch (e) {
+      debugPrint("Error fetching reels: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   void setCurrentIndex(int index) {

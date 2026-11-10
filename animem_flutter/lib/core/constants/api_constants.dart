@@ -1,11 +1,11 @@
 class ApiConstants {
   // Main Live Backend API Base
-  static const String baseUrl = 'https://ss-test.wasmer.app';
+  static const String baseUrl = 'https://animem-uz-jasurfreefire3.wasmer.app';
   static const String fallbackUrl = 'https://animem.uz';
   
   // Telegram Bot Info
-  static const String telegramBotUsername = 'Animem_reg_bot';
-  static const String telegramBotUrl = 'https://t.me/Animem_reg_bot';
+  static const String telegramBotUsername = 'Animem_uz_bot';
+  static const String telegramBotUrl = 'https://t.me/Animem_uz_bot';
 
   // Auth Endpoints
   static const String sendEmailCode = '/api/auth/send-code';
@@ -30,5 +30,5 @@ class ApiConstants {
   static const String favorites = '/api/user/favorites';
 
   // Socket Live Chat URL
-  static const String socketUrl = 'https://ss-test.wasmer.app';
+  static const String socketUrl = 'https://animem-uz-jasurfreefire3.wasmer.app';
 }

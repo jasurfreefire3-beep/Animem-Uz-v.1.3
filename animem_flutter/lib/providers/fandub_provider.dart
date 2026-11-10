@@ -19,9 +19,14 @@ class FandubProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _fandubs = await _api.fetchFandubs();
-    _isLoading = false;
-    notifyListeners();
+    try {
+      _fandubs = await _api.fetchFandubs();
+    } catch (e) {
+      debugPrint("Error fetching fandubs: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> toggleSubscription(int fandubId) async {

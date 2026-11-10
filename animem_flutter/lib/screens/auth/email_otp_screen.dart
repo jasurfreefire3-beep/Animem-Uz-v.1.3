@@ -4,7 +4,6 @@ import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/modern_text_field.dart';
 import '../../widgets/neon_glow_button.dart';
-import '../../widgets/liquid_glass_container.dart';
 import '../main_shell_screen.dart';
 
 class EmailOtpScreen extends StatefulWidget {

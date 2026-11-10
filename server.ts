@@ -3754,6 +3754,26 @@ app.use("/uploads", express.static(uploadsDir, {
   }
 }));
 
+// Mobile App Version & Update Check Endpoint
+app.get("/api/app/version", (req, res) => {
+  res.json({
+    latestVersion: "1.0.0",
+    versionCode: 1,
+    minVersion: "1.0.0",
+    apkUrl: "https://animem-uz-jasurfreefire3.wasmer.app/downloads/animem_uz.apk",
+    releaseNotes: "🎉 Rasmiy yangilanish:\n- Rasmiy sertifikat va Play Protect tekshiruvidan muvaffaqiyatli o'tish\n- Yangi 3D dizayn va yangilangan logotip\n- Ishga tushishdagi xatoliklar to'liq bartaraf etildi",
+    forceUpdate: false
+  });
+});
+
+app.get("/downloads/animem_uz.apk", (req, res) => {
+  const localApk = path.join(process.cwd(), "public", "downloads", "animem_uz.apk");
+  if (fs.existsSync(localApk)) {
+    return res.download(localApk, "animem_uz.apk");
+  }
+  return res.redirect("https://t.me/Animem_uz_bot");
+});
+
 // High performance in-memory media cache to minimize DB load on frequent hits
 const mediaMemoryCache = new Map<string, { mimeType: string; base64: string; buffer: Buffer }>();
 
@@ -6123,7 +6143,19 @@ app.get("/api/animes/:id/episodes", async (req, res) => {
       [id]
     );
     if (Array.isArray(rows)) {
-      return res.json(rows);
+      const sanitized = rows.map((ep: any) => {
+        let vUrl = ep.video_url || "";
+        // Auto-migrate legacy/paused Wasmer domains to active video host
+        vUrl = vUrl.replace(/https?:\/\/s2-animem\.wasmer\.app/gi, "https://ss2-animem.wasmer.app");
+        vUrl = vUrl.replace(/https?:\/\/s3\.animem\.uz/gi, "https://ss2-animem.wasmer.app");
+        vUrl = vUrl.replace(/https?:\/\/ss-test\.wasmer\.app/gi, "https://ss2-animem.wasmer.app");
+        vUrl = vUrl.replace(/https?:\/\/animem-uz-jasurfreefire3\.wasmer\.app\/embed\//gi, "https://ss2-animem.wasmer.app/embed/");
+        return {
+          ...ep,
+          video_url: vUrl,
+        };
+      });
+      return res.json(sanitized);
     }
     return res.json([]);
   } catch (err: any) {

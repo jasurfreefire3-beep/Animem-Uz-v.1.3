@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
 import '../../models/anime_model.dart';
+import '../../models/episode_model.dart';
 import '../../models/fandub_model.dart';
 import '../../models/reel_model.dart';
 
@@ -136,10 +137,25 @@ class ApiService {
     }
   }
 
+  Future<List<EpisodeModel>> fetchEpisodes(int animeId) async {
+    try {
+      final res = await _dio.get("${ApiConstants.animes}/$animeId/episodes");
+      final List list = res.data is List ? res.data : (res.data['episodes'] ?? []);
+      return list.map((item) => EpisodeModel.fromJson(item)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
   Future<AnimeModel?> fetchAnimeDetails(int id) async {
     try {
       final res = await _dio.get("${ApiConstants.animes}/$id");
-      return AnimeModel.fromJson(res.data);
+      AnimeModel anime = AnimeModel.fromJson(res.data);
+      final episodes = await fetchEpisodes(id);
+      if (episodes.isNotEmpty) {
+        anime = anime.copyWith(episodes: episodes);
+      }
+      return anime;
     } catch (e) {
       final list = _getFallbackAnimes();
       return list.firstWhere((a) => a.id == id, orElse: () => list.first);

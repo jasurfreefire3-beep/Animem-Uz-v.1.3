@@ -122855,6 +122855,23 @@ app.use("/uploads", import_express.default.static(uploadsDir, {
     res.setHeader("Access-Control-Allow-Origin", "*");
   }
 }));
+app.get("/api/app/version", (req, res) => {
+  res.json({
+    latestVersion: "1.0.0",
+    versionCode: 1,
+    minVersion: "1.0.0",
+    apkUrl: "https://animem-uz-jasurfreefire3.wasmer.app/downloads/animem_uz.apk",
+    releaseNotes: "\u{1F389} Rasmiy yangilanish:\n- Rasmiy sertifikat va Play Protect tekshiruvidan muvaffaqiyatli o'tish\n- Yangi 3D dizayn va yangilangan logotip\n- Ishga tushishdagi xatoliklar to'liq bartaraf etildi",
+    forceUpdate: false
+  });
+});
+app.get("/downloads/animem_uz.apk", (req, res) => {
+  const localApk = path3.join(process.cwd(), "public", "downloads", "animem_uz.apk");
+  if (fs4.existsSync(localApk)) {
+    return res.download(localApk, "animem_uz.apk");
+  }
+  return res.redirect("https://t.me/Animem_uz_bot");
+});
 var mediaMemoryCache = /* @__PURE__ */ new Map();
 async function uploadImageBuffer(buffer, filename = "image.jpg", mimeType = "image/jpeg") {
   let cleanExt = "";
@@ -124875,7 +124892,18 @@ app.get("/api/animes/:id/episodes", async (req, res) => {
       [id]
     );
     if (Array.isArray(rows)) {
-      return res.json(rows);
+      const sanitized = rows.map((ep) => {
+        let vUrl = ep.video_url || "";
+        vUrl = vUrl.replace(/https?:\/\/s2-animem\.wasmer\.app/gi, "https://ss2-animem.wasmer.app");
+        vUrl = vUrl.replace(/https?:\/\/s3\.animem\.uz/gi, "https://ss2-animem.wasmer.app");
+        vUrl = vUrl.replace(/https?:\/\/ss-test\.wasmer\.app/gi, "https://ss2-animem.wasmer.app");
+        vUrl = vUrl.replace(/https?:\/\/animem-uz-jasurfreefire3\.wasmer\.app\/embed\//gi, "https://ss2-animem.wasmer.app/embed/");
+        return {
+          ...ep,
+          video_url: vUrl
+        };
+      });
+      return res.json(sanitized);
     }
     return res.json([]);
   } catch (err) {

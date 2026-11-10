@@ -89,6 +89,48 @@ class AnimeModel {
     );
   }
 
+  AnimeModel copyWith({
+    int? id,
+    String? title,
+    String? originalTitle,
+    String? posterUrl,
+    String? bannerUrl,
+    String? description,
+    double? rating,
+    int? releaseYear,
+    List<String>? genres,
+    String? status,
+    String? type,
+    String? studio,
+    String? voiceActing,
+    int? totalEpisodes,
+    int? viewsCount,
+    bool? isTrending,
+    bool? isFeatured,
+    List<EpisodeModel>? episodes,
+  }) {
+    return AnimeModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      originalTitle: originalTitle ?? this.originalTitle,
+      posterUrl: posterUrl ?? this.posterUrl,
+      bannerUrl: bannerUrl ?? this.bannerUrl,
+      description: description ?? this.description,
+      rating: rating ?? this.rating,
+      releaseYear: releaseYear ?? this.releaseYear,
+      genres: genres ?? this.genres,
+      status: status ?? this.status,
+      type: type ?? this.type,
+      studio: studio ?? this.studio,
+      voiceActing: voiceActing ?? this.voiceActing,
+      totalEpisodes: totalEpisodes ?? this.totalEpisodes,
+      viewsCount: viewsCount ?? this.viewsCount,
+      isTrending: isTrending ?? this.isTrending,
+      isFeatured: isFeatured ?? this.isFeatured,
+      episodes: episodes ?? this.episodes,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

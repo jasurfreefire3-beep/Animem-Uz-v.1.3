@@ -1138,7 +1138,7 @@ export default function AnimeDetails() {
       {/* ========================================================================= */}
       {/* MOBILE-ONLY EDGE-TO-EDGE STREAMING VIEW (Netflix/YouTube Mobile Style)     */}
       {/* ========================================================================= */}
-      <div className="block md:hidden w-full pb-20 select-none bg-[#07070a]">
+      <div className="animem-mobile-view block md:hidden w-full pb-20 select-none bg-[#07070a]">
         {/* 1. Mobile Top Navigation Bar */}
         <div className="sticky top-0 z-40 bg-[#07070a]/95 backdrop-blur-xl border-b border-white/10 px-3 py-2.5 flex items-center justify-between">
           <button 
@@ -1630,7 +1630,7 @@ export default function AnimeDetails() {
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="hidden md:flex relative w-full min-h-[420px] sm:min-h-[460px] md:min-h-[500px] h-auto bg-[#09090b] flex-col justify-end pt-16 sm:pt-20 md:pt-24 pb-6 md:pb-10 overflow-hidden"
+        className="animem-desktop-view hidden md:flex relative w-full min-h-[420px] sm:min-h-[460px] md:min-h-[500px] h-auto bg-[#09090b] flex-col justify-end pt-16 sm:pt-20 md:pt-24 pb-6 md:pb-10 overflow-hidden"
       >
         {/* Background Image Banner */}
         <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -1810,7 +1810,7 @@ export default function AnimeDetails() {
       </motion.div>
 
       {/* Desktop Main Content Layout */}
-      <div className="hidden md:block">
+      <div className="animem-desktop-view hidden md:block">
         {/* If Theater Mode is enabled, render the player full width across the page */}
         {theaterMode && (
           <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10">

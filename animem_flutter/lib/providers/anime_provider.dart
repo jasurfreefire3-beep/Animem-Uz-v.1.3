@@ -73,9 +73,14 @@ class AnimeProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _animes = await _api.fetchAnimes();
-    _isLoading = false;
-    notifyListeners();
+    try {
+      _animes = await _api.fetchAnimes();
+    } catch (e) {
+      debugPrint("Error fetching animes: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   void setSearchQuery(String query) {

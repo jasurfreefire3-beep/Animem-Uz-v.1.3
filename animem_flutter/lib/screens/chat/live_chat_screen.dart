@@ -6,7 +6,6 @@ import '../../models/chat_message_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/cached_image_view.dart';
-import '../../widgets/liquid_glass_container.dart';
 
 class LiveChatScreen extends StatefulWidget {
   const LiveChatScreen({super.key});

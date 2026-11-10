@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import '../../core/constants/api_constants.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/network/api_service.dart';
 import '../../models/anime_model.dart';
 import '../../models/episode_model.dart';
 import '../../providers/anime_provider.dart';
 import '../../widgets/cached_image_view.dart';
-import '../../widgets/liquid_glass_container.dart';
 
 class AnimeDetailsScreen extends StatefulWidget {
   final AnimeModel anime;
@@ -27,11 +29,14 @@ class AnimeDetailsScreen extends StatefulWidget {
 class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late int _selectedEpisode;
-  
+  List<EpisodeModel> _episodes = [];
+  bool _isLoadingEpisodes = false;
+
   // Video Player States
   VideoPlayerController? _videoPlayerController;
   WebViewController? _webViewController;
   bool _isPlayerInitialized = false;
+  bool _isPlayerLoading = false;
   bool _isPlayerError = false;
   bool _isPlaying = true;
   bool _isEmbedIframe = false;
@@ -39,55 +44,97 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _selectedEpisode = widget.initialEpisode;
+    _episodes = List.from(widget.anime.episodes);
+
+    if (_episodes.isEmpty) {
+      _fetchRealEpisodes();
+    } else {
+      _initializePlayerForCurrentEpisode();
+    }
+  }
+
+  Future<void> _fetchRealEpisodes() async {
+    setState(() => _isLoadingEpisodes = true);
+    final episodes = await ApiService().fetchEpisodes(widget.anime.id);
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingEpisodes = false;
+      if (episodes.isNotEmpty) {
+        _episodes = episodes;
+        if (!_episodes.any((e) => e.episodeNumber == _selectedEpisode)) {
+          _selectedEpisode = _episodes.first.episodeNumber;
+        }
+      }
+    });
+
     _initializePlayerForCurrentEpisode();
   }
 
   void _initializePlayerForCurrentEpisode() {
-    // 1. Dispose previous player instances cleanly
     _videoPlayerController?.dispose();
     _videoPlayerController = null;
     _webViewController = null;
     _isPlayerInitialized = false;
     _isPlayerError = false;
+    _isPlayerLoading = true;
 
-    // 2. Resolve video URL for selected episode
-    String videoUrl = '';
-    if (widget.anime.episodes.isNotEmpty) {
-      final ep = widget.anime.episodes.firstWhere(
-        (e) => e.episodeNumber == _selectedEpisode,
-        orElse: () => widget.anime.episodes.first,
-      );
-      videoUrl = ep.videoUrl;
+    if (_episodes.isEmpty) {
+      setState(() => _isPlayerLoading = false);
+      return;
     }
+
+    final ep = _episodes.firstWhere(
+      (e) => e.episodeNumber == _selectedEpisode,
+      orElse: () => _episodes.first,
+    );
+
+    final videoUrl = ep.resolvedVideoUrl;
 
     if (videoUrl.isEmpty) {
-      videoUrl = "https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4";
+      setState(() {
+        _isPlayerLoading = false;
+        _isPlayerError = true;
+      });
+      return;
     }
 
-    // 3. Determine if it's an Embed iFrame or Native (.mp4 / .m3u8)
-    final isIframe = videoUrl.contains('sibnet.ru') ||
-        videoUrl.contains('youtube.com') ||
-        videoUrl.contains('alloha') ||
-        videoUrl.contains('kodik') ||
-        videoUrl.contains('playerjs') ||
-        videoUrl.contains('<iframe');
-
-    if (isIframe) {
+    if (ep.isIframe) {
       _isEmbedIframe = true;
-      String targetUrl = videoUrl;
-      if (videoUrl.contains('src="')) {
-        final match = RegExp(r'src="([^"]+)"').firstMatch(videoUrl);
-        if (match != null) targetUrl = match.group(1)!;
-      }
-      if (targetUrl.startsWith('//')) targetUrl = 'https:$targetUrl';
-
-      _webViewController = WebViewController()
+      final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setBackgroundColor(Colors.black)
-        ..loadRequest(Uri.parse(targetUrl));
-      
+        ..setUserAgent(
+          'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+        )
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (_) {
+              if (mounted) setState(() => _isPlayerLoading = true);
+            },
+            onPageFinished: (_) {
+              if (mounted) {
+                setState(() {
+                  _isPlayerLoading = false;
+                  _isPlayerInitialized = true;
+                });
+              }
+            },
+            onWebResourceError: (err) {
+              debugPrint("WebView Error: ${err.description}");
+            },
+          ),
+        );
+
+      if (controller.platform is AndroidWebViewController) {
+        final androidController = controller.platform as AndroidWebViewController;
+        androidController.setMediaPlaybackRequiresUserGesture(false);
+      }
+
+      controller.loadRequest(Uri.parse(videoUrl));
+      _webViewController = controller;
       setState(() {
         _isPlayerInitialized = true;
       });
@@ -98,27 +145,41 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
           if (!mounted) return;
           setState(() {
             _isPlayerInitialized = true;
+            _isPlayerLoading = false;
           });
           _videoPlayerController?.play();
         }).catchError((err) {
           if (!mounted) return;
           setState(() {
             _isPlayerError = true;
+            _isPlayerLoading = false;
           });
         });
     }
 
-    // Save watch progress
     final provider = Provider.of<AnimeProvider>(context, listen: false);
     provider.saveWatchProgress(widget.anime.id, _selectedEpisode);
   }
 
-  void _switchEpisode(int episodeNumber) {
-    if (_selectedEpisode == episodeNumber) return;
-    setState(() {
-      _selectedEpisode = episodeNumber;
-    });
+  void _switchEpisode(int epNum) {
+    if (_selectedEpisode == epNum) return;
+    setState(() => _selectedEpisode = epNum);
     _initializePlayerForCurrentEpisode();
+  }
+
+  void _openInExternalPlayer() async {
+    if (_episodes.isEmpty) return;
+    final ep = _episodes.firstWhere(
+      (e) => e.episodeNumber == _selectedEpisode,
+      orElse: () => _episodes.first,
+    );
+    final url = ep.resolvedVideoUrl;
+    if (url.isNotEmpty) {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
   }
 
   @override
@@ -139,7 +200,7 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
       body: SafeArea(
         child: Column(
           children: [
-            // 1. UNIVERSAL VIDEO PLAYER CONTAINER
+            // 1. VIDEO PLAYER CONTAINER (16:9)
             AspectRatio(
               aspectRatio: 16 / 9,
               child: Container(
@@ -147,9 +208,8 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    if (_isEmbedIframe && _webViewController != null)
-                      WebViewWidget(controller: _webViewController!)
-                    else if (_isPlayerInitialized && _videoPlayerController != null)
+                    // Native Video Player
+                    if (!_isEmbedIframe && _isPlayerInitialized && _videoPlayerController != null)
                       GestureDetector(
                         onTap: () {
                           setState(() {
@@ -166,7 +226,6 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
                           alignment: Alignment.center,
                           children: [
                             VideoPlayer(_videoPlayerController!),
-                            // Center Play/Pause Indicator on tap
                             if (!_isPlaying)
                               Container(
                                 width: 56,
@@ -177,7 +236,6 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
                                 ),
                                 child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
                               ),
-                            // Bottom Progress Bar
                             Positioned(
                               bottom: 0,
                               left: 0,
@@ -195,51 +253,87 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
                           ],
                         ),
                       )
-                    else if (_isPlayerError)
-                      Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 36),
-                            const SizedBox(height: 8),
-                            const Text("Videoni yuklab bo'lmadi", style: TextStyle(color: Colors.white, fontSize: 13)),
-                            TextButton(
-                              onPressed: _initializePlayerForCurrentEpisode,
-                              child: const Text("Qayta urinish", style: TextStyle(color: AppColors.accentCyan)),
-                            ),
-                          ],
-                        ),
-                      )
+                    // Embed / Iframe WebView Player
+                    else if (_isEmbedIframe && _webViewController != null)
+                      WebViewWidget(controller: _webViewController!)
+                    // Placeholder Poster
                     else
-                      // Subtle Skeleton while loading
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          CachedImageView(
-                            imageUrl: anime.bannerUrl ?? anime.posterUrl,
-                            width: double.infinity,
-                            height: double.infinity,
-                          ),
-                          Container(color: Colors.black.withOpacity(0.55)),
-                          const CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                          ),
-                        ],
+                      CachedImageView(
+                        imageUrl: anime.bannerUrl ?? anime.posterUrl,
+                        width: double.infinity,
+                        height: double.infinity,
                       ),
 
-                    // Top Back & Controls Overlay
+                    // Loading Spinner Overlay
+                    if (_isPlayerLoading || _isLoadingEpisodes)
+                      Container(
+                        color: Colors.black.withOpacity(0.55),
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primary,
+                            strokeWidth: 2.5,
+                          ),
+                        ),
+                      ),
+
+                    // Player Error Overlay
+                    if (_isPlayerError)
+                      Container(
+                        color: Colors.black.withOpacity(0.85),
+                        padding: const EdgeInsets.all(16),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 38),
+                              const SizedBox(height: 8),
+                              const Text(
+                                "Videoni ichki pleyerda ochib bo'lmadi",
+                                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: _openInExternalPlayer,
+                                icon: const Icon(Icons.open_in_browser_rounded, size: 18),
+                                label: const Text("Tashqi brauzerda ochish"),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    // Top Bar (Back & External Player buttons)
                     Positioned(
-                      top: 10,
+                      top: 8,
                       left: 10,
                       child: Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withOpacity(0.6),
                         ),
                         child: IconButton(
                           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
                           onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ),
+                    ),
+
+                    Positioned(
+                      top: 8,
+                      right: 10,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: IconButton(
+                          tooltip: "Tashqi pleyerda ochish",
+                          icon: const Icon(Icons.open_in_browser_rounded, color: Colors.white, size: 20),
+                          onPressed: _openInExternalPlayer,
                         ),
                       ),
                     ),
@@ -248,90 +342,105 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
               ),
             ),
 
-            // 2. ANIME TITLE & ACTION BUTTONS BAR
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          anime.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.star_rounded, color: AppColors.accentGold, size: 15),
-                            const SizedBox(width: 3),
-                            Text(
-                              anime.rating.toStringAsFixed(1),
-                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              "$_selectedEpisode-qism  •  ${anime.releaseYear}  •  ${anime.status}",
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Action: Favorite Toggle
-                  IconButton(
-                    icon: Icon(
-                      isFav ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
-                      color: isFav ? AppColors.primary : Colors.white,
-                      size: 26,
-                    ),
-                    onPressed: () {
-                      animeProvider.toggleFavorite(anime.id);
-                      HapticFeedback.lightImpact();
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            // 3. TABS (Qismlar, Tavsif, Izohlar)
-            TabBar(
-              controller: _tabController,
-              indicatorColor: AppColors.primary,
-              indicatorWeight: 3,
-              labelColor: AppColors.primary,
-              unselectedLabelColor: AppColors.textMuted,
-              labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-              tabs: const [
-                Tab(text: "Qismlar"),
-                Tab(text: "Tavsif"),
-                Tab(text: "Izohlar"),
-              ],
-            ),
-
-            // 4. TAB VIEWS
+            // 2. SCROLLABLE DETAILS & EPISODES
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // Tab 1: Episodes Grid/List
-                  _buildEpisodesTab(),
+              child: NestedScrollView(
+                headerSliverBuilder: (context, _) => [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Anime Title
+                          Text(
+                            anime.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
 
-                  // Tab 2: Overview & Details
-                  _buildOverviewTab(anime),
+                          // Metadata row
+                          Row(
+                            children: [
+                              const Icon(Icons.star_rounded, color: AppColors.accentGold, size: 18),
+                              const SizedBox(width: 3),
+                              Text(
+                                anime.rating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                "${anime.releaseYear} • ${anime.status}",
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const Spacer(),
+                              // Bookmark button
+                              IconButton(
+                                icon: Icon(
+                                  isFav ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                                  color: isFav ? AppColors.primary : Colors.white70,
+                                ),
+                                onPressed: () => animeProvider.toggleFavorite(anime.id),
+                              ),
+                              // Telegram Bot Direct Play
+                              IconButton(
+                                tooltip: "Telegram botda ochish",
+                                icon: const Icon(Icons.send_rounded, color: Color(0xFF0088CC), size: 20),
+                                onPressed: () async {
+                                  final uri = Uri.parse("https://t.me/${ApiConstants.telegramBotUsername}?start=anime_${anime.id}");
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
-                  // Tab 3: Comments Sheet
-                  _buildCommentsTab(),
+                  // Tab Bar Header
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _SliverAppBarDelegate(
+                      TabBar(
+                        controller: _tabController,
+                        indicatorColor: AppColors.primary,
+                        indicatorWeight: 3,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: AppColors.textMuted,
+                        labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        tabs: [
+                          Tab(text: "Qismlar (${_episodes.length})"),
+                          const Tab(text: "Tavsif"),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
+                body: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // TAB 1: EPISODES LIST
+                    _buildEpisodesTab(),
+
+                    // TAB 2: DESCRIPTION & DETAILS
+                    _buildDescriptionTab(anime),
+                  ],
+                ),
               ),
             ),
           ],
@@ -340,45 +449,118 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
     );
   }
 
-  // --- EPISODES SELECTOR TAB ---
+  // --- EPISODES TAB ---
   Widget _buildEpisodesTab() {
-    final total = widget.anime.totalEpisodes > 0 ? widget.anime.totalEpisodes : 12;
+    if (_isLoadingEpisodes) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2.5),
+      );
+    }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
+    if (_episodes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.movie_filter_outlined, color: AppColors.textMuted, size: 48),
+              const SizedBox(height: 12),
+              const Text(
+                "Epizodlar hozircha yuklanmagan",
+                style: TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _fetchRealEpisodes,
+                child: const Text("Qayta tekshirish", style: TextStyle(color: AppColors.primary)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       physics: const BouncingScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.3,
-      ),
-      itemCount: total,
+      itemCount: _episodes.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final epNum = index + 1;
-        final isSelected = _selectedEpisode == epNum;
+        final ep = _episodes[index];
+        final isSelected = ep.episodeNumber == _selectedEpisode;
 
         return GestureDetector(
-          onTap: () => _switchEpisode(epNum),
+          onTap: () => _switchEpisode(ep.episodeNumber),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              gradient: isSelected ? AppColors.primaryGradient : null,
-              color: isSelected ? null : AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
+              color: isSelected ? AppColors.primary.withOpacity(0.15) : const Color(0xFF141320),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isSelected ? Colors.transparent : Colors.white.withOpacity(0.08),
+                color: isSelected ? AppColors.primary : Colors.white.withOpacity(0.08),
+                width: isSelected ? 1.5 : 1.0,
               ),
             ),
-            child: Center(
-              child: Text(
-                "$epNum",
-                style: TextStyle(
-                  color: isSelected ? Colors.white : AppColors.textSecondary,
-                  fontSize: 15,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            child: Row(
+              children: [
+                // Episode Number Badge / Play Icon
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primary : const Color(0xFF1F1D30),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: isSelected
+                        ? const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24)
+                        : Text(
+                            "${ep.episodeNumber}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 14),
+
+                // Episode Title & Server
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ep.title,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        ep.serverName ?? "TAS-IX Ultra (1080p FHD)",
+                        style: TextStyle(
+                          color: isSelected ? AppColors.primary : AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Duration or Status indicator
+                if (ep.duration != null && ep.duration!.isNotEmpty)
+                  Text(
+                    ep.duration!,
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  ),
+              ],
             ),
           ),
         );
@@ -386,63 +568,69 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
     );
   }
 
-  // --- OVERVIEW TAB ---
-  Widget _buildOverviewTab(AnimeModel anime) {
+  // --- DESCRIPTION TAB ---
+  Widget _buildDescriptionTab(AnimeModel anime) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Studio & Dubbing Team Info
-          LiquidGlassContainer(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildInfoColumn("Studiya", anime.studio ?? "A-1 Pictures"),
-                Container(width: 1, height: 30, color: Colors.white12),
-                _buildInfoColumn("Dublyaj", anime.voiceActing ?? "Animem Uz"),
-                Container(width: 1, height: 30, color: Colors.white12),
-                _buildInfoColumn("Format", anime.type),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Genre Tags
+          // Genres Chips
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: anime.genres.map((genre) {
+            children: anime.genres.map((g) {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(16),
+                  color: const Color(0xFF161524),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.white.withOpacity(0.08)),
                 ),
                 child: Text(
-                  genre,
-                  style: const TextStyle(color: AppColors.accentCyan, fontSize: 12, fontWeight: FontWeight.w600),
+                  g,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500),
                 ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
-          // Synopsis
+          // Story Synopsis
           const Text(
-            "Syujet tavsifi",
+            "Anime Tavsifi",
             style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           Text(
             anime.description,
             style: const TextStyle(
-              color: AppColors.textSecondary,
+              color: Colors.white70,
               fontSize: 14,
-              height: 1.5,
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Studio & Dub Info
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141320),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Column(
+              children: [
+                _buildInfoRow("Studiyasi", anime.studio ?? "Noma'lum"),
+                const Divider(color: Colors.white10, height: 16),
+                _buildInfoRow("Dublyaj", anime.voiceActing ?? "Animem Uz"),
+                const Divider(color: Colors.white10, height: 16),
+                _buildInfoRow("Ko'rishlar", "${anime.viewsCount} marta"),
+                const Divider(color: Colors.white10, height: 16),
+                _buildInfoRow("Turi", anime.type),
+              ],
             ),
           ),
         ],
@@ -450,98 +638,35 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with SingleTick
     );
   }
 
-  Widget _buildInfoColumn(String label, String value) {
-    return Column(
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
-        ),
+        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
       ],
     );
   }
+}
 
-  // --- COMMENTS TAB ---
-  Widget _buildCommentsTab() {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildCommentItem("OtakuNinja", "Juda zo'r sifatli dublaj bo'libdi! Rahmat Animem jamoasi!", "15 daqiqa oldin"),
-              _buildCommentItem("Sardor_Anime", "Keyingi qism qachon chiqadi? Kutib charchadik!", "1 soat oldin"),
-            ],
-          ),
-        ),
-        // Comment Input Bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const TextField(
-                    style: TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: "Fikr bildiring...",
-                      hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: AppColors.primaryGradient,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                  onPressed: () {},
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+// Persistent Header Delegate for TabBar
+class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar _tabBar;
+  _SliverAppBarDelegate(this._tabBar);
 
-  Widget _buildCommentItem(String author, String text, String time) {
+  @override
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(author, style: const TextStyle(color: AppColors.accentCyan, fontSize: 13, fontWeight: FontWeight.w700)),
-              Text(time, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(text, style: const TextStyle(color: Colors.white, fontSize: 13)),
-        ],
-      ),
+      color: AppColors.background,
+      child: _tabBar,
     );
   }
+
+  @override
+  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) => false;
 }

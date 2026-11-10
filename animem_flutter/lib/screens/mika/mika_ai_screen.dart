@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
-import '../../widgets/liquid_glass_container.dart';
 
 class MikaAiScreen extends StatefulWidget {
   const MikaAiScreen({super.key});

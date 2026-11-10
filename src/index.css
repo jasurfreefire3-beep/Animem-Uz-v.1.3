@@ -425,4 +425,19 @@ html.light .bg-blue-600 .text-white {
   color: #ffffff !important;
 }
 
+/* =========================================================================
+   MOBILE LANDSCAPE PROTECTION:
+   When a user rotates a phone or small tablet to landscape (height <= 600px, width <= 1024px),
+   keep the edge-to-edge video player visible and hide the giant hero banner.
+   ========================================================================= */
+@media (max-height: 600px) and (max-width: 1024px) and (orientation: landscape) {
+  .animem-mobile-view {
+    display: block !important;
+  }
+  .animem-desktop-view {
+    display: none !important;
+  }
+}
+
+
 
