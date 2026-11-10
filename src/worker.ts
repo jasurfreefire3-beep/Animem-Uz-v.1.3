@@ -1092,9 +1092,19 @@ export default {
     // Auto-ensure database schema and initial data on edge
     await ensureTables(env);
 
-    // Optional Backend Proxy: If BACKEND_URL is configured (e.g. running Express server), forward /api/* calls
-    if (env.BACKEND_URL && (path.startsWith('/api') || path.startsWith('/socket.io'))) {
-      const backendBase = env.BACKEND_URL.replace(/\/+$/, '');
+    // Production Backend Proxy: Forward all API calls and backend routes directly to Wasmer backend
+    const backendBase = (env.BACKEND_URL || 'https://animem-uz-jasurfreefire3.wasmer.app').replace(/\/+$/, '');
+    const isBackendRoute = 
+      path.startsWith('/api') || 
+      path.startsWith('/socket.io') ||
+      path.startsWith('/uploads') ||
+      path.startsWith('/media') ||
+      path.startsWith('/i/') ||
+      path.startsWith('/stream') ||
+      path.startsWith('/downloads') ||
+      path === '/sitemap.xml';
+
+    if (isBackendRoute) {
       const targetUrl = backendBase + path + url.search;
       try {
         const fwdHeaders = new Headers(request.headers);

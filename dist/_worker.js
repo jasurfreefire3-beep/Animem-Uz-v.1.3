@@ -18,20 +18,14 @@ var CANDIDATE_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-2.5-f
 function normalizeImageUrl(url) {
   if (!url) return "";
   let clean = url.trim();
+  if (clean.startsWith("http://files.catbox.moe/")) {
+    return clean.replace("http://files.catbox.moe/", "https://files.catbox.moe/");
+  }
   if (clean.startsWith("/api/media/")) {
     return `https://image.animem.uz${clean}`;
   }
   if (clean.startsWith("/media/")) {
     return `https://image.animem.uz/api${clean}`;
-  }
-  if (clean.startsWith("https://animem.uz/api/media/")) {
-    return clean.replace("https://animem.uz/api/media/", "https://image.animem.uz/api/media/");
-  }
-  if (clean.startsWith("https://files.catbox.moe/")) {
-    return clean.replace("https://files.catbox.moe/", "https://image.animem.uz/");
-  }
-  if (clean.startsWith("http://files.catbox.moe/")) {
-    return clean.replace("http://files.catbox.moe/", "https://image.animem.uz/");
   }
   return clean;
 }
@@ -463,6 +457,26 @@ async function ensureTables(env) {
       data TEXT,
       mime_type TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS fandubs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      description TEXT DEFAULT '',
+      avatar_url TEXT DEFAULT '',
+      banner_url TEXT DEFAULT '',
+      telegram_url TEXT DEFAULT '',
+      instagram_url TEXT DEFAULT '',
+      website_url TEXT DEFAULT '',
+      subscribers_count INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS fandub_subscribers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fandub_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(fandub_id, user_id)
     );`
   ];
   for (const stmt of createTableStatements) {
@@ -486,6 +500,8 @@ async function ensureTables(env) {
     "ALTER TABLE animes ADD COLUMN is_adult INTEGER DEFAULT 0;",
     "ALTER TABLE animes ADD COLUMN telegram_url TEXT;",
     "ALTER TABLE animes ADD COLUMN tags TEXT;",
+    "ALTER TABLE animes ADD COLUMN fandub_id TEXT DEFAULT NULL;",
+    "ALTER TABLE animes ADD COLUMN fandub_name TEXT DEFAULT NULL;",
     "ALTER TABLE episodes ADD COLUMN title TEXT DEFAULT NULL;",
     "ALTER TABLE episodes ADD COLUMN is_filler INTEGER DEFAULT 0;",
     "ALTER TABLE episodes ADD COLUMN telegram_url TEXT DEFAULT NULL;",
@@ -911,8 +927,9 @@ var worker_default = {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
     await ensureTables(env);
-    if (env.BACKEND_URL && (path.startsWith("/api") || path.startsWith("/socket.io"))) {
-      const backendBase = env.BACKEND_URL.replace(/\/+$/, "");
+    const backendBase = (env.BACKEND_URL || "https://animem-uz-jasurfreefire3.wasmer.app").replace(/\/+$/, "");
+    const isBackendRoute = path.startsWith("/api") || path.startsWith("/socket.io") || path.startsWith("/uploads") || path.startsWith("/media") || path.startsWith("/i/") || path.startsWith("/stream") || path.startsWith("/downloads") || path === "/sitemap.xml";
+    if (isBackendRoute) {
       const targetUrl = backendBase + path + url.search;
       try {
         const fwdHeaders = new Headers(request.headers);
@@ -2252,7 +2269,7 @@ Barcha anime va seriallarni tomosha qilishingiz mumkin.`,
             const catUrl = (await catRes.text()).trim();
             if (catUrl.startsWith("http://") || catUrl.startsWith("https://")) {
               const fname = catUrl.split("/").pop();
-              const secureUrl = `https://image.animem.uz/${fname}`;
+              const secureUrl = `https://files.catbox.moe/${fname}`;
               return jsonResponse({ success: true, url: secureUrl, id: fname }, 201);
             }
           }
