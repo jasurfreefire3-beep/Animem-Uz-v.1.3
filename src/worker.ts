@@ -22,11 +22,18 @@ function normalizeImageUrl(url: string | null | undefined): string {
   if (clean.startsWith('http://files.catbox.moe/')) {
     return clean.replace('http://files.catbox.moe/', 'https://files.catbox.moe/');
   }
+  if (clean.includes('image.animem.uz/api/media/')) {
+    return clean.replace(/https?:\/\/image\.animem\.uz\/api\/media\//g, '/api/media/');
+  }
+  if (clean.startsWith('https://image.animem.uz/')) {
+    const fn = clean.replace('https://image.animem.uz/', '');
+    return `https://files.catbox.moe/${fn}`;
+  }
   if (clean.startsWith('/api/media/')) {
-    return `https://image.animem.uz${clean}`;
+    return clean;
   }
   if (clean.startsWith('/media/')) {
-    return `https://image.animem.uz/api${clean}`;
+    return `/api${clean}`;
   }
   return clean;
 }
@@ -1093,7 +1100,7 @@ export default {
     await ensureTables(env);
 
     // Production Backend Proxy: Forward all API calls and backend routes directly to Wasmer backend
-    const backendBase = (env.BACKEND_URL || 'https://animem-uz-jasurfreefire3.wasmer.app').replace(/\/+$/, '');
+    const backendBase = (env.BACKEND_URL || 'https://jasurfreefire3.wasmer.app').replace(/\/+$/, '');
     const isBackendRoute = 
       path.startsWith('/api') || 
       path.startsWith('/socket.io') ||

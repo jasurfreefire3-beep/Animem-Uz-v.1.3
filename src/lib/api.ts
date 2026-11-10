@@ -1,5 +1,5 @@
 // Backend API configuration for Wasmer Edge & Vercel
-export const WASMER_BACKEND_URL = 'https://ss-test.wasmer.app';
+export const WASMER_BACKEND_URL = 'https://jasurfreefire3.wasmer.app';
 export const NORTHFLANK_BACKEND_URL = WASMER_BACKEND_URL;
 
 export const getApiBase = (): string => {

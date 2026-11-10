@@ -21,11 +21,18 @@ function normalizeImageUrl(url) {
   if (clean.startsWith("http://files.catbox.moe/")) {
     return clean.replace("http://files.catbox.moe/", "https://files.catbox.moe/");
   }
+  if (clean.includes("image.animem.uz/api/media/")) {
+    return clean.replace(/https?:\/\/image\.animem\.uz\/api\/media\//g, "/api/media/");
+  }
+  if (clean.startsWith("https://image.animem.uz/")) {
+    const fn = clean.replace("https://image.animem.uz/", "");
+    return `https://files.catbox.moe/${fn}`;
+  }
   if (clean.startsWith("/api/media/")) {
-    return `https://image.animem.uz${clean}`;
+    return clean;
   }
   if (clean.startsWith("/media/")) {
-    return `https://image.animem.uz/api${clean}`;
+    return `/api${clean}`;
   }
   return clean;
 }
@@ -927,7 +934,7 @@ var worker_default = {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
     await ensureTables(env);
-    const backendBase = (env.BACKEND_URL || "https://animem-uz-jasurfreefire3.wasmer.app").replace(/\/+$/, "");
+    const backendBase = (env.BACKEND_URL || "https://jasurfreefire3.wasmer.app").replace(/\/+$/, "");
     const isBackendRoute = path.startsWith("/api") || path.startsWith("/socket.io") || path.startsWith("/uploads") || path.startsWith("/media") || path.startsWith("/i/") || path.startsWith("/stream") || path.startsWith("/downloads") || path === "/sitemap.xml";
     if (isBackendRoute) {
       const targetUrl = backendBase + path + url.search;

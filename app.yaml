@@ -27,6 +27,7 @@ annotations:
 env:
   NODE_ENV: "production"
   PORT: "8080"
+  DATABASE_URL: "postgresql://neondb_owner:npg_jhWTP3GRHt2b@ep-small-glade-bb1ic8v3-pooler.c-15.us-east-1.aws.neon.tech/neondb?sslmode=require"
   JWT_SECRET: "animem_uz_secure_jwt_token_key_9f81a7b3c2d4e6f0a5b8c9d1e2f3a4b5c6d7e8f9a0"
   RECAPTCHA_SECRET: "6LdADY8tAAAAADio9AzwRTgqDCKluKa3pspF6aE3"
   R2_ACCOUNT_ID: "ae4b759aa4d1a48fef03cf9cf04a0f6f"
