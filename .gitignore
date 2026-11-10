@@ -27,7 +27,12 @@ app/node_modules
 .android_env/
 .idea/
 algo_lang/
-animem_flutter/
+animem_flutter/.dart_tool/
+animem_flutter/build/
+animem_flutter/.flutter-plugins*
+animem_flutter/android/.gradle/
+animem_flutter/android/.kotlin/
+animem_flutter/android/local.properties
 bot-animem-uz/
 *.apk
 *.vsix
