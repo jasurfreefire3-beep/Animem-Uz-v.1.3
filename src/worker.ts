@@ -6,7 +6,7 @@ import seedData from './seed_data.json';
 
 const ACCOUNT_ID = '778abe99df133217050e4af575708af8';
 const DATABASE_ID = '11e1d448-17a4-4156-ba89-434fa4e6bb1e';
-const STREAM_ORIGIN = 'https://s3.animem.uz';
+const STREAM_ORIGIN = 'https://animem-s3-bot-production.up.railway.app';
 const JWT_SECRET = 'animem-super-jwt-secret-key-2026-secure';
 const BOT_TOKEN = '8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw';
 const GEMINI_API_KEY = ['AQ.Ab8RN6JMX', 'AyDPpBlkHDNWvn', 'FSCyMXUBdNlDk2', 'aMIa7BK51yiyg'].join('');
@@ -1660,7 +1660,7 @@ export default {
     if (path.startsWith('/api/tgstream/')) {
       const targetUrl = STREAM_ORIGIN + path + url.search;
       const reqHeaders = new Headers(request.headers);
-      reqHeaders.set('Host', 's3.animem.uz');
+      reqHeaders.set('Host', 'animem-s3-bot-production.up.railway.app');
 
       const proxyResponse = await fetch(targetUrl, {
         method: request.method,

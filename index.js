@@ -124734,7 +124734,7 @@ app.get(["/phone", "/mobile", "/simulator"], (req, res) => {
   res.redirect("/");
 });
 app.get(["/api/tgstream/:channelId/:messageId", "/api/tghls/*"], (req, res) => {
-  res.redirect(302, `https://s3.animem.uz${req.url}`);
+  res.redirect(302, `https://animem-s3-bot-production.up.railway.app${req.url}`);
 });
 app.get("/api/animes", async (req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");

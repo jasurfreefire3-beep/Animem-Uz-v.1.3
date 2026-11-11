@@ -9,7 +9,7 @@ var seed_data_default = {
 };
 
 // src/worker.ts
-var STREAM_ORIGIN = "https://s3.animem.uz";
+var STREAM_ORIGIN = "https://animem-s3-bot-production.up.railway.app";
 var JWT_SECRET = "animem-super-jwt-secret-key-2026-secure";
 var BOT_TOKEN = "8976573921:AAFBvffm03fJ9hMw7nSJdVz2rI9DgDModfw";
 var GEMINI_API_KEY = ["AQ.Ab8RN6JMX", "AyDPpBlkHDNWvn", "FSCyMXUBdNlDk2", "aMIa7BK51yiyg"].join("");
@@ -1458,7 +1458,7 @@ Barcha anime va seriallarni tomosha qilishingiz mumkin.`,
     if (path.startsWith("/api/tgstream/")) {
       const targetUrl = STREAM_ORIGIN + path + url.search;
       const reqHeaders = new Headers(request.headers);
-      reqHeaders.set("Host", "s3.animem.uz");
+      reqHeaders.set("Host", "animem-s3-bot-production.up.railway.app");
       const proxyResponse = await fetch(targetUrl, {
         method: request.method,
         headers: reqHeaders
